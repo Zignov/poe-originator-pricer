@@ -36,45 +36,40 @@ if not ok:
 league = cfg.get("league")
 tabs = source.list_tabs(league)
 print(f"tabs visible: {len(tabs)}")
-if tab_name:
-    chosen = [t for t in tabs if t.name == tab_name]
-    if not chosen:
-        print(f"no tab named {tab_name!r}. Available:")
-        for t in tabs:
-            print(f"  - {t.name}")
-        raise SystemExit(1)
-else:
-    print("no tab given. Available tabs:")
-    for t in tabs:
-        print(f"  - {t.name}")
-    print()
-    print('Re-run with the one holding your Originator Maps, e.g.:')
-    print('  python scripts/inspect_stash_shape.py "Originator Maps"')
-    raise SystemExit(0)
-print(f"inspecting tab index {chosen[0].index}")
+# Find where rare MAPS actually live, then report the mod shape for those only.
+def is_rare_map(i):
+    base = (i.get("baseType") or "") + " " + (i.get("typeLine") or "")
+    return "Map" in base and i.get("frameType") == 2
 
-# Deliberately raw: going through the Originator filter reports zero whenever the
-# tab holds no in-scope maps, which tells us nothing about the payload shape.
-try:
-    data = source._get(
-        {"league": league, "tabs": 0, "tabIndex": chosen[0].index, "accountName": source.account_name}
-    )
-except StashAccessError as exc:
-    raise SystemExit(f"stash read failed: {exc}")
 
-payloads = [i for i in (data.get("items") or []) if isinstance(i, dict)]
-print(f"items in that tab: {len(payloads)}")
-rares = [i for i in payloads if i.get("explicitMods")]
-print(f"items carrying explicitMods: {len(rares)}")
-if not rares:
-    raise SystemExit("no modified items in this tab -- try one holding rare maps")
+targets = [t for t in tabs if t.name == tab_name] if tab_name else tabs
+found = []
+for tab in targets:
+    try:
+        data = source._get(
+            {"league": league, "tabs": 0, "tabIndex": tab.index,
+             "accountName": source.account_name}
+        )
+    except Exception as exc:
+        print(f"  {tab.name}: read failed ({exc})")
+        continue
+    items = [i for i in (data.get("items") or []) if isinstance(i, dict)]
+    maps = [i for i in items if is_rare_map(i)]
+    if items:
+        print(f"  {tab.name:<20} items {len(items):>3}   rare maps {len(maps):>3}")
+    found.extend(maps)
 
-raw = rares[0]
 print()
-print("top-level keys present:", sorted(raw.keys()))
+print(f"rare maps found: {len(found)}")
+if not found:
+    raise SystemExit("no rare maps in any tab -- nothing to inspect")
+
+raw = found[0]
+print("top-level keys:", sorted(raw.keys()))
 print("has 'extended':", "extended" in raw)
 if isinstance(raw.get("extended"), dict):
     print("  extended keys:", sorted(raw["extended"].keys()))
+    print("  extended:", {k: v for k, v in raw["extended"].items() if k != "text"})
 
 mods = raw.get("explicitMods")
 print()
@@ -84,26 +79,18 @@ if isinstance(mods, list) and mods:
     print("  entry type:", type(first).__name__)
     if isinstance(first, dict):
         print("  entry keys:", sorted(first.keys()))
-        subs = first.get("mods")
-        print("  has 'mods' sub-array:", bool(subs))
-        if subs and isinstance(subs, list) and isinstance(subs[0], dict):
-            print("  sub-keys:", sorted(subs[0].keys()))
-            print("  affix name present:", "name" in subs[0])
-            print("  affix tier present:", "tier" in subs[0])
+        print("  has 'mods' sub-array:", bool(first.get("mods")))
+    print("  line count on this map:", len(mods))
+    for m in mods:
+        text = m if isinstance(m, str) else m.get("description")
+        print("    -", text)
 
 with_tiers = sum(
-    1
-    for p in rares
-    for m in (p.get("explicitMods") or [])
+    1 for p in found for m in (p.get("explicitMods") or [])
     if isinstance(m, dict) and m.get("mods")
 )
-total = sum(1 for p in rares for m in (p.get("explicitMods") or []))
+total = sum(1 for p in found for m in (p.get("explicitMods") or []))
 print()
 print(f"modifier lines carrying affix name/tier: {with_tiers} of {total}")
-print()
-print(
-    "VERDICT: affix counting WILL work on this source"
-    if with_tiers and with_tiers == total
-    else "VERDICT: affix counting CANNOT work on this source as built -- "
-    "the payload carries modifier text only"
-)
+counts = sorted(len(p.get("explicitMods") or []) for p in found)
+print("explicit line counts per map:", counts)

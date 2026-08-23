@@ -30,7 +30,12 @@ from src.ml.features import (
     target_inverse,
     target_transform,
 )
-from src.ml.affix_catalogue import CATALOGUE_NAME, fit_catalogue, samples_from_rows
+from src.ml.affix_catalogue import (
+    CATALOGUE_NAME,
+    fit_catalogue,
+    payloads_from_rows,
+    samples_from_rows,
+)
 from src.ml.validation import choose_split, is_snapshot, metrics, rolling_time_folds
 from src.schema import FEATURE_NAMES
 
@@ -449,6 +454,7 @@ def _fit_affix_catalogue(cfg: Config, repo: Repository, log=print) -> None:
             samples_from_rows(rows),
             league=cfg.get("league"),
             map_tier=cfg.get("scope.map_tier"),
+            payloads=payloads_from_rows(rows),
         )
     except Exception as exc:  # noqa: BLE001 - never fail training over this
         log(f"affix catalogue: not fitted ({exc})")

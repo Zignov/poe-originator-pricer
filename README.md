@@ -289,12 +289,22 @@ Every map loaded from a stash source shows how many affixes it carries — `5/6`
 or `8/8` on a corrupted one — and, where a slot is still open, what an Exalted
 Orb is expected to be worth on it.
 
-**Counting affixes is not counting modifier lines.** One affix can print two
-lines, so a full six-affix map can show seven and look exaltable when it is not.
-The count comes from the affix names and tiers in the API payload, where a tier
-of `P0` is a prefix and `S1` a suffix, and distinct `(name, tier)` pairs are
-distinct affixes. Clipboard-pasted maps carry no such structure, so they report
-`affixes unknown` rather than a guess.
+**Counting affixes is not counting modifier lines.** One affix can print several
+lines — a real stash map showed eleven lines when a map holds at most eight
+affixes — so counting lines over-counts badly.
+
+Trade listings name every affix and its tier outright, and that is read directly.
+**A stash does not.** GGG's stash endpoints return each modifier as description
+text with no name, tier or `extended` block; verified against a live account,
+321 modifier lines across 45 rare maps carried none. So stash maps are resolved
+from their text instead, against a lookup harvested from the collected market,
+and the reading is checked against the map's own Item Quantity — quantity is
+exactly the sum of per-affix contributions, so "one affix or two?" implies
+different totals and the reported number settles it.
+
+Measured against ground truth on 1838 listings, with names and tiers stripped to
+imitate a stash payload: **the affix count is correct on every one**, the
+prefix/suffix split is wrong on 14, and 5 report unknown rather than guess.
 
 **The verdict is arithmetic, not a heuristic.** A map's `Item Quantity: +84%` is
 the *sum* of what each rolled affix contributes, so the whole contribution table

@@ -17,8 +17,18 @@ from src.ui.common import get_catalogue, get_exalt_cost, get_predictor
 
 
 def affixes_for(item: NormalizedMap) -> AffixSet:
-    """Affix structure of a map, from the payload its source preserved."""
-    return extract_affixes(item.raw_item_data or {})
+    """Affix structure of a map, from the payload its source preserved.
+
+    Trade payloads name every affix outright. Stash payloads carry modifier text
+    and nothing else, so those go through the catalogue, which resolves the text
+    against what it learned from the market and checks the reading against the
+    map's own Item Quantity.
+    """
+    payload = item.raw_item_data or {}
+    catalogue = get_catalogue()
+    if catalogue is not None:
+        return catalogue.read_affixes(payload)
+    return extract_affixes(payload)
 
 
 def affix_label(item: NormalizedMap) -> str:
