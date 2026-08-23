@@ -120,9 +120,14 @@ def render() -> None:
         st.subheader("Stash layout")
         st.caption(
             f"Tiles show the suggested listing price on the "
-            f"**{STRATEGY_LABELS[strategy].lower()}** strategy. Hover for fair value."
+            f"**{STRATEGY_LABELS[strategy].lower()}** strategy, outlined by whether "
+            "an Exalted Orb pays for itself. Hover for fair value and the exalt call."
         )
-        render_grid(priced, fmt)
+        # Verdicts are keyed by object identity so the grid never has to know how
+        # a map is priced -- ~2ms each, so a full tab costs about a tenth of a
+        # second per rerun.
+        verdicts = {id(p): verdict_for(p.item) for p in priced if p.supported}
+        render_grid(priced, fmt, verdicts=verdicts)
         total = sum(p.suggested_chaos or 0 for p in supported)
         st.metric("Tab total (suggested)", fmt.format(total))
 

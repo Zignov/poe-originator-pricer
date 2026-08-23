@@ -18,6 +18,7 @@ import streamlit as st
 
 from src.market.comparables import percentile_bands, value_category
 from src.pricing.display import PriceFormatter
+from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
 from src.ui.common import VALUE_COLOURS
 
@@ -28,6 +29,7 @@ def render_grid(
     width: int = 12,
     height: int = 12,
     cell_px: int = 46,
+    verdicts: dict[int, ExaltVerdict] | None = None,
 ) -> None:
     """Draw the grid. Colour bands are percentiles of this tab, not fixed values."""
     values = [_tile_price(p) for p in priced if p.supported and p.estimate is not None]
@@ -51,7 +53,7 @@ def render_grid(
             if entry is None:
                 cells.append('<div class="stash-cell"></div>')
                 continue
-            tooltip = _tooltip(entry, fmt)
+            tooltip = _tooltip(entry, fmt, (verdicts or {}).get(id(entry)))
             if not entry.supported:
                 cells.append(
                     f'<div class="stash-cell unsupported" title="{tooltip}">-</div>'
@@ -59,8 +61,9 @@ def render_grid(
                 continue
             price = _tile_price(entry)
             colour = VALUE_COLOURS[value_category(price, bands)]
+            ring = exalt_class((verdicts or {}).get(id(entry)))
             cells.append(
-                f'<div class="stash-cell filled" style="background:{colour}" '
+                f'<div class="stash-cell filled {ring}" style="background:{colour}" '
                 f'title="{tooltip}">{fmt.format(price)}</div>'
             )
 
@@ -72,6 +75,23 @@ def render_grid(
         unsafe_allow_html=True,
     )
     _legend(bands, fmt, len(values))
+    if verdicts:
+        _exalt_legend()
+
+
+#: Ring drawn round a tile whose map is worth an Exalted Orb, and round one that
+#: can take an orb but would not repay it. A map that cannot be exalted at all --
+#: full, corrupted, or with unreadable affixes -- gets neither, because an
+#: outline there would invite spending currency on something that cannot use it.
+EXALT_YES_CLASS = "exalt-worth"
+EXALT_NO_CLASS = "exalt-skip"
+
+
+def exalt_class(verdict: ExaltVerdict | None) -> str:
+    """Which ring, if any, belongs on this tile."""
+    if verdict is None or not verdict.available:
+        return ""
+    return EXALT_YES_CLASS if (verdict.net_gain_chaos or 0.0) > 0 else EXALT_NO_CLASS
 
 
 def _tile_price(entry: PricedMap) -> float:
@@ -88,6 +108,27 @@ def _tile_price(entry: PricedMap) -> float:
 #: Below this many priced maps the percentile bands are too close together to
 #: label meaningfully -- every edge rounds to the same number.
 MIN_FOR_BANDS = 8
+
+
+def _exalt_legend() -> None:
+    """Key for the two rings.
+
+    Rendered separately from the value bands: those are suppressed on a tab with
+    too few maps to make percentiles meaningful, and the rings are still drawn
+    there, so folding this into that block left them unexplained.
+    """
+    st.markdown(
+        '<div class="legend">'
+        '<div><span class="swatch" style="background:transparent;'
+        'outline:2px solid #39d0d8;outline-offset:-2px"></span>worth an exalt</div>'
+        '<div><span class="swatch" style="background:transparent;'
+        'outline:2px dashed rgba(220,220,225,.5);outline-offset:-2px"></span>'
+        "not worth the orb</div>"
+        '<div><span class="swatch" style="background:transparent;'
+        'border:1px solid rgba(128,128,128,.35)"></span>cannot be exalted</div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
@@ -129,7 +170,7 @@ def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
     )
 
 
-def _tooltip(entry: PricedMap, fmt: PriceFormatter) -> str:
+def _tooltip(entry: PricedMap, fmt: PriceFormatter, verdict: ExaltVerdict | None = None) -> str:
     item = entry.item
     lines = [
         f"{item.position_label()}  {item.name or item.base_type}",
@@ -152,4 +193,18 @@ def _tooltip(entry: PricedMap, fmt: PriceFormatter) -> str:
         ]
     else:
         lines += ["", f"Unsupported: {item.unsupported_reason}"]
+
+    if verdict is not None:
+        lines.append("")
+        if not verdict.available:
+            lines.append(f"Exalt: {verdict.reason}")
+        else:
+            lines.append(
+                f"Exalt: {verdict.affix_label}, "
+                + (
+                    f"worth it (+{fmt.format(verdict.net_gain_chaos)} net)"
+                    if (verdict.net_gain_chaos or 0) > 0
+                    else f"not worth it ({fmt.format(verdict.net_gain_chaos)} net)"
+                )
+            )
     return "&#10;".join(lines).replace('"', "'")

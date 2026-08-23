@@ -57,6 +57,19 @@ CSS = """
   overflow: hidden; text-align: center; line-height: 1.05;
 }
 .stash-cell.filled { color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+/* Exalt state. Cyan appears nowhere in VALUE_COLOURS, so the ring stays legible
+   on all four value backgrounds; solid vs dashed carries the same meaning again
+   for anyone who cannot separate the two colours. Drawn with outline rather than
+   border so tile size and grid alignment are untouched. */
+.stash-cell.exalt-worth {
+  outline: 2px solid #39d0d8;
+  outline-offset: -2px;
+}
+.stash-cell.exalt-skip {
+  outline: 2px dashed rgba(220,220,225,.5);
+  outline-offset: -2px;
+}
+
 .stash-cell.unsupported {
   background: repeating-linear-gradient(45deg,
     rgba(128,128,128,.22) 0 5px, rgba(128,128,128,.10) 5px 10px);

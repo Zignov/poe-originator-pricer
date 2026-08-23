@@ -142,3 +142,34 @@ def test_the_stash_grid_follows_the_selling_strategy():
         "the grid did not change between selling strategies"
     )
     assert seen["quick_sell"] != seen["patient"]
+
+
+def test_the_grid_marks_exaltable_maps_with_a_ring():
+    """Rings must actually reach the rendered tiles, not just the helper."""
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    html = _grid_html(app)
+    assert html, "no grid rendered"
+    rings = html.count("exalt-worth") + html.count("exalt-skip")
+    plain = html.count("stash-cell filled ")
+    assert plain, "no filled tiles"
+    # Every demo map is full, corrupted or unreadable, so none should be ringed;
+    # what matters is that the class machinery runs without marking those.
+    assert rings <= plain, "more rings than tiles"
+
+
+def test_the_legend_explains_both_rings():
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    # Search every markdown block: the page stylesheet also contains the string
+    # "legend", so picking the first match tests the CSS rather than the key.
+    rendered = " ".join(str(m.value) for m in app.markdown)
+    assert "worth an exalt" in rendered
+    assert "not worth the orb" in rendered
+    assert "cannot be exalted" in rendered

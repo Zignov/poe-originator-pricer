@@ -261,7 +261,9 @@ You get:
 
 - a **stash grid** with the suggested listing price for the selected selling
   strategy drawn on each map's real `x`/`y` position — hover a tile for the
-  fair value behind it — colour-banded by value (percentiles of *this tab*, not hardcoded
+  fair value and the exalt call behind it — outlined by whether an Exalted Orb
+  pays for itself (solid cyan yes, dashed no, no outline on a map that cannot
+  take one at all), colour-banded by value (percentiles of *this tab*, not hardcoded
   league thresholds), with full details on hover;
 - a **sortable table** — by value, by any reward, by pack size, by confidence, or
   by stash position;
