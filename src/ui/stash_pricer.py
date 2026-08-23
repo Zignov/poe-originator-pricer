@@ -129,7 +129,7 @@ def render() -> None:
     with table_col:
         st.subheader("Maps")
         if not visible:
-            st.info("No maps match the current filters.")
+            st.info(_no_matches_reason(priced, exaltable_only))
         else:
             frame = service.to_frame(visible)
             # Derived here rather than in PricedMap: the affix structure comes
@@ -304,6 +304,30 @@ def _from_clipboard(cfg):
 
 
 # ---------------------------------------------------------------------------
+def _no_matches_reason(priced, exaltable_only: bool) -> str:
+    """Say *why* nothing matched, rather than leaving an empty table.
+
+    The common case is not a strict filter: GGG's stash endpoints return each
+    modifier as description text with no affix name or tier, so affix counts
+    cannot be derived from a stash at all and every map is "unknown" rather than
+    exaltable. Silently showing nothing made that look like a bug in the filter.
+    """
+    if not exaltable_only:
+        return "No maps match the current filters."
+
+    states = [affixes_for(p.item) for p in priced]
+    if states and not any(a.known for a in states):
+        return (
+            "No affix data in this stash payload, so no map can be judged exaltable. "
+            "GGG's stash endpoints return modifier text only — no affix names or "
+            "tiers — which is what the Affixes column is showing as `-`. Affix "
+            "counts currently only work on maps that came from the trade API."
+        )
+    if states and all(a.corrupted or a.is_full for a in states if a.known):
+        return "Every map here is either corrupted or already has all its affixes."
+    return "No maps match the current filters."
+
+
 def _price_columns(frame, fmt):
     """Number formatting for every price column, in the chosen unit."""
     digits = 0 if fmt.unit == "chaos" else 2
