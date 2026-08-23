@@ -1,0 +1,21 @@
+numpy>=2.0
+pandas>=2.2
+scikit-learn>=1.5
+scipy>=1.13
+requests>=2.32
+PyYAML>=6.0
+python-dotenv>=1.0
+streamlit>=1.40
+altair>=5.4
+
+# Gradient boosting backends. All optional: src/ml/models.py degrades to
+# scikit-learn's HistGradientBoostingRegressor if none of these import.
+catboost>=1.2
+lightgbm>=4.5
+xgboost>=2.1
+
+# Model explanation. Optional: src/ml/explain.py falls back to a
+# tree-path attribution when shap is unavailable.
+shap>=0.46
+
+pytest>=8.0

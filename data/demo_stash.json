@@ -1,0 +1,3558 @@
+{
+ "tabs": [
+  {
+   "i": 0,
+   "n": "Originator Maps"
+  }
+ ],
+ "tabIndex": 0,
+ "items": [
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzNiIsInciOjEsImgiOjEsInNjYWxlIjoxLCJtbiI6MjQsIm10IjowLCJtbSI6dHJ1ZX1d/f094384030/MapNumbers6.png",
+   "league": "Allflame",
+   "id": "03f59989b6c85a42d1c909893c8a854bd342215f7ce1d85ca67edfff9fc9f252",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 6)",
+   "baseType": "Map (Tier 6)",
+   "rarity": "Magic",
+   "ilvl": 69,
+   "identified": false,
+   "note": "~price 1 chaos",
+   "monsterLevel": 73,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 1,
+   "frameTypeId": "Magic",
+   "x": 0,
+   "y": 0
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibWMiOjMsIm1tIjp0cnVlfV0/bf3af4c40c/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "87440608d0ad49e33762be4334f1cf6bdfb6e73cd0e806333042255376865821",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 83,
+   "identified": false,
+   "note": "~b/o 10 mirror",
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Map contains Al-Hezmin's Citadel\nItem Quantity increases amount of Rewards Al-Hezmin drops by 20% of its value",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2563183002|3",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": 1,
+         "max": 1
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 1,
+   "y": 0
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "c317ab44c07a8b7e2629d90869f74b842e138eb29735cc8da2b8e86ecbf13b93",
+   "memoryItem": true,
+   "name": "Vortex Invocation",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 84,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+113%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+143%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+42%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+70%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+94%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "92% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Frenzy Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3900284865",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Frenzy Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1742567045",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Power Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1103106414",
+     "mods": [
+      {
+       "name": "of Power",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Power Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_406353061",
+     "mods": [
+      {
+       "name": "of Power",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 41% of Maximum Life as Extra Maximum Energy Shield",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2887760183",
+     "mods": [
+      {
+       "name": "Buffered",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "40",
+         "max": "49"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 99% of their Physical Damage as Extra Chaos Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1840747977",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "80",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 40% less effect of Flasks applied to them",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1207482628",
+     "mods": [
+      {
+       "name": "Diluted",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "-40",
+         "max": "-40"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 55% reduced Maximum total Life, Mana and Energy Shield Recovery per second from Leech",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2946888410",
+     "mods": [
+      {
+       "name": "of Congealment",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "-60",
+         "max": "-50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 25% less Area of Effect",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2312028586",
+     "mods": [
+      {
+       "name": "of Impotence",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "25",
+         "max": "25"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 2,
+   "y": 0
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzNiIsInciOjEsImgiOjEsInNjYWxlIjoxLCJtbiI6MjQsIm10IjowLCJtbSI6dHJ1ZX1d/f094384030/MapNumbers6.png",
+   "league": "Allflame",
+   "id": "ce26e164c0d261e07a2635ed4eabf26fcde37b0315111cfee6f5da6a9d252af8",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Valdo's Map of Penetration (Tier 6)",
+   "baseType": "Map (Tier 6)",
+   "rarity": "Magic",
+   "ilvl": 73,
+   "identified": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+32%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+83%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+26%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    }
+   ],
+   "monsterLevel": 73,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Monster Damage Penetrates 15% Elemental Resistances",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1898978455",
+     "mods": [
+      {
+       "name": "of Penetration",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Rare monsters in area are Shaper-Touched",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2931889194",
+     "mods": [
+      {
+       "name": "Valdo's",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 1,
+   "frameTypeId": "Magic",
+   "x": 3,
+   "y": 0
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "96f26a5cb4f98c2b8680bc6fa7c119adddec18c5474683a7716e724cf45fc49a",
+   "memoryItem": true,
+   "name": "Ominous Carving",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 84,
+   "identified": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+87%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+115%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "91% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Frenzy Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1742567045",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain an Endurance Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_687813731",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 31% of their Physical Damage as Extra Chaos Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1840747977",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "31",
+         "max": "35"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 195% of their Physical Damage as Extra Damage of a random Element",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_4062840317",
+     "mods": [
+      {
+       "name": "Prismatic",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "180",
+         "max": "200"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters Inflict Withered for 2 seconds on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3044826007",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Area contains Unstable Tentacle Fiends",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1943574423",
+     "mods": [
+      {
+       "name": "of Decaying",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 4,
+   "y": 0
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "d15e3778b3bd62d6da7d53c8e026c3f198a387ffddbd20a061cd34433ba8eca6",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Normal",
+   "ilvl": 84,
+   "identified": true,
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 0,
+   "frameTypeId": "Normal",
+   "x": 5,
+   "y": 0
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "375570454b9c78e51b026a76fabd5ae998f1e515cbf23be57ef601ec45d07c2a",
+   "memoryItem": true,
+   "name": "Death Voyage",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 84,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+104%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+69%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+56%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+70%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Scarabs",
+     "values": [
+      [
+       "+35%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 89
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players are Cursed with Vulnerability",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1366534040",
+     "mods": [
+      {
+       "name": "of Curses",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players are Cursed with Temporal Chains",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2326202293",
+     "mods": [
+      {
+       "name": "of Curses",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players are Cursed with Elemental Weakness",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_558910024",
+     "mods": [
+      {
+       "name": "of Curses",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "95% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Frenzy Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3900284865",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Frenzy Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1742567045",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Endurance Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_4067268731",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain an Endurance Charge when hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3707756896",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have a 50% chance to avoid Poison, Impale, and Bleeding",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_144665660",
+     "mods": [
+      {
+       "name": "Impervious",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "50",
+         "max": "50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 31% of their Physical Damage as Extra Chaos Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1840747977",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "31",
+         "max": "35"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters Inflict Withered for 2 seconds on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3044826007",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 40% less Cooldown Recovery Rate",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_941368244",
+     "mods": [
+      {
+       "name": "of Fatigue",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "-40",
+         "max": "-40"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Rare monsters in area are Shaper-Touched",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2931889194",
+     "mods": [
+      {
+       "name": "Valdo's",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 0,
+   "y": 1
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "722109adac8220d61fcbe8f994e87e07795d4788824e9891101dd43a76fe1410",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Normal",
+   "ilvl": 83,
+   "identified": true,
+   "note": "~b/o 6969 divine",
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      },
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 0,
+   "frameTypeId": "Normal",
+   "x": 1,
+   "y": 1
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "14de8e4bbe645c124cfdd09f86af40e0cf3043cdc2448e4eb93810aaa5a25e36",
+   "memoryItem": true,
+   "name": "Woe Course",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 83,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+113%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+65%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+41%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+70%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players are Cursed with Enfeeble",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_4103440490",
+     "mods": [
+      {
+       "name": "of Enfeeblement",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have -9% to all maximum Resistances",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3376488707",
+     "mods": [
+      {
+       "name": "of Exposure",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "-12",
+         "max": "-9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "125% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Unwavering",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "25",
+         "max": "30"
+        }
+       ]
+      },
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Rare Monsters have [PhysicalThorns|Physical Thorns] reflecting 800 Physical Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3278889477",
+     "mods": [
+      {
+       "name": "Punishing",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "800",
+         "max": "800"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters cannot be Stunned",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1041951480",
+     "mods": [
+      {
+       "name": "Unwavering",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 71% of Maximum Life as Extra Maximum Energy Shield",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2887760183",
+     "mods": [
+      {
+       "name": "Buffered",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "70",
+         "max": "80"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "25% chance for Rare Monsters to Fracture on death",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3097694855",
+     "mods": [
+      {
+       "name": "of Splinters",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "25",
+         "max": "25"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Unique Monsters have a random Shrine Buff",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_872972810",
+     "mods": [
+      {
+       "name": "of Domination",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 2,
+   "y": 1
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "74820e202611bce04b087d410486573480486a2397823edc401963d5e03fd98b",
+   "memoryItem": true,
+   "name": "Havoc Grind",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 85,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+113%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+149%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+42%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+70%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players are Cursed with Temporal Chains",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2326202293",
+     "mods": [
+      {
+       "name": "of Temporal Chains",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "100% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Endurance Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_4067268731",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Power Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1103106414",
+     "mods": [
+      {
+       "name": "of Power",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Power Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_406353061",
+     "mods": [
+      {
+       "name": "of Power",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters' Attacks have 60% chance to Impale on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1541224187",
+     "mods": [
+      {
+       "name": "Impaling",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "60",
+         "max": "60"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain an Endurance Charge when hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3707756896",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 42% of Maximum Life as Extra Maximum Energy Shield",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2887760183",
+     "mods": [
+      {
+       "name": "Buffered",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "40",
+         "max": "49"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 90% of their Physical Damage as Extra Chaos Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1840747977",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "80",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Auras from Player Skills which affect Allies also affect Enemies",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2156372077",
+     "mods": [
+      {
+       "name": "of Treachery",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 3,
+   "y": 1
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzNiIsInciOjEsImgiOjEsInNjYWxlIjoxLCJtbiI6MjQsIm10IjowLCJtbSI6dHJ1ZX1d/f094384030/MapNumbers6.png",
+   "league": "Allflame",
+   "id": "44d4062d0ddc3a66d93f1743237647c0f81120c24845b001ea801c353537952e",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 6)",
+   "baseType": "Map (Tier 6)",
+   "rarity": "Rare",
+   "ilvl": 69,
+   "identified": false,
+   "monsterLevel": 73,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 4,
+   "y": 1
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "85487a641df973ad80ef39e5188490058a2287e7b660314722ed888773f72d4f",
+   "memoryItem": true,
+   "name": "Mind Portent",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 85,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+113%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+113%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+43%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+105%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "92% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have 100% increased Area of Effect",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1708461270",
+     "mods": [
+      {
+       "name": "of Giants",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "36% increased Monster Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1890519597",
+     "mods": [
+      {
+       "name": "Savage",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "30",
+         "max": "40"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "+50% Monster Physical Damage Reduction",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_839186746",
+     "mods": [
+      {
+       "name": "Protected",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "50",
+         "max": "50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Endurance Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_4067268731",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain an Endurance Charge when hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3707756896",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "+35% Monster Chaos Resistance",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_365540634",
+     "mods": [
+      {
+       "name": "Protected",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "35",
+         "max": "35"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "+55% Monster Elemental Resistances",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1054098949",
+     "mods": [
+      {
+       "name": "Protected",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "55",
+         "max": "55"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 31% of their Physical Damage as Extra Chaos Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1840747977",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "31",
+         "max": "35"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters Inflict Withered for 2 seconds on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3044826007",
+     "mods": [
+      {
+       "name": "Profane",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 25% less Area of Effect",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2312028586",
+     "mods": [
+      {
+       "name": "of Impotence",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "25",
+         "max": "25"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Unique Monsters have a random Shrine Buff",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_872972810",
+     "mods": [
+      {
+       "name": "of Domination",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 5,
+   "y": 1
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "7d197c96742a81a730945154f371b4d134ad56e024042d15042623bb0d69abdc",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Normal",
+   "ilvl": 84,
+   "identified": true,
+   "note": "~b/o 4 mirror",
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 0,
+   "frameTypeId": "Normal",
+   "x": 0,
+   "y": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "049eb25cead775c8cd1d9d96dfa63d673b628cdf6ca220334bd2e99ffbfc3b51",
+   "memoryItem": true,
+   "name": "Hollow Crosscut",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 85,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+110%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+65%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+41%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Scarabs",
+     "values": [
+      [
+       "+36%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 89
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players have -10% to all maximum Resistances",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3376488707",
+     "mods": [
+      {
+       "name": "of Exposure",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "-12",
+         "max": "-9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have 100% increased Area of Effect",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1708461270",
+     "mods": [
+      {
+       "name": "of Giants",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +50% Chance to Block Attack Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_881836292",
+     "mods": [
+      {
+       "name": "Stalwart",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "50",
+         "max": "50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters cannot be Taunted",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1106651798",
+     "mods": [
+      {
+       "name": "Unstoppable",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_798009319",
+     "mods": [
+      {
+       "name": "Unstoppable",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have a 20% chance to Ignite, Freeze and Shock on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2553656203",
+     "mods": [
+      {
+       "name": "Empowered",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "20",
+         "max": "20"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +60% chance to Suppress Spell Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2138205941",
+     "mods": [
+      {
+       "name": "Oppressive",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "60",
+         "max": "60"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Area contains patches of moving Marked Ground, inflicting random Marks",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2796704737",
+     "mods": [
+      {
+       "name": "of Marking",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 30% less Armour",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_272758639",
+     "mods": [
+      {
+       "name": "of Rust",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "30",
+         "max": "30"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 40% reduced Chance to Block",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3729221884",
+     "mods": [
+      {
+       "name": "of Rust",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "40",
+         "max": "40"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 1,
+   "y": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "7ca739651a79a0bde356f6a6606ae608afd2541c7cfd14f58c20b89ae73b3c86",
+   "memoryItem": true,
+   "name": "Pain Secrets",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 83,
+   "identified": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+84%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+49%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+46%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+70%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players have -11% to all maximum Resistances",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3376488707",
+     "mods": [
+      {
+       "name": "of Exposure",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "-12",
+         "max": "-9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Frenzy Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3900284865",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Frenzy Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1742567045",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Power Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1103106414",
+     "mods": [
+      {
+       "name": "of Power",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Power Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_406353061",
+     "mods": [
+      {
+       "name": "of Power",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "All Monster Damage from Hits always Ignites",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_816367946",
+     "mods": [
+      {
+       "name": "Conflagrating",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "60% less effect of Curses on Monsters",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3796523155",
+     "mods": [
+      {
+       "name": "Hexwarded",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "60",
+         "max": "60"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Area contains Drowning Orbs",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_25225034",
+     "mods": [
+      {
+       "name": "Hungering",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 2,
+   "y": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "a0c12969128a91d5eb0be2535b203a500c80119ac1bc10b404eb2b69c7044443",
+   "memoryItem": true,
+   "name": "Terror Solace",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 84,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+107%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+159%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+41%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+40%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Area has patches of Shocked Ground which increase Damage taken by 50%",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3246076198",
+     "mods": [
+      {
+       "name": "of Lightning",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "50",
+         "max": "50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "23% increased Monster Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1890519597",
+     "mods": [
+      {
+       "name": "Savage",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "22",
+         "max": "25"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters take 36% reduced Extra Damage from Critical Strikes",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_337935900",
+     "mods": [
+      {
+       "name": "of Toughness",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "35",
+         "max": "45"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters inflict 2 Grasping Vines on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1751584857",
+     "mods": [
+      {
+       "name": "Grasping",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "2",
+         "max": "2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain 45% of Maximum Life as Extra Maximum Energy Shield",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2887760183",
+     "mods": [
+      {
+       "name": "Buffered",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "40",
+         "max": "49"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 25% less Accuracy Rating",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3667574329",
+     "mods": [
+      {
+       "name": "of Imprecision",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "-25",
+         "max": "-25"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Auras from Player Skills which affect Allies also affect Enemies",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2156372077",
+     "mods": [
+      {
+       "name": "of Treachery",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players are assaulted by Bloodstained Sawblades",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3052102815",
+     "mods": [
+      {
+       "name": "Ultimate",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 3,
+   "y": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "f855d9999fe83bb056d8aef857be31fad5786b57829e6f9765f3db2ea2716ac7",
+   "memoryItem": true,
+   "name": "Grim Solace",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 84,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+113%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+116%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+58%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Maps",
+     "values": [
+      [
+       "+70%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 88
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players are Cursed with Vulnerability",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1366534040",
+     "mods": [
+      {
+       "name": "of Vulnerability",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "15",
+         "max": "15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "27% increased Monster Movement Speed",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2306522833",
+     "mods": [
+      {
+       "name": "Fleet",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "25",
+         "max": "30"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "44% increased Monster Attack Speed",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1913583994",
+     "mods": [
+      {
+       "name": "Fleet",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "35",
+         "max": "45"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "39% increased Monster Cast Speed",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2488361432",
+     "mods": [
+      {
+       "name": "Fleet",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "35",
+         "max": "45"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters deal 110% extra Physical Damage as Cold",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3448216135",
+     "mods": [
+      {
+       "name": "Freezing",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "110"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Frenzy Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3900284865",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain a Frenzy Charge on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1742567045",
+     "mods": [
+      {
+       "name": "of Frenzy",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +1 to Maximum Endurance Charges",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_4067268731",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters gain an Endurance Charge when hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3707756896",
+     "mods": [
+      {
+       "name": "of Endurance",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +50% Chance to Block Attack Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_881836292",
+     "mods": [
+      {
+       "name": "Stalwart",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "50",
+         "max": "50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 30% less Armour",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_272758639",
+     "mods": [
+      {
+       "name": "of Rust",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "30",
+         "max": "30"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 40% reduced Chance to Block",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3729221884",
+     "mods": [
+      {
+       "name": "of Rust",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "40",
+         "max": "40"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Rare monsters in area are Shaper-Touched",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2931889194",
+     "mods": [
+      {
+       "name": "Valdo's",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 4,
+   "y": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "779e5963103e03f012e6fe53b2485c20b60c9caebf4d48eb542cc7e577c935d9",
+   "memoryItem": true,
+   "name": "",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Normal",
+   "ilvl": 84,
+   "identified": true,
+   "note": "~b/o 5 mirror",
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 0,
+   "frameTypeId": "Normal",
+   "x": 5,
+   "y": 2
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "eff61ebfff99c3be483a307c63cf84cfdf5951c223303ceb19353ce41ccf03b9",
+   "memoryItem": true,
+   "name": "Hollow Crosscut",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 85,
+   "identified": true,
+   "corrupted": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+110%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+65%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+41%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Scarabs",
+     "values": [
+      [
+       "+36%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 89
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "Players have -10% to all maximum Resistances",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3376488707",
+     "mods": [
+      {
+       "name": "of Exposure",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "-12",
+         "max": "-9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have 100% increased Area of Effect",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1708461270",
+     "mods": [
+      {
+       "name": "of Giants",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "100",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +50% Chance to Block Attack Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_881836292",
+     "mods": [
+      {
+       "name": "Stalwart",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "50",
+         "max": "50"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters cannot be Taunted",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1106651798",
+     "mods": [
+      {
+       "name": "Unstoppable",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_798009319",
+     "mods": [
+      {
+       "name": "Unstoppable",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have a 20% chance to Ignite, Freeze and Shock on Hit",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2553656203",
+     "mods": [
+      {
+       "name": "Empowered",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "20",
+         "max": "20"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have +60% chance to Suppress Spell Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2138205941",
+     "mods": [
+      {
+       "name": "Oppressive",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "60",
+         "max": "60"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Area contains patches of moving Marked Ground, inflicting random Marks",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2796704737",
+     "mods": [
+      {
+       "name": "of Marking",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 30% less Armour",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_272758639",
+     "mods": [
+      {
+       "name": "of Rust",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "30",
+         "max": "30"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 40% reduced Chance to Block",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_3729221884",
+     "mods": [
+      {
+       "name": "of Rust",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "40",
+         "max": "40"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 0,
+   "y": 3
+  },
+  {
+   "verified": true,
+   "w": 1,
+   "h": 1,
+   "icon": "https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9BdGxhczJNYXBzL05ldy9NYXBOdW1iZXJzMTYiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwibW4iOjI0LCJtdCI6MCwibW0iOnRydWV9XQ/29434e838e/MapNumbers16.png",
+   "league": "Allflame",
+   "id": "9885e95b8cb05c50475ad8c452621be4cd48da3e17855d4f6aeab85b04c53e09",
+   "memoryItem": true,
+   "name": "Warped Desire",
+   "typeLine": "Map (Tier 16)",
+   "baseType": "Map (Tier 16)",
+   "rarity": "Rare",
+   "ilvl": 84,
+   "identified": true,
+   "properties": [
+    {
+     "name": "Item Quantity",
+     "values": [
+      [
+       "+87%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 2
+    },
+    {
+     "name": "Item Rarity",
+     "values": [
+      [
+       "+98%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 3
+    },
+    {
+     "name": "Monster Pack Size",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 4
+    },
+    {
+     "name": "More Scarabs",
+     "values": [
+      [
+       "+35%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 89
+    },
+    {
+     "name": "More Currency",
+     "values": [
+      [
+       "+47%",
+       1
+      ]
+     ],
+     "displayMode": 0,
+     "type": 90
+    }
+   ],
+   "monsterLevel": 83,
+   "implicitMods": [
+    {
+     "description": "Area is Influenced by the Originator's Memories",
+     "domain": "implicit",
+     "hash": "stat.implicit.stat_2696470877",
+     "mods": [
+      {
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "explicitMods": [
+    {
+     "description": "94% more Monster Life",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_95249895",
+     "mods": [
+      {
+       "name": "Fecund",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "90",
+         "max": "100"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Monsters have 369% increased Critical Strike Chance",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_2753083623",
+     "mods": [
+      {
+       "name": "of Deadliness",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "360",
+         "max": "400"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "+44% to Monster Critical Strike Multiplier",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_57326096",
+     "mods": [
+      {
+       "name": "of Deadliness",
+       "tier": "S0",
+       "magnitudes": [
+        {
+         "min": "41",
+         "max": "45"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "34% increased Monster Damage",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1890519597",
+     "mods": [
+      {
+       "name": "Savage",
+       "tier": "P1",
+       "magnitudes": [
+        {
+         "min": "30",
+         "max": "40"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "All Monster Damage from Hits always Ignites",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_816367946",
+     "mods": [
+      {
+       "name": "Conflagrating",
+       "tier": "P0",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Area contains Unstable Tentacle Fiends",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_1943574423",
+     "mods": [
+      {
+       "name": "of Decaying",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "1",
+         "max": "1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "description": "Players have 26% less Defences",
+     "domain": "explicit",
+     "hash": "stat.explicit.stat_943960754",
+     "mods": [
+      {
+       "name": "of Miring",
+       "tier": "S1",
+       "magnitudes": [
+        {
+         "min": "-30",
+         "max": "-25"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "descrText": "Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once. ",
+   "frameType": 2,
+   "frameTypeId": "Rare",
+   "x": 1,
+   "y": 3
+  }
+ ]
+}

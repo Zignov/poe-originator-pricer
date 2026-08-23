@@ -1,0 +1,71 @@
+# Copy to config.yaml and edit. config.yaml is read in preference to this file.
+
+league: Allflame          # 3.29 challenge league. Verified against
+                          # https://www.pathofexile.com/api/trade/data/leagues
+realm: pc
+
+database:
+  path: data/originator.db
+
+model:
+  directory: models
+  # Backend preference order. The first one that imports and trains wins.
+  # Falls back to sklearn_hgb, which is always available.
+  backends: [catboost, catboost_mae, lightgbm, lightgbm_mae, xgboost, sklearn_hgb]
+  target: log1p          # "log1p" or "raw" -- see docs/architecture.md
+  retrain_interval_hours: 24
+
+display:
+  # Unit prices are shown in. Everything is stored and modelled in chaos; this
+  # only changes what you read. "auto" uses chaos below ~2000c and divine above.
+  currency: chaos          # chaos | divine | auto
+
+currency:
+  # Divine -> chaos conversion. NOT a permanent constant: override it in the
+  # Settings page or with `python -m src.cli set-rate <value>`.
+  divine_to_chaos: 220.0
+
+market:
+  # Listings older than this are excluded from training by default.
+  max_age_days: 7
+  # Absolute sanity bounds in chaos. Anything outside is flagged as an outlier.
+  # Observed 3.29 uncorrupted T16 spread on 820 collected listings: median ~40c,
+  # 90th ~300c, 95th ~460c, 99th ~920c, 99.5th ~1150c, max 69000c. The bulk of
+  # the market is 30c to 3 divine, so the ceiling sits just above that at 1000c:
+  # the 0.7% of listings above it are parked inventory and price-fixing asks,
+  # and left in they dominate every chart and drag the model's high end upward.
+  # The floor at 5c cuts unpriced-in-all-but-name junk without touching the
+  # genuinely cheap maps that make up the bottom quartile (~10c).
+  plausible_price_chaos: [5, 1000]
+  # The range you actually expect to trade in -- 30c to 3 divine at the current
+  # rate. Used only to focus charts, never to exclude data or clamp a prediction.
+  typical_price_chaos: [30, 660]
+  # Recency weights applied during training, as (max_age_hours, weight) pairs.
+  # These are a starting point only; tune them with `python -m src.cli train --tune-weights`.
+  recency_weights:
+    - [12, 1.0]
+    - [24, 0.9]
+    - [72, 0.7]
+    - [168, 0.4]
+    - [999999, 0.2]
+
+pricing:
+  # Multipliers applied to fair value. Re-estimated from observed spread once
+  # enough market data exists; see src/pricing/sell_strategy.py.
+  strategies:
+    quick_sell: 0.94
+    market: 0.99
+    patient: 1.06
+
+scope:
+  # Which maps the model will price. Everything else is surfaced as "Unsupported".
+  # Set by the user at build time; see docs/originator-modifiers.md for why this
+  # matters -- the high-value Originator market is largely corrupted maps.
+  map_tier: 16
+  require_uncorrupted: true
+
+http:
+  # GGG publishes rate limits in response headers; the client obeys whatever the
+  # server reports. These are only the initial conservative guesses.
+  user_agent_contact: "you@example.com"   # put a real address you monitor here
+  min_request_interval_seconds: 2.0

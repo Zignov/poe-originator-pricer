@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+data/*.db-journal
+models/*.pkl
+models/*.json
+!models/.gitkeep
+.pytest_cache/
+.playwright-mcp/
+data/*.log
+data/collect*.log
+*.png
+data/*.db-shm
+data/*.db-wal
+.ruff_cache/
+
+# Local config -- copy config.example.yaml to config.yaml and edit.
+# Kept out of the repo because it carries your own contact address.
+config.yaml

@@ -1,0 +1,192 @@
+"""The pricing service: item in, priced row out.
+
+This is the seam the UI and the CLI both sit on. It combines the model estimate,
+the comparable listings and the selling strategy into one result object.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Sequence
+
+import pandas as pd
+
+from src.config import Config
+from src.database.repository import Repository
+from src.market.comparables import find_comparables, market_reference_price
+from src.ml.predict import Estimate, Predictor
+from src.pricing.currency import CurrencyConverter
+from src.pricing.display import PriceFormatter, formatter_from
+from src.pricing.sell_strategy import (
+    StrategyMultipliers,
+    multipliers_from_config,
+    suggested_price,
+)
+from src.schema import NormalizedMap
+
+
+@dataclass
+class PricedMap:
+    item: NormalizedMap
+    estimate: Estimate | None
+    comparables: pd.DataFrame = field(default_factory=pd.DataFrame)
+    suggested_chaos: float | None = None
+    market_reference_chaos: float | None = None
+    strategy: str = "market"
+    note: str = ""
+
+    @property
+    def supported(self) -> bool:
+        return self.item.supported and self.estimate is not None
+
+    #: Price columns, so the UI can format them all the same way without
+    #: hardcoding the list in every page.
+    PRICE_COLUMNS = ("Fair Value", "Suggested", "Low", "High", "Market Median")
+
+    def row(self, formatter: PriceFormatter) -> dict[str, Any]:
+        est = self.estimate
+        amount = formatter.value
+        return {
+            "Pos": self.item.position_label(),
+            "Tab": self.item.stash_tab_name or "",
+            "Currency": self.item.more_currency,
+            "Maps": self.item.more_maps,
+            "Scarabs": self.item.more_scarabs,
+            "Div Cards": self.item.more_divination_cards,
+            "Pack": self.item.pack_size,
+            "Qty": self.item.quantity,
+            "Rarity": self.item.rarity,
+            "Fair Value": amount(est.fair_value_chaos) if est else None,
+            "Suggested": amount(self.suggested_chaos),
+            "Low": amount(est.interval_low_chaos) if est else None,
+            "High": amount(est.interval_high_chaos) if est else None,
+            "Market Median": amount(self.market_reference_chaos),
+            "Confidence": est.confidence if est else "-",
+            "Status": "" if self.supported else (self.item.unsupported_reason or "Unsupported"),
+            "_fingerprint": self.item.fingerprint(),
+        }
+
+
+class PricingService:
+    def __init__(
+        self,
+        cfg: Config,
+        repo: Repository,
+        predictor: Predictor | None,
+        converter: CurrencyConverter,
+        multipliers: StrategyMultipliers | None = None,
+        formatter: PriceFormatter | None = None,
+    ):
+        self.cfg = cfg
+        self.repo = repo
+        self.predictor = predictor
+        self.converter = converter
+        self.formatter = formatter or formatter_from(cfg, converter.divine_to_chaos)
+        self.multipliers = multipliers or multipliers_from_config(
+            cfg.get("pricing.strategies", {})
+        )
+
+    def price(
+        self,
+        item: NormalizedMap,
+        strategy: str = "market",
+        comparables: int = 8,
+    ) -> PricedMap:
+        if not item.supported or self.predictor is None:
+            return PricedMap(item=item, estimate=None, strategy=strategy)
+
+        estimate = self.predictor.estimate(item, self.converter.divine_to_chaos)
+        comps = find_comparables(
+            self.repo,
+            item,
+            league=self.cfg.get("league"),
+            limit=comparables,
+            max_age_days=self.cfg.get("market.max_age_days"),
+            map_tier=self.cfg.get("scope.map_tier"),
+            require_uncorrupted=self.cfg.get("scope.require_uncorrupted"),
+        )
+        suggested = suggested_price(estimate.fair_value_chaos, strategy, self.multipliers)
+        # Round to a number a player would actually type, then convert back so
+        # the stored figure and the displayed note never disagree.
+        amount, unit = self.formatter.listing_amount(suggested)
+        rounded_chaos = self.formatter.to_chaos(amount, unit)
+        return PricedMap(
+            item=item,
+            estimate=estimate,
+            comparables=comps,
+            suggested_chaos=rounded_chaos,
+            market_reference_chaos=market_reference_price(comps),
+            strategy=strategy,
+            note=f"~price {amount:g} {unit}",
+        )
+
+    @classmethod
+    def build(
+        cls,
+        cfg: Config,
+        repo: Repository,
+        predictor: Predictor | None,
+        converter: CurrencyConverter,
+    ) -> "PricingService":
+        """Construct with strategy multipliers derived from the market when possible.
+
+        Falls back to the configured values when there is not enough data for the
+        observed spread to be meaningful.
+        """
+        multipliers = multipliers_from_config(cfg.get("pricing.strategies", {}))
+        if predictor is not None:
+            multipliers = observed_multipliers(cfg, repo, predictor, multipliers)
+        return cls(
+            cfg,
+            repo,
+            predictor,
+            converter,
+            multipliers,
+            formatter_from(cfg, converter.divine_to_chaos),
+        )
+
+    def price_many(
+        self, items: Sequence[NormalizedMap], strategy: str = "market", comparables: int = 8
+    ) -> list[PricedMap]:
+        return [self.price(item, strategy, comparables) for item in items]
+
+    def to_frame(self, priced: Sequence[PricedMap]) -> pd.DataFrame:
+        return pd.DataFrame([p.row(self.formatter) for p in priced])
+
+
+def observed_multipliers(
+    cfg: Config,
+    repo: Repository,
+    predictor: Predictor,
+    fallback: StrategyMultipliers,
+) -> StrategyMultipliers:
+    """Re-derive quick / market / patient from how real asks sit around fair value.
+
+    Every recent in-scope listing is scored by the model, and the distribution of
+    ask / estimate is what a seller is actually choosing between. Falls back to
+    the configured multipliers when the sample is too small to be meaningful.
+    """
+    import numpy as np
+
+    from src.ml.features import rows_to_frame, target_inverse
+    from src.pricing.sell_strategy import estimate_multipliers
+
+    rows = repo.listing_rows(
+        league=cfg.get("league"),
+        include_outliers=False,
+        max_age_days=cfg.get("market.max_age_days"),
+        map_tier=cfg.get("scope.map_tier"),
+        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+    )
+    frame = rows_to_frame(rows)
+    if frame.empty:
+        return fallback
+    missing = [c for c in predictor.columns if c not in frame.columns]
+    if missing:
+        return fallback
+
+    predicted = target_inverse(
+        np.asarray(predictor.model.predict(frame[predictor.columns]), dtype=float),
+        predictor.target_mode,
+    )
+    frame = frame.assign(predicted_chaos=np.clip(predicted, 0.0, None))
+    return estimate_multipliers(frame, fallback)

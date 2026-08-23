@@ -1,0 +1,21 @@
+Item Class: Maps
+Rarity: Rare
+Terror Solace
+Map (Tier 16)
+--------
+Item Quantity: +84% (augmented)
+Item Rarity: +134% (augmented)
+Monster Pack Size: +32% (augmented)
+More Maps: +35% (augmented)
+More Currency: +47% (augmented)
+--------
+Item Level: 84
+--------
+Monster Level: 83
+--------
+Area is Influenced by the Originator's Memories
+--------
+23% increased Monster Damage
+Players have 25% less Accuracy Rating
+--------
+Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once.
