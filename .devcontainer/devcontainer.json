@@ -18,8 +18,14 @@
     }
   },
   "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
+  // Streamlit's own defaults are kept: XSRF protection and CORS stay ON. The
+  // template this file came from disables both, which is a poor fit for this
+  // app -- it takes a POESESSID, a live session credential for the user's own
+  // Path of Exile account, and a forwarded Codespaces port is reachable by
+  // anyone the port is shared with. --server.headless stops Streamlit from
+  // prompting for an email and trying to open a browser inside the container.
   "postAttachCommand": {
-    "server": "streamlit run app.py --server.enableCORS false --server.enableXsrfProtection false"
+    "server": "streamlit run app.py --server.headless true"
   },
   "portsAttributes": {
     "8501": {
