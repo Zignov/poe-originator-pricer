@@ -150,11 +150,36 @@ def _load_catalogue(_stamp: int) -> AffixCatalogue | None:
 
 
 def get_exalt_cost() -> float:
-    """What an Exalted Orb costs in chaos. A session refresh beats config."""
-    override = st.session_state.get("exalt_cost_override")
-    if override:
-        return float(override)
+    """What an Exalted Orb costs in chaos.
+
+    A refreshed price is stored in the database, like the divine rate it sits
+    beside -- it is a fetched fact, not a preference, so it has to survive a
+    restart. Config supplies the starting value only.
+    """
+    stored = get_repo().get_setting("exalted_to_chaos")
+    if stored:
+        return float(stored)
     return float(get_config().get("currency.exalted_to_chaos", 10.0) or 10.0)
+
+
+def flash(kind: str, message: str) -> None:
+    """Queue a message that survives the st.rerun() which follows it.
+
+    st.success() immediately before st.rerun() is discarded before it ever
+    renders, so an action that worked looks like it did nothing.
+    """
+    st.session_state["_flash"] = (kind, message)
+
+
+def show_flash() -> None:
+    """Render and clear anything queued by flash(). Call early on a page."""
+    queued = st.session_state.pop("_flash", None)
+    if not queued:
+        return
+    kind, message = queued
+    {"success": st.success, "error": st.error, "warning": st.warning}.get(
+        kind, st.info
+    )(message)
 
 
 def invalidate_model_cache() -> None:

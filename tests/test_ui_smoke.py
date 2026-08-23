@@ -108,3 +108,37 @@ def test_the_exaltable_filter_does_not_break_the_page():
         pytest.skip("no trained model, so the controls are not shown")
     boxes[0].set_value(True).run()
     assert not app.exception, f"raised with the filter on: {[str(e) for e in app.exception]}"
+
+
+def _grid_html(app):
+    """The rendered stash-grid tiles, which carry the price on each one.
+
+    Matches "stash-cell filled" rather than "stash-grid": the latter also appears
+    in the page stylesheet, which never changes, so matching it compares the CSS
+    to itself and passes no matter what the tiles say.
+    """
+    return next(
+        (str(m.value) for m in app.markdown if "stash-cell filled" in str(m.value)), ""
+    )
+
+
+def test_the_stash_grid_follows_the_selling_strategy():
+    """The grid used to paint fair value, so the strategy selector looked inert."""
+    seen = {}
+    for strategy in ("quick_sell", "market", "patient"):
+        app = AppTest.from_file(APP, default_timeout=240)
+        app.session_state["stash_items"] = _demo_items()
+        app.run()
+        app.sidebar.radio[0].set_value("Stash Pricer").run()
+        boxes = [s for s in app.selectbox if "Selling strategy" in str(s.label)]
+        if not boxes:
+            pytest.skip("no trained model, so the controls are not shown")
+        boxes[0].set_value(strategy).run()
+        assert not app.exception, f"{strategy}: {[str(e) for e in app.exception]}"
+        seen[strategy] = _grid_html(app)
+        assert seen[strategy], f"{strategy}: no grid rendered"
+
+    assert seen["quick_sell"] != seen["market"] != seen["patient"], (
+        "the grid did not change between selling strategies"
+    )
+    assert seen["quick_sell"] != seen["patient"]

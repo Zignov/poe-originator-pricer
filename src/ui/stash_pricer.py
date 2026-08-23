@@ -118,6 +118,10 @@ def render() -> None:
     grid_col, table_col = st.columns([1.25, 1], gap="large")
     with grid_col:
         st.subheader("Stash layout")
+        st.caption(
+            f"Tiles show the suggested listing price on the "
+            f"**{STRATEGY_LABELS[strategy].lower()}** strategy. Hover for fair value."
+        )
         render_grid(priced, fmt)
         total = sum(p.suggested_chaos or 0 for p in supported)
         st.metric("Tab total (suggested)", fmt.format(total))

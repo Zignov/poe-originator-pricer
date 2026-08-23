@@ -142,6 +142,21 @@ MIGRATIONS: list[tuple[int, str]] = [
             ON predictions (item_fingerprint);
         """,
     ),
+    (
+        2,
+        """
+        -- Small key/value store for fetched facts that are not listings: the
+        -- Exalted Orb price, and whatever else needs to outlive a session
+        -- without deserving a table of its own. The orb price previously lived
+        -- in session state, so it reverted to the config default on restart and
+        -- the refresh button looked like it did nothing.
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key        TEXT PRIMARY KEY,
+            value      REAL NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        """,
+    ),
 ]
 
 

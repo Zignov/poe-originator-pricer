@@ -1,8 +1,14 @@
 """The visual stash-tab representation.
 
-Renders the tab as a grid with the estimated price drawn over each map's real
-stash position, so the user can look at the app and immediately see which
-physical map a price belongs to.
+Renders the tab as a grid with the price drawn over each map's real stash
+position, so the user can look at the app and immediately see which physical map
+a price belongs to.
+
+The number on a tile is the **suggested listing price**, not the fair-value
+estimate. Those differ by the selling strategy, and drawing fair value here made
+the strategy selector look broken: every other number on the page moved when it
+changed and the grid -- the thing people actually read -- did not. Fair value is
+still one line down in the tooltip.
 """
 from __future__ import annotations
 
@@ -24,9 +30,7 @@ def render_grid(
     cell_px: int = 46,
 ) -> None:
     """Draw the grid. Colour bands are percentiles of this tab, not fixed values."""
-    values = [
-        p.estimate.fair_value_chaos for p in priced if p.supported and p.estimate is not None
-    ]
+    values = [_tile_price(p) for p in priced if p.supported and p.estimate is not None]
     bands = percentile_bands(values)
 
     occupied: dict[tuple[int, int], PricedMap] = {}
@@ -53,7 +57,7 @@ def render_grid(
                     f'<div class="stash-cell unsupported" title="{tooltip}">-</div>'
                 )
                 continue
-            price = entry.estimate.fair_value_chaos
+            price = _tile_price(entry)
             colour = VALUE_COLOURS[value_category(price, bands)]
             cells.append(
                 f'<div class="stash-cell filled" style="background:{colour}" '
@@ -68,6 +72,17 @@ def render_grid(
         unsafe_allow_html=True,
     )
     _legend(bands, fmt, len(values))
+
+
+def _tile_price(entry: PricedMap) -> float:
+    """What a tile shows: the suggested listing price for the chosen strategy.
+
+    Falls back to fair value if no suggestion was produced, so a tile never goes
+    blank because a strategy multiplier was missing.
+    """
+    if entry.suggested_chaos is not None:
+        return entry.suggested_chaos
+    return entry.estimate.fair_value_chaos if entry.estimate else 0.0
 
 
 #: Below this many priced maps the percentile bands are too close together to

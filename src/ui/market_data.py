@@ -24,9 +24,11 @@ from src.ui.common import (
     get_config,
     get_converter,
     get_formatter,
+    flash,
     get_exalt_cost,
     get_repo,
     price_histogram,
+    show_flash,
     typical_focus,
 )
 
@@ -38,6 +40,7 @@ def render() -> None:
     fmt = get_formatter(cfg, converter)
 
     st.title("Market Data")
+    show_flash()
     counts = repo.count_listings(cfg.get("league"))
     st.caption(
         f"{counts['total']} listings stored for **{cfg.get('league')}**, "
@@ -123,7 +126,7 @@ def _collect(cfg, repo) -> None:
         else:
             repo.set_divine_rate(cfg.get("league"), rate, source="official_exchange_api")
             repo.recompute_price_chaos(rate)
-            st.success(f"Divine = {rate:.1f} chaos. All stored prices recomputed.")
+            flash("success", f"Divine = {rate:.1f} chaos. All stored prices recomputed.")
             st.rerun()
 
     st.markdown("---")
@@ -140,9 +143,11 @@ def _collect(cfg, repo) -> None:
         except ExchangeRateError as exc:
             st.error(str(exc))
         else:
-            # Session-scoped, like the divine override: config stays the default.
-            st.session_state["exalt_cost_override"] = cost
-            st.success(f"Exalted Orb = {cost:.1f} chaos for this session.")
+            # Stored, not session-scoped: the divine rate beside it persists, and
+            # a price that silently reverted to the config default on restart is
+            # exactly what made this button look broken.
+            repo.set_setting("exalted_to_chaos", cost)
+            flash("success", f"Exalted Orb = {cost:.1f} chaos. Saved.")
             st.rerun()
 
 

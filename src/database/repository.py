@@ -174,6 +174,23 @@ class Repository:
         ).fetchone()
         return _parse_iso(row["m"] if row else None)
 
+    # -- small persisted settings ---------------------------------------
+    def set_setting(self, key: str, value: float) -> None:
+        """Persist a fetched fact that should outlive the session."""
+        self.conn.execute(
+            "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+            "updated_at = excluded.updated_at",
+            (key, float(value), _iso(datetime.now(timezone.utc))),
+        )
+        self.conn.commit()
+
+    def get_setting(self, key: str, default: float | None = None) -> float | None:
+        row = self.conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return float(row["value"]) if row else default
+
     def flag_outliers(self, flags: Sequence[tuple[int, bool, str]]) -> int:
         cur = self.conn.cursor()
         for listing_id, is_outlier, reason in flags:

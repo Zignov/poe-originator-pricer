@@ -259,8 +259,9 @@ In the browser:
 
 You get:
 
-- a **stash grid** with the estimated price drawn on each map's real `x`/`y`
-  position, colour-banded by value (percentiles of *this tab*, not hardcoded
+- a **stash grid** with the suggested listing price for the selected selling
+  strategy drawn on each map's real `x`/`y` position — hover a tile for the
+  fair value behind it — colour-banded by value (percentiles of *this tab*, not hardcoded
   league thresholds), with full details on hover;
 - a **sortable table** — by value, by any reward, by pack size, by confidence, or
   by stash position;
@@ -323,8 +324,8 @@ adding any, where a less careful version would have invented value on every
 estimate. Which rewards passed is printed when the model trains.
 
 The orb price is fetched from the same official exchange endpoint as the divine
-rate, on the Market Data page, because it is the entire right-hand side of the
-decision: a 30-chaos gain is worth taking against a 4-chaos orb and not against a
+rate, on the Market Data page, and stored alongside it, because it is the entire
+right-hand side of the decision: a 30-chaos gain is worth taking against a 4-chaos orb and not against a
 40-chaos one.
 
 ---
