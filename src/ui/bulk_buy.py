@@ -20,6 +20,7 @@ from src.market.bulk import (
     BulkScan,
     scan_bulk_lots,
     summarise,
+    trade_url,
 )
 from src.market.collectors.official_trade_api import OfficialTradeApiCollector
 from src.market.ingest import converter_for
@@ -112,6 +113,13 @@ def _render_scan(scan: BulkScan, fmt) -> None:
     else:
         st.success(headline)
 
+    if scan.query:
+        st.markdown(
+            f"[Open this whole search on the trade site]"
+            f"({trade_url(scan.league, scan.query)}) — buying happens there, with "
+            "GGG's own purchase and **Travel to Hideout** controls."
+        )
+
     if not scan.lots:
         st.info(
             "No seller had that many maps in the newest listings. Try a lower "
@@ -188,8 +196,31 @@ def _render_scan(scan: BulkScan, fmt) -> None:
             ),
         },
     )
+    if scan.query:
+        st.markdown(
+            f"### [Buy this lot on the trade site]"
+            f"({trade_url(scan.league, scan.query, seller=lot.seller)})"
+        )
+        st.caption(
+            f"Opens {lot.seller}'s maps under {scan.price_max:g}c on GGG's own page, "
+            "where the purchase and **Travel to Hideout** buttons live. Costs no "
+            "request from here — the query travels in the link."
+        )
+
     st.caption(
         f"Tabs: {', '.join(lot.stash_tabs()) or 'unknown'}. Put this seller's name in "
         "**Re-check one seller** above to refresh just this lot — that is a single "
         "query rather than a sweep, so it comes back in a second or two."
     )
+
+    with st.expander("Paste into chat instead"):
+        st.caption(
+            "GGG's own message for each listing, to paste in game yourself. This app "
+            "never sends anything to the client — it only puts the text in front of you."
+        )
+        messages = [x.whisper for x in lot.listings if x.whisper]
+        st.code(
+            "\n".join(messages)
+            or "This scan returned no message text for that seller.",
+            language="text",
+        )

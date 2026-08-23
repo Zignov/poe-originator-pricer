@@ -373,9 +373,21 @@ only shows the listings that fit inside the newest hundred. The seller above had
 
 A scan older than two minutes says so, because the cheaper lots will have gone.
 
-There is no "travel to hideout" button and there will not be: `/hideout` is a
-chat command, so triggering it means sending input to the game client, which
-GGG's terms prohibit and which this project does not do anywhere.
+**Buying happens on GGG's own page.** Each lot links straight to that seller's
+maps on the trade site, where GGG's purchase controls and its **Travel to
+Hideout** button live. The whole query travels inside the link, so building one
+costs no request at all — verified live: the site parses it, re-runs the search
+and rewrites the address to its own id.
+
+Reproducing what that Travel to Hideout button does is not on the table. It would
+mean reverse-engineering an endpoint outside the published documentation, which
+GGG's developer terms name as grounds for immediate termination, and sending
+input to the game client, which the Terms of Use prohibit outright. Linking to
+the page that already has the button is the whole of what this app does.
+
+For anyone who would rather not go through the site, each lot also shows GGG's
+own message text for every listing, ready to copy and paste in game yourself. The
+app never sends it.
 
 ---
 
@@ -541,7 +553,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     266 tests, including live-render checks of every page
+tests/                     270 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.

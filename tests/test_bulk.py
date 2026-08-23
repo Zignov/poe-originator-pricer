@@ -8,6 +8,7 @@ protection stays intact.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -34,8 +35,9 @@ def _result(listing_id: str, seller: str, amount: float, minutes_old: int = 1, t
 class FakeCollector:
     """Stands in for the trade API, recording the query it was handed."""
 
-    def __init__(self, results, total=500):
+    def __init__(self, results, total=500, league="Allflame"):
         self.converter = CurrencyConverter(220.0)
+        self.league = league
         self._results = results
         self._total = total
         self.query = None
@@ -167,3 +169,41 @@ def test_an_empty_market_produces_an_empty_scan():
     _, scan = _scan([], min_lot=1)
     assert scan.lots == []
     assert scan.listings_seen == 0
+
+
+# ---------------------------------------------------------------------------
+# Buying happens on GGG's own site, so what this produces is a link, never an
+# action. The trade page carries the buy controls and the Travel to Hideout
+# button; reproducing either would mean reverse-engineering an undocumented
+# endpoint, which this project does not do.
+# ---------------------------------------------------------------------------
+def test_a_scan_records_what_a_link_needs():
+    _, scan = _scan([_result("a", "Bulk#1", 4.0)], min_lot=1)
+    assert scan.query, "the query must be kept so a per-seller link can be built"
+    assert scan.league == "Allflame"
+
+
+def test_the_link_targets_one_seller():
+    from src.market.bulk import trade_url
+
+    _, scan = _scan([_result("a", "Bulk#1", 4.0)], min_lot=1)
+    url = trade_url("Allflame", scan.query, seller="Bulk#1")
+    assert url.startswith("https://www.pathofexile.com/trade/search/Allflame?q=")
+    assert "Bulk%231" in url or "Bulk%2523" in url
+
+
+def test_building_a_link_does_not_mutate_the_scan_query():
+    from src.market.bulk import trade_url
+
+    _, scan = _scan([_result("a", "Bulk#1", 4.0)], min_lot=1)
+    before = json.dumps(scan.query, sort_keys=True)
+    trade_url("Allflame", scan.query, seller="Bulk#1")
+    trade_url("Allflame", scan.query, seller="Other#2")
+    assert json.dumps(scan.query, sort_keys=True) == before
+
+
+def test_the_whisper_is_kept_as_a_paste_into_chat_fallback():
+    result = _result("a", "Bulk#1", 4.0)
+    result["listing"]["whisper"] = "@Someone Hi, I would like to buy your Map"
+    _, scan = _scan([result], min_lot=1)
+    assert scan.lots[0].listings[0].whisper.startswith("@Someone")

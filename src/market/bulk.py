@@ -21,7 +21,10 @@ can still get and one that is already gone.
 """
 from __future__ import annotations
 
+import copy
+import json
 import statistics
+import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Sequence
@@ -42,6 +45,11 @@ DEFAULT_PRICE_MAX = 15.0
 #: Fewest listings from one seller before it counts as a lot worth a trip.
 DEFAULT_MIN_LOT = 5
 
+#: The trade site accepts a whole query inline, so a link to one seller's stock
+#: costs no API call at all. Verified live: the site parses it, re-runs the
+#: search and rewrites the address to its own id.
+TRADE_SEARCH_URL = "https://www.pathofexile.com/trade/search/{league}?q={query}"
+
 
 @dataclass(frozen=True)
 class BulkListing:
@@ -54,6 +62,9 @@ class BulkListing:
     stash_name: str = ""
     x: int | None = None
     y: int | None = None
+    #: GGG's own ready-to-send message. Kept as the paste-into-chat fallback for
+    #: when going through the site is not wanted -- the app never sends it.
+    whisper: str = ""
 
     def age_minutes(self, now: datetime | None = None) -> float | None:
         if self.indexed_at is None:
@@ -115,6 +126,9 @@ class BulkScan:
     total_matching: int = 0
     price_max: float = DEFAULT_PRICE_MAX
     error: str = ""
+    league: str = ""
+    #: The query this scan ran, so a per-seller link can be built from it.
+    query: dict[str, Any] = field(default_factory=dict)
 
     def age_seconds(self, now: datetime | None = None) -> float:
         now = now or datetime.now(timezone.utc)
@@ -175,11 +189,32 @@ def scan_bulk_lots(
 
     return BulkScan(
         scanned_at=started,
+        league=collector.league,
+        query=query,
         lots=kept,
         listings_seen=len(listings),
         sellers_seen=len(lots),
         total_matching=total,
         price_max=price_max,
+    )
+
+
+def trade_url(league: str, query: dict[str, Any], seller: str | None = None) -> str:
+    """A link to this search on GGG's own trade site.
+
+    Buying happens there, on GGG's page, using GGG's controls -- including its
+    "Travel to Hideout" button. Reproducing what that button does would mean
+    reverse-engineering an endpoint outside the published documentation, which is
+    not something this project does; handing over a link is.
+    """
+    payload = copy.deepcopy(query or {})
+    if seller:
+        filters = payload.setdefault("query", {}).setdefault("filters", {})
+        trade = filters.setdefault("trade_filters", {}).setdefault("filters", {})
+        trade["account"] = {"input": seller}
+    return TRADE_SEARCH_URL.format(
+        league=urllib.parse.quote(league or ""),
+        query=urllib.parse.quote(json.dumps(payload)),
     )
 
 
@@ -199,6 +234,7 @@ def _to_bulk_listing(result: dict[str, Any], collector) -> BulkListing:
         stash_name=stash.get("name") or "",
         x=stash.get("x"),
         y=stash.get("y"),
+        whisper=info.get("whisper") or "",
     )
 
 
