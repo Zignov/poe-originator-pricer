@@ -15,7 +15,15 @@ APP = str(Path(__file__).resolve().parent.parent / "app.py")
 st_testing = pytest.importorskip("streamlit.testing.v1")
 AppTest = st_testing.AppTest
 
-PAGES = ["Dashboard", "Stash Pricer", "Single Map", "Market Data", "Model Analysis", "Settings"]
+PAGES = [
+    "Dashboard",
+    "Stash Pricer",
+    "Single Map",
+    "Market Data",
+    "Bulk Buy",
+    "Model Analysis",
+    "Settings",
+]
 
 
 def _run(page: str):

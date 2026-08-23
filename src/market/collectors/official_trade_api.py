@@ -85,6 +85,7 @@ class OfficialTradeApiCollector(MarketCollector):
         pack_size: tuple[int | None, int | None] | None = None,
         quantity: tuple[int | None, int | None] | None = None,
         collapse: bool = True,
+        account: str | None = None,
     ) -> dict[str, Any]:
         filters: dict[str, Any] = {
             "map_filters": {
@@ -122,6 +123,11 @@ class OfficialTradeApiCollector(MarketCollector):
         trade: dict[str, Any] = {}
         if collapse:
             trade["collapse"] = {"option": "true"}
+        #   account -> "Seller Account", verified against /api/trade/data/filters.
+        #              Restricting to one seller turns re-checking a known lot
+        #              into a single search instead of a sweep of the market.
+        if account:
+            trade["account"] = {"input": account}
         if sale_type:
             trade["sale_type"] = {"option": sale_type}
         if indexed:

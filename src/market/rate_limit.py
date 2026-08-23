@@ -88,7 +88,12 @@ class RateLimiter:
     def _wait_time(self) -> float:
         now = time.monotonic()
         wait = max(0.0, self._blocked_until - now)
-        if self.min_interval:
+        # The configured interval is a starting guess, used only until the server
+        # states its own policy. Once GGG has reported the rules, those are what
+        # is obeyed -- they are the authority, and the guess was costing real
+        # time: a 1s floor turned a 100-listing read into 12 seconds against a
+        # published allowance of twelve fetches every four.
+        if self.min_interval and not self.rules:
             wait = max(wait, self._last_request + self.min_interval - now)
         for rule in self.rules:
             if rule.max_hits <= 0:

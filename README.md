@@ -342,7 +342,44 @@ right-hand side of the decision: a 30-chaos gain is worth taking against a 4-cha
 
 ---
 
-## 9. Training the model
+## 9. Finding bulk lots to buy
+
+Originator Maps are bought in bulk, and the **Bulk Buy** page finds sellers with
+several listed at once. It is the inverse of market collection on every axis, and
+deliberately so: collection collapses listings by account, caps how many any one
+seller contributes, and never sorts by price, all to keep flat-priced tab dumps
+from teaching the model that rewards do not affect price. A buyer wants exactly
+those dumps.
+
+**Nothing it finds is stored**, so that protection stays intact.
+
+**It sorts by newest, not cheapest.** Cheapest-first sorts you into the floor of
+the market, which is gone within seconds — a live probe found the hundred
+cheapest listings were all 1-2 chaos and already contested. Sorting by listing
+time under a price ceiling returns what appeared in the last minute inside a
+range worth buying:
+
+```
+FULL SCAN        2.7s   100 listings, 15 sellers, 6 lots of 5+
+  37 maps @  9c    337c total   listed 1 minute ago
+  18 maps @ 10c    180c total   flat-priced
+  17 maps @  8c    146c total
+```
+
+**Re-checking one seller is a single query**, so it returns in a second or two
+rather than sweeping the market — and it sees more, because a market-wide scan
+only shows the listings that fit inside the newest hundred. The seller above had
+37 maps in the scan and 60 on a targeted re-check.
+
+A scan older than two minutes says so, because the cheaper lots will have gone.
+
+There is no "travel to hideout" button and there will not be: `/hideout` is a
+chat command, so triggering it means sending input to the game client, which
+GGG's terms prohibit and which this project does not do anywhere.
+
+---
+
+## 10. Training the model
 
 ```bash
 python -m src.ml.train                 # or: python -m src.cli train
@@ -381,7 +418,7 @@ interesting reward interactions, and the history of every training run.
 
 ---
 
-## 10. Current limitations
+## 11. Current limitations
 
 Read this part.
 
@@ -460,7 +497,7 @@ Read this part.
 
 ---
 
-## 11. GGG and API compliance
+## 12. GGG and API compliance
 
 - All market data comes from GGG's own endpoints, unauthenticated, at a
   self-limiting rate driven by the rate-limit policy GGG returns in its own
@@ -482,7 +519,7 @@ are in **[docs/data-access.md](docs/data-access.md)**.
 
 ---
 
-## 12. Project layout
+## 13. Project layout
 
 ```
 app.py                     Streamlit entry point
@@ -493,6 +530,7 @@ src/
   stash/                   official_api / json_import / clipboard_import
   parsing/                 item_parser / implicit_parser / price_parser / affixes
   market/                  collectors/, comparables, outliers, rate_limit
+                           bulk -- the buying path, never stored, never trained on
   database/                schema, migrations, repository
   ml/                      features, models, train, predict, confidence, explain
                            affix_catalogue -- per-affix reward contributions
@@ -503,14 +541,14 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     213 tests, including live-render checks of every page
+tests/                     266 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
-## 13. Tests
+## 14. Tests
 
 ```bash
 python -m pytest

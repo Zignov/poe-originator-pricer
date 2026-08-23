@@ -20,6 +20,7 @@ PAGES = {
     "Stash Pricer": "src.ui.stash_pricer",
     "Single Map": "src.ui.single_map",
     "Market Data": "src.ui.market_data",
+    "Bulk Buy": "src.ui.bulk_buy",
     "Model Analysis": "src.ui.model_analysis",
     "Settings": "src.ui.settings",
 }
