@@ -45,9 +45,12 @@ def render() -> None:
         "exactly the data training is protected from."
     )
 
+    _live_search_callout(cfg, price_max=st.session_state.get("bulk_price_max", DEFAULT_PRICE_MAX))
+
     controls = st.columns([1, 1, 1, 1.3])
     price_max = controls[0].number_input(
-        "Max chaos per map", 1.0, 500.0, float(DEFAULT_PRICE_MAX), step=1.0
+        "Max chaos per map", 1.0, 500.0, float(DEFAULT_PRICE_MAX), step=1.0,
+        key="bulk_price_max",
     )
     min_lot = controls[1].number_input("Minimum maps in a lot", 2, 60, DEFAULT_MIN_LOT)
     seller = controls[2].text_input("Re-check one seller", placeholder="Account#1234")
@@ -63,6 +66,48 @@ def render() -> None:
         return
 
     _render_scan(scan, fmt)
+
+
+def _live_search_callout(cfg, price_max: float) -> None:
+    """Point at GGG's own live search, which is the fast path.
+
+    A scan is a snapshot, and lots go in under a minute -- one seller went from
+    51 maps to 0 in about five while this page was being built. Live search fixes
+    that properly by pushing new listings the moment they appear, but it runs on
+    an endpoint GGG does not document, over an authenticated connection, and
+    continuously. Doing that from here would be reverse-engineering an
+    undocumented endpoint and running exactly the kind of automated monitoring
+    the Terms of Use prohibit -- with the account risk landing on the user.
+    GGG's own page has the button, so this hands the query over instead.
+    """
+    url = live_search_url(cfg, price_max)
+    with st.container():
+        st.markdown(
+            f'<div class="warn"><b>Faster than scanning:</b> open '
+            f'<a href="{url}" target="_blank">this search on the trade site</a> and '
+            "press <b>Activate Live Search</b>. GGG pushes each new listing the "
+            "instant it appears, and the buy and <b>Travel to Hideout</b> buttons "
+            "are on the same row — no scanning, no round trip through this app. "
+            "Live search is not built in here on purpose: it is an undocumented "
+            "endpoint and a standing authenticated connection, and the account "
+            "risk would be yours.</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def live_search_url(cfg, price_max: float) -> str:
+    """The scan's own query, ready for GGG's live search."""
+    collector = OfficialTradeApiCollector(
+        league=cfg.get("league"),
+        user_agent=user_agent(cfg),
+        converter=None,
+        map_tier=cfg.get("scope.map_tier"),
+        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+    )
+    query = collector.build_query(
+        sort_by="indexed", sort="desc", collapse=False, price_max=float(price_max)
+    )
+    return trade_url(cfg.get("league"), query)
 
 
 def _run_scan(cfg, repo, price_max: float, min_lot: int, seller: str | None) -> None:

@@ -389,6 +389,28 @@ For anyone who would rather not go through the site, each lot also shows GGG's
 own message text for every listing, ready to copy and paste in game yourself. The
 app never sends it.
 
+### Live search, and why it is not built in
+
+A scan is a snapshot, and these lots do not last: while this page was being
+built one seller went from 51 maps to 26 to 0 in about five minutes. GGG's
+**live search** solves that properly — it pushes each new listing the moment it
+appears, so there is nothing to race.
+
+It is not implemented here, and that is deliberate. Live search runs on a
+WebSocket endpoint that appears nowhere in GGG's developer documentation, which
+lists every endpoint they publish and contains no real-time interface at all. A
+client for it would mean reverse-engineering an undocumented endpoint — named in
+GGG's developer terms as grounds for immediate termination — while holding a
+standing authenticated connection and monitoring continuously, which is the
+automated behaviour the Terms of Use prohibit and the opposite of this project's
+"collection is something you trigger" rule. The account carrying that risk would
+be yours, not the author's.
+
+So the Bulk Buy page builds the query and hands it over: one link opens the
+search on GGG's page with **Activate Live Search** right there, and the purchase
+and Travel to Hideout buttons on every row. Same benefit, on the sanctioned
+client. A test asserts no WebSocket client has crept into `src/`.
+
 ---
 
 ## 10. Training the model
@@ -553,7 +575,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     270 tests, including live-render checks of every page
+tests/                     275 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
