@@ -8,6 +8,7 @@ import streamlit as st
 from src.config import Config, load_config
 from src.database.repository import Repository
 from src.market.ingest import converter_for
+from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.pricing.currency import CurrencyConverter
 from src.pricing.display import PriceFormatter
@@ -71,6 +72,12 @@ CSS = """
   font-size: .82rem; padding: .5rem .7rem; border-radius: 6px;
   background: rgba(128,128,128,.12); border: 1px solid rgba(128,128,128,.25);
 }
+.exalt-yes, .exalt-no {
+  padding: .55rem .8rem; border-radius: 8px; font-size: .88rem; margin: .3rem 0 .6rem;
+}
+.exalt-yes { border: 1px solid rgba(60,160,110,.5); background: rgba(60,160,110,.13); }
+.exalt-no  { border: 1px solid rgba(128,128,128,.4); background: rgba(128,128,128,.10); }
+
 .warn {
   padding: .6rem .8rem; border-radius: 8px; font-size: .85rem;
   border: 1px solid rgba(200,140,40,.45); background: rgba(200,140,40,.12);
@@ -129,9 +136,31 @@ def _load_predictor(_stamp: int) -> tuple[Predictor | None, str]:
         return None, f"Could not load the model: {exc}"
 
 
+def get_catalogue() -> AffixCatalogue | None:
+    """The affix contribution table, refitted whenever the model is."""
+    return _load_catalogue(st.session_state.get("model_reload", 0))
+
+
+@st.cache_resource(show_spinner=False)
+def _load_catalogue(_stamp: int) -> AffixCatalogue | None:
+    try:
+        return AffixCatalogue.load(get_config().model_dir / CATALOGUE_NAME)
+    except Exception:  # a corrupt sidecar must not take the page down
+        return None
+
+
+def get_exalt_cost() -> float:
+    """What an Exalted Orb costs in chaos. A session refresh beats config."""
+    override = st.session_state.get("exalt_cost_override")
+    if override:
+        return float(override)
+    return float(get_config().get("currency.exalted_to_chaos", 10.0) or 10.0)
+
+
 def invalidate_model_cache() -> None:
     st.session_state["model_reload"] = st.session_state.get("model_reload", 0) + 1
     _load_predictor.clear()
+    _load_catalogue.clear()
 
 
 def get_service(require_model: bool = False) -> tuple[PricingService | None, str]:

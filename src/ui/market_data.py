@@ -11,14 +11,20 @@ from src.market.collectors.manual_import import (
     JsonExportCollector,
     ManualCsvCollector,
     csv_template,
+    listing_rows_to_csv,
 )
-from src.market.currency_source import ExchangeRateError, fetch_divine_to_chaos
+from src.market.currency_source import (
+    ExchangeRateError,
+    fetch_divine_to_chaos,
+    fetch_exalted_to_chaos,
+)
 from src.market.ingest import collect_from_trade_api, converter_for, refresh_outliers, store
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
     get_config,
     get_converter,
     get_formatter,
+    get_exalt_cost,
     get_repo,
     price_histogram,
     typical_focus,
@@ -118,6 +124,25 @@ def _collect(cfg, repo) -> None:
             repo.set_divine_rate(cfg.get("league"), rate, source="official_exchange_api")
             repo.recompute_price_chaos(rate)
             st.success(f"Divine = {rate:.1f} chaos. All stored prices recomputed.")
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("**Exalted Orb price**")
+    st.caption(
+        f"Currently {get_exalt_cost():g} chaos. This is the whole right-hand side of the "
+        "exalt-worthy verdict on the Stash Pricer, so it is worth keeping current."
+    )
+    if st.button("Refresh Exalted Orb price from the official exchange endpoint"):
+        from src.config import user_agent
+
+        try:
+            cost = fetch_exalted_to_chaos(cfg.get("league"), user_agent(cfg))
+        except ExchangeRateError as exc:
+            st.error(str(exc))
+        else:
+            # Session-scoped, like the divine override: config stays the default.
+            st.session_state["exalt_cost_override"] = cost
+            st.success(f"Exalted Orb = {cost:.1f} chaos for this session.")
             st.rerun()
 
 
@@ -251,6 +276,28 @@ def _inspect(cfg, repo, fmt) -> None:
 
     st.markdown("**Latest captures**")
     st.dataframe(frame.tail(25), hide_index=True, use_container_width=True)
-    st.download_button(
-        "Export CSV", frame.to_csv(index=False), "originator_listings.csv", "text/csv"
-    )
+
+    # Two exports, because they are genuinely two different things and one
+    # button trying to be both is what broke the round-trip: the view frame
+    # holds display-unit prices beside the listing's original currency, which
+    # cannot be re-imported without inflating every divine-priced row.
+    st.markdown("**Export**")
+    dataset_col, view_col = st.columns(2)
+    with dataset_col:
+        st.download_button(
+            "Export dataset (re-importable)",
+            listing_rows_to_csv(rows),
+            "originator_dataset.csv",
+            "text/csv",
+            use_container_width=True,
+        )
+        st.caption("Importer's own schema. Drop it back into the Import tab as-is.")
+    with view_col:
+        st.download_button(
+            "Export view (for reading)",
+            frame.to_csv(index=False),
+            "originator_view.csv",
+            "text/csv",
+            use_container_width=True,
+        )
+        st.caption(f"What is on screen: prices in {fmt.unit}, plus outlier reasons.")

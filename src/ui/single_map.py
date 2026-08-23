@@ -9,6 +9,7 @@ from src.parsing.item_parser import ItemParseError, classify, parse_item_text
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.schema import FEATURE_NAMES, NormalizedMap
 from src.ui.common import get_config, get_service
+from src.ui.exalt_panel import render_verdict, verdict_for
 
 LABELS = {
     "quantity": "Item Quantity",
@@ -149,6 +150,9 @@ def render() -> None:
                 st.caption(
                     f"Median of comparables: **{fmt.format(priced.market_reference_chaos)}**"
                 )
+
+    st.markdown("---")
+    render_verdict(verdict_for(priced.item), fmt)
 
     st.markdown("---")
     _explanation(priced, fmt)

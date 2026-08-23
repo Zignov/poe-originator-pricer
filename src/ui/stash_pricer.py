@@ -17,6 +17,7 @@ from src.stash.json_import import JsonStashSource, parse_csv
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
 from src.ui.common import get_config, get_repo, get_service
+from src.ui.exalt_panel import affix_label, affixes_for, render_verdict, verdict_for
 from src.ui.stash_grid import render_grid
 
 SOURCE_LABELS = {
@@ -74,6 +75,9 @@ def render() -> None:
         step=5.0 if fmt.unit == "chaos" else 0.5,
     )
     only_confident = controls[2].checkbox("High confidence only")
+    exaltable_only = controls[2].checkbox(
+        "Exaltable only", help="Uncorrupted maps with fewer than 6 affixes."
+    )
     reward_filter = controls[3].selectbox(
         "Reward filter", ["Any", "More Currency", "More Maps", "More Scarabs", "More Div Cards"]
     )
@@ -104,7 +108,9 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
-    visible = _apply_filters(priced, fmt, min_value, only_confident, reward_filter)
+    visible = _apply_filters(
+        priced, fmt, min_value, only_confident, reward_filter, exaltable_only
+    )
     visible = _sort(visible, sort_key)
 
     # The stash grid is a fixed-pixel layout, so it gets the wider share and a
@@ -122,6 +128,10 @@ def render() -> None:
             st.info("No maps match the current filters.")
         else:
             frame = service.to_frame(visible)
+            # Derived here rather than in PricedMap: the affix structure comes
+            # from the payload the stash source preserved, which the pricing
+            # layer has no reason to know about.
+            frame.insert(2, "Affixes", [affix_label(p.item) for p in visible])
             previous = st.session_state.get("snapshot_previous")
             if previous:
                 frame["Then"] = [
@@ -307,7 +317,7 @@ def _price_columns(frame, fmt):
     return config
 
 
-def _apply_filters(priced, fmt, min_value, only_confident, reward_filter):
+def _apply_filters(priced, fmt, min_value, only_confident, reward_filter, exaltable_only=False):
     field = {
         "More Currency": "more_currency",
         "More Maps": "more_maps",
@@ -318,6 +328,8 @@ def _apply_filters(priced, fmt, min_value, only_confident, reward_filter):
     out = []
     for entry in priced:
         if field and getattr(entry.item, field, 0) <= 0:
+            continue
+        if exaltable_only and not affixes_for(entry.item).can_be_exalted:
             continue
         if entry.supported:
             if min_value and (fmt.value(entry.estimate.fair_value_chaos) or 0) < min_value:
@@ -378,6 +390,9 @@ def _detail_panel(priced, fmt):
         for reason in est.confidence_reasons:
             st.caption(f"- {reason}")
         st.markdown(f'<div class="note-box">{entry.note}</div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+        render_verdict(verdict_for(entry.item), fmt)
 
         _explanation(entry, fmt)
 

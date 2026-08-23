@@ -282,7 +282,54 @@ python -m src.cli price-item map.txt
 
 ---
 
-## 8. Training the model
+## 8. Affix count and whether a map is worth an Exalted Orb
+
+Every map loaded from a stash source shows how many affixes it carries — `5/6`,
+or `8/8` on a corrupted one — and, where a slot is still open, what an Exalted
+Orb is expected to be worth on it.
+
+**Counting affixes is not counting modifier lines.** One affix can print two
+lines, so a full six-affix map can show seven and look exaltable when it is not.
+The count comes from the affix names and tiers in the API payload, where a tier
+of `P0` is a prefix and `S1` a suffix, and distinct `(name, tier)` pairs are
+distinct affixes. Clipboard-pasted maps carry no such structure, so they report
+`affixes unknown` rather than a guess.
+
+**The verdict is arithmetic, not a heuristic.** A map's `Item Quantity: +84%` is
+the *sum* of what each rolled affix contributes, so the whole contribution table
+can be recovered from listings that show both their affixes and their totals. On
+1696 listings and 108 affixes, an 80/20 split predicts held-out quantity at
+R² 0.999 with a mean absolute error of 0.03 — this is inverting a genuinely
+additive system, not fitting a curve to it.
+
+So the estimate enumerates rather than samples. It takes every affix that could
+still roll — excluding those already on the map, and respecting a full prefix or
+suffix block — applies each one's exact contribution, prices the result with the
+same model that priced the map, and weights by how often that affix actually
+appears in the collected market:
+
+```
+5/6 affixes  ·  1 open suffix  ·  orb costs 4c
+Worth exalting. Expected 189c after, a net gain of 85c once the orb is paid for.
+Likely range: 68c to 129c gain     Best case:  of Defiance — +129c
+Chance it beats the orb: 100%      Worst case: of Persistence — +68c
+```
+
+**Not every reward is affix-driven, and the catalogue refuses the ones that are
+not.** Each feature has to predict held-out data before it is modelled.
+`more_divination_cards` scores a held-out R² near zero because it comes from the
+Originator memory rather than a rolled affix — so exalting is never credited with
+adding any, where a less careful version would have invented value on every
+estimate. Which rewards passed is printed when the model trains.
+
+The orb price is fetched from the same official exchange endpoint as the divine
+rate, on the Market Data page, because it is the entire right-hand side of the
+decision: a 30-chaos gain is worth taking against a 4-chaos orb and not against a
+40-chaos one.
+
+---
+
+## 9. Training the model
 
 ```bash
 python -m src.ml.train                 # or: python -m src.cli train
@@ -321,7 +368,7 @@ interesting reward interactions, and the history of every training run.
 
 ---
 
-## 9. Current limitations
+## 10. Current limitations
 
 Read this part.
 
@@ -334,10 +381,18 @@ Read this part.
   it.** On a clean sample, `more_currency` and `quantity` carry most of the
   signal (correlations with log price around +0.6), `pack_size` follows (+0.44),
   and `rarity`, `more_maps` and `more_scarabs` are close to flat on their own.
-  On 1696 usable listings, held-out R² lands around 0.61 with a median error of
-  ~15 chaos against a 45-chaos median price. Predictions are a good ballpark,
+  On 1696 usable listings, held-out R² lands around 0.66 with a median error of
+  ~13 chaos against a 45-chaos median price. Predictions are a good ballpark,
   not a quote — the comparable listings shown beside every estimate are doing
   genuine work, not decoration.
+
+- **The model is constrained so that more reward can never mean a lower price.**
+  All seven reward features are monotonically non-decreasing, enforced in every
+  backend. This is not decoration: the unconstrained model priced a strictly
+  better map *lower* on 11% of maps, by as much as 77 chaos, which silently
+  inverts the exalt calculation — that being nothing but a comparison between a
+  map and a better version of itself. Constraining it also improved every
+  held-out metric, because the constraint is true and acts as a regulariser.
 
 - **Every backend's score is reported, including a linear baseline.** So you can
   see whether the gradient-boosted model actually earned its place rather than
@@ -392,7 +447,7 @@ Read this part.
 
 ---
 
-## 10. GGG and API compliance
+## 11. GGG and API compliance
 
 - All market data comes from GGG's own endpoints, unauthenticated, at a
   self-limiting rate driven by the rate-limit policy GGG returns in its own
@@ -414,7 +469,7 @@ are in **[docs/data-access.md](docs/data-access.md)**.
 
 ---
 
-## 11. Project layout
+## 12. Project layout
 
 ```
 app.py                     Streamlit entry point
@@ -423,25 +478,26 @@ src/
   config.py                config.yaml + .env loading
   auth/poe_oauth.py        OAuth flow (unverified -- see docs/data-access.md)
   stash/                   official_api / json_import / clipboard_import
-  parsing/                 item_parser / implicit_parser / price_parser
+  parsing/                 item_parser / implicit_parser / price_parser / affixes
   market/                  collectors/, comparables, outliers, rate_limit
   database/                schema, migrations, repository
   ml/                      features, models, train, predict, confidence, explain
-  pricing/                 currency, sell_strategy, fair_value
+                           affix_catalogue -- per-affix reward contributions
+  pricing/                 currency, sell_strategy, fair_value, exalt
   ui/                      one module per page
   cli.py                   everything the UI does, without Streamlit
 docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     145 tests, including live-render checks of every page
+tests/                     213 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
-## 12. Tests
+## 13. Tests
 
 ```bash
 python -m pytest

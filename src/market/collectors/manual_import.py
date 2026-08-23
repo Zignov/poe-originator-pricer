@@ -168,6 +168,45 @@ class ClipboardListingCollector(MarketCollector):
         )
 
 
+def listing_rows_to_csv(rows: Any, anonymise: bool = False) -> str:
+    """Render repository rows as CSV this module's own importer can read back.
+
+    The Market Data page used to serialise its display DataFrame instead. That
+    frame is built for reading: its price column is converted into whatever unit
+    the user has on display, while its currency column carries the listing's
+    original currency. The two describe different things, so quite apart from
+    the column names not matching, a rename-only fix would have re-imported a
+    222c listing as 48,950c without raising anything. Exporting from the stored
+    price_amount / price_currency pair is the only version that round-trips.
+
+    `anonymise` blanks the seller and the listing id, for the sample dataset
+    that ships with the repository. A user exporting their own data keeps both:
+    the per-seller cap that protects training from bulk dumps needs to know who
+    listed what, and the listing id is what makes re-importing an update rather
+    than a duplicate. The shipped sample wants the opposite on both counts --
+    no account names, and no live ids that would upsert over somebody's own
+    freshly collected rows.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(CSV_TEMPLATE_COLUMNS)
+    for row in rows:
+        writer.writerow(
+            [
+                *(row[name] for name in FEATURE_NAMES),
+                row["price_amount"],
+                row["price_currency"],
+                row["map_tier"],
+                row["item_level"],
+                "true" if row["corrupted"] else "false",
+                "" if anonymise else (row["seller"] or ""),
+                "" if anonymise else (row["listing_id"] or ""),
+                row["indexed_at"] or "",
+            ]
+        )
+    return buffer.getvalue()
+
+
 def csv_template() -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")

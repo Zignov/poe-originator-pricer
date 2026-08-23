@@ -64,3 +64,47 @@ def test_stash_pricer_accepts_pasted_item_text():
         pytest.skip("clipboard text area not rendered")
     areas[0].set_value(T16_UNCORRUPTED_RARE).run()
     assert not app.exception, [str(e) for e in app.exception]
+
+
+def _demo_items():
+    """The maps from data/demo_stash.json, parsed the way a stash source would."""
+    import json
+
+    from src.parsing.item_parser import classify, parse_api_item
+
+    payload = json.loads(
+        (Path(__file__).resolve().parent.parent / "data" / "demo_stash.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    return [
+        classify(parse_api_item(item), map_tier=16, require_uncorrupted=True)
+        for item in payload["items"]
+    ]
+
+
+def test_stash_pricer_renders_the_exalt_panel_for_real_maps():
+    """The affix column and exalt verdict only execute when a tab is loaded."""
+    app = AppTest.from_file(APP, default_timeout=180)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    assert not app.exception, f"before navigation: {app.exception}"
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"Stash Pricer raised: {[str(e) for e in app.exception]}"
+
+    rendered = " ".join(str(m.value) for m in app.markdown) + " ".join(
+        str(c.value) for c in app.caption
+    )
+    assert "Exalting this map" in rendered
+
+
+def test_the_exaltable_filter_does_not_break_the_page():
+    app = AppTest.from_file(APP, default_timeout=180)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    boxes = [c for c in app.checkbox if "Exaltable" in str(c.label)]
+    if not boxes:
+        pytest.skip("no trained model, so the controls are not shown")
+    boxes[0].set_value(True).run()
+    assert not app.exception, f"raised with the filter on: {[str(e) for e in app.exception]}"

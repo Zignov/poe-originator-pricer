@@ -24,6 +24,11 @@ currency:
   # Divine -> chaos conversion. NOT a permanent constant: override it in the
   # Settings page or with `python -m src.cli set-rate <value>`.
   divine_to_chaos: 220.0
+  # What an Exalted Orb costs, in chaos. This is the whole right-hand side of
+  # the exalt-worthy decision -- a 30c gain is worth taking against a 4c orb and
+  # not against a 40c one -- so it is refreshed from the official exchange
+  # endpoint rather than trusted as a constant. Only a starting value.
+  exalted_to_chaos: 10.0
 
 market:
   # Listings older than this are excluded from training by default.

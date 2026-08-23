@@ -24,11 +24,13 @@ from src.ml import models as backends
 from src.ml.features import (
     bulk_listing_weights,
     feature_columns,
+    monotone_constraints,
     recency_weights,
     rows_to_frame,
     target_inverse,
     target_transform,
 )
+from src.ml.affix_catalogue import CATALOGUE_NAME, fit_catalogue, samples_from_rows
 from src.ml.validation import choose_split, is_snapshot, metrics, rolling_time_folds
 from src.schema import FEATURE_NAMES
 
@@ -83,7 +85,7 @@ def _fit_and_score(
     # the row belongs to.
     weights = recency_weights(frame.loc[idx_train, "observed_at"], weight_schedule)
     weights = weights * bulk_listing_weights(frame.loc[idx_train])
-    model = backends.build(name)
+    model = backends.build(name, {"monotone": monotone_constraints(list(X_train.columns))})
     backends.fit(model, X_train, target_transform(y_train_raw, target_mode), weights)
 
     pred_eval = target_inverse(np.asarray(model.predict(X_eval), dtype=float), target_mode)
@@ -207,7 +209,9 @@ def train(
                 continue
 
         # -- final model on everything ---------------------------------
-        final = backends.build(best["backend"])
+        final = backends.build(
+            best["backend"], {"monotone": monotone_constraints(columns)}
+        )
         y_all = frame["price_chaos"].to_numpy(dtype=float)
         backends.fit(
             final,
@@ -268,6 +272,7 @@ def train(
             json.dumps(meta, indent=2, default=str), encoding="utf-8"
         )
         repo.record_model_run(meta, str(artifact_path))
+        _fit_affix_catalogue(cfg, repo, log)
 
         log(
             f"saved {artifact_path.name}  |  held-out test: "
@@ -422,6 +427,44 @@ def _conformal_ratios(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, Any]:
         "bands": bands,
     }
 
+
+
+def _fit_affix_catalogue(cfg: Config, repo: Repository, log=print) -> None:
+    """Recover the per-affix contribution table alongside the price model.
+
+    It is fitted here rather than on demand because it is scope-bound: the
+    contributions belong to one league and map tier, exactly like the model, so
+    the two should never be able to come from different datasets. A failure is
+    logged and swallowed -- the exalt feature is an extra, and it must not be
+    able to take training down with it.
+    """
+    try:
+        rows = repo.listing_rows(
+            league=cfg.get("league"),
+            include_outliers=False,
+            map_tier=cfg.get("scope.map_tier"),
+            require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+        )
+        catalogue = fit_catalogue(
+            samples_from_rows(rows),
+            league=cfg.get("league"),
+            map_tier=cfg.get("scope.map_tier"),
+        )
+    except Exception as exc:  # noqa: BLE001 - never fail training over this
+        log(f"affix catalogue: not fitted ({exc})")
+        return
+
+    if catalogue is None:
+        log("affix catalogue: not enough listings with affix data; exalt advice disabled")
+        return
+
+    catalogue.save(cfg.model_dir / CATALOGUE_NAME)
+    refused = catalogue.refused_features()
+    log(
+        f"affix catalogue: {len(catalogue.entries)} affixes from {catalogue.sample_size} "
+        f"listings, {len(catalogue.modelled_features)}/{len(FEATURE_NAMES)} rewards modelled"
+        + (f" (not affix-driven: {', '.join(refused)})" if refused else "")
+    )
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train the Originator Map price model")

@@ -26,6 +26,23 @@ OPTIONAL_FEATURES: tuple[str, ...] = (
 )
 
 
+#: Features where more is never worth less. All seven rewards qualify: a map with
+#: higher quantity, rarity, pack size or any "More" value is strictly better than
+#: the same map without it, so no price model should ever say otherwise.
+#:
+#: This is not a modelling convenience, it is a property of the game -- and an
+#: unconstrained gradient-boosted model broke it on 11% of maps, which silently
+#: inverts the exalt calculation, that being nothing but a comparison between a
+#: map and a strictly better version of itself. Context columns are deliberately
+#: absent: nothing says a later hour of day should mean a higher price.
+MONOTONE_FEATURES: frozenset[str] = frozenset(FEATURE_NAMES)
+
+
+def monotone_constraints(columns: Sequence[str]) -> list[int]:
+    """Per-column monotonicity: 1 for non-decreasing, 0 for unconstrained."""
+    return [1 if name in MONOTONE_FEATURES else 0 for name in columns]
+
+
 def feature_columns(optional: Sequence[str] = ()) -> list[str]:
     unknown = [c for c in optional if c not in OPTIONAL_FEATURES]
     if unknown:
