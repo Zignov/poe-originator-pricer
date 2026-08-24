@@ -251,6 +251,28 @@ In the browser:
 5. View suggested prices
 ```
 
+### Running it on Streamlit Community Cloud
+
+`app.py` is the entry point and a clean checkout boots without any local setup:
+`config.yaml` is gitignored, and `src/config.py` falls back to
+`config.example.yaml` when it is absent. Point Community Cloud at this repo with
+`app.py` as the main file and it redeploys on every push to `main`.
+
+Two things do not survive the trip, both by design:
+
+* **The database and the trained model are not in the repo** (`data/*.db`,
+  `models/*.pkl`). A cloud instance therefore starts with no listings and no
+  model, and Community Cloud's disk does not persist across restarts. Collect
+  from the Market Data page to fill it, or import a CSV export. Treat a cloud
+  instance as a demo; the real dataset lives on the machine that collected it.
+* **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
+  goes out as `you@example.com`, and GGG asks automated clients to identify
+  themselves with a real address (see §12). `POE_LEAGUE` can be set the same way
+  to override the league without editing config.
+
+POESESSID is deliberately *not* something to put in cloud secrets — it is a
+session cookie for your own account, and §5 covers why it stays local.
+
 ---
 
 ## 7. Loading a stash tab
