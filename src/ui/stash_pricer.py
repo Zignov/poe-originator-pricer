@@ -13,6 +13,7 @@ from src.market.comparables import format_age
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.stash.base import StashSource
 from src.stash.clipboard_import import ClipboardStashSource
+from src.stash.highlight_regex import build_highlight_regex
 from src.stash.json_import import JsonStashSource, parse_csv
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
@@ -163,6 +164,9 @@ def render() -> None:
 
     st.markdown("---")
     _detail_panel(visible, fmt)
+    # The whole tab, not `visible`: the pattern must know about every map that
+    # has to stay dark, and the table filters only change what is on screen.
+    _highlight_tool(priced, fmt)
     _copy_tools(visible, fmt)
     _snapshot_button(cfg, repo, items, priced)
 
@@ -515,6 +519,101 @@ def _explanation(entry, fmt):
                 )
             },
         )
+
+
+def _item_text(item) -> str:
+    """The lines the game prints on a map, as the stash search sees them.
+
+    Modifiers are included, not just the name: every map in the tab prints
+    "Map (Tier 16)" and "Item Quantity", and a fragment that happened to sit
+    inside one of those shared lines would highlight the whole tab. Handing the
+    whole text to the exclusion check rules that out without special-casing any
+    particular line.
+    """
+    parts = [item.name or "", item.base_type or ""]
+    parts.extend(item.raw_modifiers or [])
+    return "\n".join(p for p in parts if p)
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def _cached_regex(names: tuple[str, ...], texts: tuple[str, ...]):
+    """Memoised because this page reruns on every widget touch.
+
+    Building the pattern costs about 20ms for a 60-map tab but a third of a
+    second across a couple of quad tabs, and paying that again every time a
+    checkbox moves is what would make the page feel slow. The arguments are the
+    whole input, so the key is exact -- change a price and the entry misses.
+    """
+    return build_highlight_regex(names, texts)
+
+
+def _highlight_tool(priced, fmt):
+    """Turn a price threshold into a pattern for the in-game stash search.
+
+    Deliberately fed the *whole* tab rather than the filtered table above: the
+    pattern has to be built against every map that must stay dark, and the
+    filters exist to change what is on screen, not what is in the tab.
+    """
+    supported = [p for p in priced if p.supported and p.suggested_chaos]
+    if not supported:
+        return
+
+    st.markdown("### Highlight these maps in game")
+    st.caption(
+        "The game cannot see this app's prices, so the threshold is turned into "
+        "a stash-search pattern built from the maps' own names. Paste it into "
+        "the stash search box (**Ctrl+F**) and the maps above your price light up."
+    )
+
+    values = sorted(float(p.suggested_chaos) for p in supported)
+    default = values[max(0, int(len(values) * 0.75) - 1)]
+    columns = st.columns([1, 3])
+    threshold = columns[0].number_input(
+        f"Highlight at or above ({fmt.column_suffix()})",
+        min_value=0.0,
+        value=round(float(fmt.value(default)) or 0.0, 2),
+        step=5.0 if fmt.unit == "chaos" else 0.5,
+        key="highlight_threshold",
+    )
+
+    selected, excluded = [], []
+    for entry in priced:
+        value = fmt.value(entry.suggested_chaos) if entry.suggested_chaos else None
+        # An unpriced map is not "above the threshold", so it belongs in the
+        # exclusion corpus like any other map that must stay dark.
+        if entry.supported and value is not None and value >= threshold:
+            selected.append(entry)
+        else:
+            excluded.append(entry)
+
+    result = _cached_regex(
+        tuple(e.item.name for e in selected),
+        tuple(_item_text(e.item) for e in excluded),
+    )
+
+    with columns[1]:
+        if result.ok:
+            st.code(result.pattern, language="text")
+        if result.exact:
+            st.success(result.explain())
+        else:
+            st.markdown(
+                f'<div class="warn">{result.explain()}</div>', unsafe_allow_html=True
+            )
+
+    missed = [*result.ambiguous, *result.unmatchable, *result.dropped]
+    if missed:
+        positions = {e.item.name: e.item.position_label() for e in selected}
+        st.caption(
+            "Not covered by the pattern: "
+            + ", ".join(f"{n} ({positions.get(n, '?')})" for n in missed)
+        )
+
+    st.caption(
+        f"Matched against **{len(selected)} of {len(priced)}** maps in the tab, on "
+        "the suggested listing price shown on the tiles. The pattern is text for "
+        "you to paste yourself — this tool never touches the game client."
+    )
 
 
 def _copy_tools(priced, fmt):

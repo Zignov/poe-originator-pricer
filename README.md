@@ -293,7 +293,48 @@ You get:
 - per-map **fair value, suggested listing price, likely range and confidence**;
 - the **closest real listings**, as an independent cross-check on the model;
 - **copy-ready notes** (`~price 9.8 divine`) and a copy-all block, for you to
-  type in yourself.
+  type in yourself;
+- a **stash-search pattern** that highlights the maps above a price you pick —
+  see below.
+
+### Highlighting the good maps in game
+
+Pick a price, copy the pattern, paste it into the stash search box (**Ctrl+F**),
+and every map at or above that price lights up. The workflow is: price the tab,
+set the threshold, paste, pull the highlighted maps.
+
+The game cannot see this app's prices, so the threshold has to be re-expressed
+as something the stash search *can* match — the text printed on the maps
+themselves. Rare maps carry a random two-word name, so the pattern is built from
+whatever fragments of those names pick out the maps above the price and nothing
+else in the tab:
+
+```
+ort|glo|gri|est|tim|fat|^voi|ago.*gam
+```
+
+That is a real pattern for eight maps out of a 26-map tab, in 37 characters.
+Three things about it are deliberate, and all three come from how the game's
+search actually behaves:
+
+- **It is fragments, not names.** The search box holds **250 characters** in
+  PoE 1, which does not go far across a quad tab, so each map is reduced to the
+  shortest piece of its name that no *other* map in the tab carries. A fragment
+  that happens to cover several selected maps at once is preferred.
+- **`^voi` is anchored.** The search matches **each line** of the item text, so
+  `^` means "the name starts with voi" — which separates names that share a word
+  when no plain substring can.
+- **`ago.*gam` spans two words without a space.** A space in the search box
+  means *and*, not a literal space, so a fragment containing one would quietly
+  become a much wider search. `.` never matches a newline, so `.*` stays inside
+  the one line.
+
+When a map cannot be singled out — two maps in a tab can roll the same name, one
+above the threshold and one below — the app says so and gives you the stash
+position instead of emitting a pattern that silently highlights both. The same
+goes for maps that will not fit in the character budget.
+
+It is text for you to paste. Nothing is sent to the game client.
 
 From the CLI:
 
