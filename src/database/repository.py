@@ -191,6 +191,18 @@ class Repository:
         ).fetchone()
         return float(row["value"]) if row else default
 
+    def get_setting_time(self, key: str) -> datetime | None:
+        """When a setting was last written.
+
+        A fetched rate that is three days stale and one fetched a minute ago are
+        worth different amounts of trust, and the value alone cannot say which
+        it is -- the divine rate beside it has always shown its timestamp.
+        """
+        row = self.conn.execute(
+            "SELECT updated_at FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return _parse_iso(row["updated_at"]) if row and row["updated_at"] else None
+
     def flag_outliers(self, flags: Sequence[tuple[int, bool, str]]) -> int:
         cur = self.conn.cursor()
         for listing_id, is_outlier, reason in flags:

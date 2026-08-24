@@ -3,11 +3,51 @@ from __future__ import annotations
 
 import streamlit as st
 
+from src.config import user_agent
+from src.market.currency_source import ExchangeRateError, fetch_leagues
 from src.ml import models as backends
 from src.ml.train import NotEnoughData, train
 from src.pricing.display import UNIT_LABELS, UNITS
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
-from src.ui.common import get_config, get_repo, invalidate_model_cache
+from src.ui.common import get_config, get_exalt_cost, get_repo, invalidate_model_cache
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def league_options(agent: str) -> list[str]:
+    """League ids GGG is serving, cached for an hour.
+
+    Cached because it is the same answer all session and this page reruns on
+    every widget touch; an uncached call would mean a request per keystroke
+    against an endpoint that hands out five-minute bans.
+    """
+    return fetch_leagues(agent)
+
+
+def _league_picker(cfg) -> str:
+    """The League setting as a list of what GGG is actually serving.
+
+    It was a free-text box, and a typo there does not fail loudly -- it produces
+    an empty search and a rate that quietly stays on the config default. The
+    live list makes the wrong league impossible to reach by accident, and falls
+    back to the text box if the endpoint cannot be reached.
+    """
+    current = cfg.get("league")
+    try:
+        leagues = league_options(user_agent(cfg))
+    except (ExchangeRateError, OSError) as exc:
+        st.caption(f"Could not read GGG's league list ({exc}); type it instead.")
+        return st.text_input("League", value=current)
+
+    if current not in leagues:
+        # Keep whatever is configured reachable, so opening this page cannot
+        # silently move a working setup onto a different league.
+        leagues = [current, *leagues]
+    chosen = st.selectbox("League", leagues, index=leagues.index(current))
+    st.caption(
+        "Read live from GGG's league list. Everything else on this page — "
+        "collection, the orb prices, the stash reader — follows this setting."
+    )
+    return chosen
 
 
 def render() -> None:
@@ -25,7 +65,7 @@ def render() -> None:
     )
 
     with league_tab:
-        league = st.text_input("League", value=cfg.get("league"))
+        league = _league_picker(cfg)
         col1, col2 = st.columns(2)
         tier = col1.number_input(
             "Map tier to price", 1, 17, int(cfg.get("scope.map_tier", 16))
@@ -60,15 +100,37 @@ def render() -> None:
             cfg.set("display.currency", unit)
             st.rerun()
 
-        st.markdown("**Divine / chaos rate**")
+        st.markdown("**Orb prices in chaos**")
+        st.caption(
+            "Type over either one to override what the exchange endpoint reported. "
+            "Refresh them from the live market on the **Market Data** page."
+        )
         stored = repo.get_divine_rate(cfg.get("league"))
         default_rate = stored[0] if stored else float(cfg.get("currency.divine_to_chaos"))
-        rate = st.number_input("1 divine =", 1.0, 100000.0, float(default_rate), step=1.0)
-        if st.button("Apply rate and recompute stored prices"):
+        orb_cols = st.columns(2)
+        rate = orb_cols[0].number_input(
+            "1 Divine Orb =", 1.0, 100000.0, float(default_rate), step=1.0
+        )
+        exalt_cost = orb_cols[1].number_input(
+            "1 Exalted Orb =", 0.1, 100000.0, float(get_exalt_cost()), step=1.0
+        )
+        st.caption(
+            "Divine is what every stored listing price is normalised through. "
+            "Exalted is what an exalt costs, which is the whole right-hand side "
+            "of the exalt-worthy verdict on the Stash Pricer."
+        )
+        if st.button("Apply orb prices and recompute stored listings"):
             repo.set_divine_rate(league, rate, source="manual")
             repo.recompute_price_chaos(rate)
             st.session_state["divine_override"] = rate
-            st.success("Rate applied and every stored price recomputed.")
+            # Stored rather than session-scoped, for the same reason the fetched
+            # price is: a hand-set orb cost that vanished on restart would leave
+            # the exalt verdict silently back on the config default.
+            repo.set_setting("exalted_to_chaos", float(exalt_cost))
+            st.success(
+                f"Divine = {rate:.1f}c, Exalted = {exalt_cost:.1f}c. "
+                "Every stored price recomputed."
+            )
 
         st.markdown("**Selling strategy multipliers**")
         strategies = dict(cfg.get("pricing.strategies", {}))
@@ -89,6 +151,7 @@ def render() -> None:
             cfg.set("scope.require_uncorrupted", bool(uncorrupted))
             cfg.set("pricing.strategies", strategies)
             cfg.set("currency.divine_to_chaos", float(rate))
+            cfg.set("currency.exalted_to_chaos", float(exalt_cost))
             cfg.set("display.currency", unit)
             st.success("Applied for this session.")
 

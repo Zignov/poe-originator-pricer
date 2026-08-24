@@ -340,6 +340,20 @@ rate, on the Market Data page, and stored alongside it, because it is the entire
 right-hand side of the decision: a 30-chaos gain is worth taking against a 4-chaos orb and not against a
 40-chaos one.
 
+**Both prices are read off the live order book, and the way they are read
+matters.** A plain median of the book reports both rates about ten chaos under
+the market: it counts a two-unit lowball the same as an 857-unit standing offer,
+and it counts bait — the exalted book routinely carries offers at 1-3 chaos
+beside a real cluster at 20-50, which exist to be seen rather than filled. The
+rate is therefore a *stock-weighted* median taken after ratio outliers are
+rejected against the book's own centre. The query stays on `status: online`
+deliberately: `any` returns more offers, but the response caps at 100 and the
+book arrives sorted cheapest-first, so a deep book comes back as its own bottom
+quartile — 1-10 chaos for exalted against a market of 25. `src/market/currency_source.py`
+carries the measurements. Both prices are also editable by hand in **Settings →
+League and pricing**, and the league they are read for is the League setting
+there, now a list of what GGG is actually serving rather than a free-text box.
+
 ---
 
 ## 9. Finding bulk lots to buy

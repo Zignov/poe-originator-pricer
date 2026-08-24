@@ -13,11 +13,7 @@ from src.market.collectors.manual_import import (
     csv_template,
     listing_rows_to_csv,
 )
-from src.market.currency_source import (
-    ExchangeRateError,
-    fetch_divine_to_chaos,
-    fetch_exalted_to_chaos,
-)
+from src.market.currency_source import ExchangeRateError, fetch_rate_quote
 from src.market.ingest import collect_from_trade_api, converter_for, refresh_outliers, store
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
@@ -109,46 +105,76 @@ def _collect(cfg, repo) -> None:
             )
 
     st.markdown("---")
-    st.markdown("**Divine / chaos rate**")
-    current = repo.get_divine_rate(cfg.get("league"))
+    _orb_prices(cfg, repo)
+
+
+def _orb_prices(cfg, repo) -> None:
+    """Both orb prices, side by side and stated the same way.
+
+    Divine used to be shown as a rate and Exalted as a bare number, which made
+    them look like different kinds of thing when they are the same measurement
+    of the same market. Both now read "1 orb = N chaos", both show when they were
+    set, and both report how many live offers the number came from.
+    """
+    from src.config import user_agent
+
+    st.markdown("**Orb prices in chaos**")
     st.caption(
-        f"Currently {current[0]:.1f} (set {current[1]:%Y-%m-%d %H:%M} UTC)"
-        if current
-        else f"Currently {cfg.get('currency.divine_to_chaos')} from config."
+        f"Read live from GGG's bulk-exchange endpoint for **{cfg.get('league')}**. "
+        "Change the league on the Settings page. The rate is a stock-weighted "
+        "median of the live book with bait offers rejected — see "
+        "`src/market/currency_source.py` for why a plain median read about ten "
+        "chaos low."
     )
-    if st.button("Refresh rate from the official exchange endpoint"):
-        from src.config import user_agent
 
-        try:
-            rate = fetch_divine_to_chaos(cfg.get("league"), user_agent(cfg))
-        except ExchangeRateError as exc:
-            st.error(str(exc))
-        else:
-            repo.set_divine_rate(cfg.get("league"), rate, source="official_exchange_api")
-            repo.recompute_price_chaos(rate)
-            flash("success", f"Divine = {rate:.1f} chaos. All stored prices recomputed.")
-            st.rerun()
+    divine_col, exalt_col = st.columns(2)
 
-    st.markdown("---")
-    st.markdown("**Exalted Orb price**")
-    st.caption(
-        f"Currently {get_exalt_cost():g} chaos. This is the whole right-hand side of the "
-        "exalt-worthy verdict on the Stash Pricer, so it is worth keeping current."
-    )
-    if st.button("Refresh Exalted Orb price from the official exchange endpoint"):
-        from src.config import user_agent
+    with divine_col:
+        stored = repo.get_divine_rate(cfg.get("league"))
+        st.metric(
+            "1 Divine Orb",
+            f"{stored[0]:.1f}c" if stored else f"{cfg.get('currency.divine_to_chaos'):.1f}c",
+        )
+        st.caption(
+            f"Set {stored[1]:%Y-%m-%d %H:%M} UTC"
+            if stored
+            else "From config — never refreshed."
+        )
+        if st.button("Refresh Divine", use_container_width=True):
+            try:
+                quote = fetch_rate_quote(cfg.get("league"), user_agent(cfg), "divine")
+            except ExchangeRateError as exc:
+                st.error(str(exc))
+            else:
+                repo.set_divine_rate(
+                    cfg.get("league"), quote.chaos, source="official_exchange_api"
+                )
+                repo.recompute_price_chaos(quote.chaos)
+                flash("success", f"{quote.summary()}. All stored prices recomputed.")
+                st.rerun()
+        st.caption("Every stored price is recomputed through this rate.")
 
-        try:
-            cost = fetch_exalted_to_chaos(cfg.get("league"), user_agent(cfg))
-        except ExchangeRateError as exc:
-            st.error(str(exc))
-        else:
-            # Stored, not session-scoped: the divine rate beside it persists, and
-            # a price that silently reverted to the config default on restart is
-            # exactly what made this button look broken.
-            repo.set_setting("exalted_to_chaos", cost)
-            flash("success", f"Exalted Orb = {cost:.1f} chaos. Saved.")
-            st.rerun()
+    with exalt_col:
+        st.metric("1 Exalted Orb", f"{get_exalt_cost():.1f}c")
+        stamp = repo.get_setting_time("exalted_to_chaos")
+        st.caption(
+            f"Set {stamp:%Y-%m-%d %H:%M} UTC" if stamp else "From config — never refreshed."
+        )
+        if st.button("Refresh Exalted", use_container_width=True):
+            try:
+                quote = fetch_rate_quote(cfg.get("league"), user_agent(cfg), "exalted")
+            except ExchangeRateError as exc:
+                st.error(str(exc))
+            else:
+                # Stored, not session-scoped: the divine rate beside it persists,
+                # and a price that silently reverted to the config default on
+                # restart is exactly what made this button look broken.
+                repo.set_setting("exalted_to_chaos", quote.chaos)
+                flash("success", f"{quote.summary()}. Saved.")
+                st.rerun()
+        st.caption(
+            "The whole right-hand side of the exalt-worthy verdict on the Stash Pricer."
+        )
 
 
 def _import(cfg, repo) -> None:
