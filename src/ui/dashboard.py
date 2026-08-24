@@ -79,6 +79,8 @@ def render() -> None:
         ]
     )
 
+    _training_status(counts, run)
+
     if model_error:
         st.markdown(f'<div class="warn">{model_error}</div>', unsafe_allow_html=True)
 
@@ -116,6 +118,48 @@ def render() -> None:
             "**Reminder.** Every number is an estimate from *asking* prices, not "
             "completed sales. Always cross-check against the comparable listings "
             "shown next to each prediction."
+        )
+
+
+#: How many usable listings can pile up past the trained model before the
+#: dashboard says so. Small enough to catch a real collection run, large enough
+#: that a handful of refreshed listings does not nag.
+STALE_ROW_MARGIN = 100
+
+
+def _training_status(counts: dict, run) -> None:
+    """Say whether the model has seen the data that is in the database.
+
+    Nothing retrains on its own -- `model.retrain_interval_hours` is a stored
+    preference that no code path acts on -- so collecting more listings does not
+    improve any price until Retrain is pressed. The dashboard used to show only
+    *when* the model trained, which cannot answer the question people actually
+    have after a collection run: is this number built on what I just collected?
+    """
+    usable = counts["total"] - counts["outliers"]
+    if run is None:
+        st.markdown(
+            f'<div class="warn"><b>No model trained yet.</b> {usable:,} listings are '
+            "stored and none of them have been trained on. Settings &rarr; Model "
+            "&rarr; <b>Retrain model</b>.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    trained_on = int(run["dataset_size"] or 0)
+    behind = usable - trained_on
+    if behind >= STALE_ROW_MARGIN:
+        st.markdown(
+            f'<div class="warn"><b>The model is behind the data.</b> It was trained '
+            f"on {trained_on:,} listings and there are now {usable:,} — "
+            f"{behind:,} newer ones are not in it, and prices will not reflect them "
+            "until you retrain. Settings &rarr; Model &rarr; <b>Retrain model</b>.</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption(
+            f"Model is current: trained on {trained_on:,} of {usable:,} usable "
+            "listings. Training only happens when you ask for it."
         )
 
 

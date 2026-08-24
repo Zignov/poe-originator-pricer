@@ -510,12 +510,52 @@ client. A test asserts no WebSocket client has crept into `src/`.
 
 ## 10. Training the model
 
+### When training happens: only when you ask
+
+**Nothing retrains on its own.** Collecting more listings does not change a
+single price until you retrain — the data and the model are separate things, and
+growing the first leaves the second exactly as it was.
+
 ```bash
 python -m src.ml.train                 # or: python -m src.cli train
 python -m src.cli train --tune-weights # also search recency-weight schedules
 ```
 
 or the **Retrain model** button in Settings.
+
+> `model.retrain_interval_hours` in the config is **not** a schedule. It is
+> stored and shown in Settings, but no code path acts on it. Treat it as a note
+> to yourself until it does something.
+
+Because that is easy to lose track of, the **Dashboard** compares the two and
+says which state you are in — either *"Model is current: trained on 2,622 of
+2,622 usable listings"* or a warning naming the gap and pointing at Retrain.
+Check there after a collection run.
+
+### Sharing the dataset instead of everyone collecting it
+
+Collecting a few thousand listings takes hours of rate-limited requests, and
+there is no reason for each person to repeat it. A ready-made export lives in
+the repo:
+
+```
+data/originator_listings_allflame.csv     # 2,622 listings, ~180 KB
+```
+
+Import it on **Market Data → Import → CSV**, then retrain. It is the same
+format the export button produces, so anyone can share theirs the same way
+(**Market Data → Inspect and export**, which offers an anonymised export).
+
+Three honest caveats:
+
+- **Seller and listing id are blank.** They are stripped on export, which is
+  what makes the file safe to publish. The cost is that two identical maps at
+  the same price can no longer be told apart, so a re-import merges them — 2,622
+  rows land as 2,621.
+- **It is a snapshot, not a feed.** Prices move through a league. An export from
+  three weeks ago will train a model that prices a market that no longer exists.
+  The `indexed_at` column is preserved so age is at least visible.
+- **It is one league.** Rates and prices do not carry across leagues.
 
 What happens:
 
