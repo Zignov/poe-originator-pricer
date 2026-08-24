@@ -108,23 +108,33 @@ def _collect(cfg, repo) -> None:
     _orb_prices(cfg, repo)
 
 
+def _chaos(value: float) -> str:
+    """A chaos price at a precision that suits its size.
+
+    One decimal is right for a 211-chaos Divine Orb and wrong for a 1.25-chaos
+    Exalted Orb, where it renders as "1.2c" and quietly loses four percent of
+    the number the exalt verdict divides by.
+    """
+    value = float(value or 0.0)
+    return f"{value:.2f}c" if value < 10 else f"{value:.1f}c"
+
+
 def _orb_prices(cfg, repo) -> None:
     """Both orb prices, side by side and stated the same way.
 
     Divine used to be shown as a rate and Exalted as a bare number, which made
     them look like different kinds of thing when they are the same measurement
     of the same market. Both now read "1 orb = N chaos", both show when they were
-    set, and both report how many live offers the number came from.
+    set, and both report the volume behind the number.
     """
     from src.config import user_agent
 
     st.markdown("**Orb prices in chaos**")
     st.caption(
-        f"Read live from GGG's bulk-exchange endpoint for **{cfg.get('league')}**. "
-        "Change the league on the Settings page. The rate is a stock-weighted "
-        "median of the live book with bait offers rejected — see "
-        "`src/market/currency_source.py` for why a plain median read about ten "
-        "chaos low."
+        f"Read from [poe.ninja](https://poe.ninja/poe1/economy/{cfg.get('league')}/currency) "
+        f"for **{cfg.get('league')}**, which aggregates the in-game Currency "
+        "Exchange over a window rather than sampling a few dozen live listings. "
+        "Change the league on the Settings page."
     )
 
     divine_col, exalt_col = st.columns(2)
@@ -133,7 +143,7 @@ def _orb_prices(cfg, repo) -> None:
         stored = repo.get_divine_rate(cfg.get("league"))
         st.metric(
             "1 Divine Orb",
-            f"{stored[0]:.1f}c" if stored else f"{cfg.get('currency.divine_to_chaos'):.1f}c",
+            _chaos(stored[0] if stored else cfg.get("currency.divine_to_chaos")),
         )
         st.caption(
             f"Set {stored[1]:%Y-%m-%d %H:%M} UTC"
@@ -147,7 +157,7 @@ def _orb_prices(cfg, repo) -> None:
                 st.error(str(exc))
             else:
                 repo.set_divine_rate(
-                    cfg.get("league"), quote.chaos, source="official_exchange_api"
+                    cfg.get("league"), quote.chaos, source="poe_ninja_exchange"
                 )
                 repo.recompute_price_chaos(quote.chaos)
                 flash("success", f"{quote.summary()}. All stored prices recomputed.")
@@ -155,7 +165,7 @@ def _orb_prices(cfg, repo) -> None:
         st.caption("Every stored price is recomputed through this rate.")
 
     with exalt_col:
-        st.metric("1 Exalted Orb", f"{get_exalt_cost():.1f}c")
+        st.metric("1 Exalted Orb", _chaos(get_exalt_cost()))
         stamp = repo.get_setting_time("exalted_to_chaos")
         st.caption(
             f"Set {stamp:%Y-%m-%d %H:%M} UTC" if stamp else "From config — never refreshed."

@@ -145,7 +145,6 @@ respond without authentication:
 ```
 POST /api/trade/search/{league}
 GET  /api/trade/fetch/{ids}?query={id}
-POST /api/trade/exchange/{league}     # for the divine/chaos rate
 ```
 
 The client:
@@ -357,24 +356,43 @@ Originator memory rather than a rolled affix — so exalting is never credited w
 adding any, where a less careful version would have invented value on every
 estimate. Which rewards passed is printed when the model trains.
 
-The orb price is fetched from the same official exchange endpoint as the divine
-rate, on the Market Data page, and stored alongside it, because it is the entire
-right-hand side of the decision: a 30-chaos gain is worth taking against a 4-chaos orb and not against a
-40-chaos one.
+The orb price is fetched from the same source as the divine rate, on the Market
+Data page, and stored alongside it, because it is the entire right-hand side of
+the decision.
 
-**Both prices are read off the live order book, and the way they are read
-matters.** A plain median of the book reports both rates about ten chaos under
-the market: it counts a two-unit lowball the same as an 857-unit standing offer,
-and it counts bait — the exalted book routinely carries offers at 1-3 chaos
-beside a real cluster at 20-50, which exist to be seen rather than filled. The
-rate is therefore a *stock-weighted* median taken after ratio outliers are
-rejected against the book's own centre. The query stays on `status: online`
-deliberately: `any` returns more offers, but the response caps at 100 and the
-book arrives sorted cheapest-first, so a deep book comes back as its own bottom
-quartile — 1-10 chaos for exalted against a market of 25. `src/market/currency_source.py`
-carries the measurements. Both prices are also editable by hand in **Settings →
-League and pricing**, and the league they are read for is the League setting
-there, now a list of what GGG is actually serving rather than a free-text box.
+**Both prices come from [poe.ninja](https://poe.ninja/poe1/economy), and the
+choice of source did more work than any statistic.** An earlier version read
+GGG's live bulk-exchange order book and tried to reduce it to a price. That is
+the wrong shape of data: a book is what a few dozen people are asking right now,
+while a rate is what the currency actually changes hands at. Turning the first
+into the second means guessing which offers are real. On the live exalted book —
+`1, 2, 2.95, 3, 20, 25, 50, 50, 90, 150` chaos — that version discarded the 1-3
+cluster as bait and returned **25**. poe.ninja puts the Exalted Orb at **1.25
+chaos** against 47k volume an hour. The discarded cluster *was* the market.
+
+poe.ninja aggregates the in-game Currency Exchange over a window, so the number
+is smooth and carries a volume figure the app displays alongside it —
+`primaryValue` and `volumePrimaryValue` from
+`/poe1/api/economy/exchange/current/overview`, cross-checked against what
+poe.ninja's own page renders. One request returns every currency.
+
+Two things worth knowing:
+
+* **The Exalted Orb is cheap.** Since 3.19 it is an ordinary crafting currency,
+  and at ~1.25 chaos it is nearly free against a map worth 100. A stale value of
+  10 or 25 does not shift the exalt verdict, it inverts it.
+* **poe.ninja also publishes a `stash` overview** built from trade-site listings
+  rather than the exchange. It disagrees — divine 189 against 211, exalted 3.02
+  against 1.25 — because listings are what people ask and the exchange is what
+  clears. `EXCHANGE` is the default; `STASH` stays reachable in
+  `src/market/currency_source.py` for comparison.
+
+Both prices are editable by hand in **Settings → League and pricing**, and the
+league they are read for is the League setting there, now a list of what GGG is
+actually serving rather than a free-text box. An unrecognised league is worth
+calling out: poe.ninja answers one with HTTP 200 and an empty result, so the app
+names that case explicitly rather than reporting it as a market with nothing to
+say.
 
 ---
 

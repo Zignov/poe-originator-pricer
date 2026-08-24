@@ -23,12 +23,17 @@ display:
 currency:
   # Divine -> chaos conversion. NOT a permanent constant: override it in the
   # Settings page or with `python -m src.cli set-rate <value>`.
-  divine_to_chaos: 220.0
+  divine_to_chaos: 210.0
   # What an Exalted Orb costs, in chaos. This is the whole right-hand side of
-  # the exalt-worthy decision -- a 30c gain is worth taking against a 4c orb and
-  # not against a 40c one -- so it is refreshed from the official exchange
-  # endpoint rather than trusted as a constant. Only a starting value.
-  exalted_to_chaos: 10.0
+  # the exalt-worthy decision, so it is refreshed from poe.ninja rather than
+  # trusted as a constant. Only a starting value.
+  #
+  # Note how small it is: since 3.19 the Exalted Orb is an ordinary crafting
+  # currency, and poe.ninja put it at 1.25 chaos in Allflame against 47k volume
+  # an hour. A stale value of 10 or 25 here does not merely shift the verdict,
+  # it inverts it -- almost every exalt looks worth taking at 1.25c and almost
+  # none does at 25c.
+  exalted_to_chaos: 1.25
 
 market:
   # Listings older than this are excluded from training by default.

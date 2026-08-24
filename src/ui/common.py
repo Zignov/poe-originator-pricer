@@ -172,7 +172,7 @@ def get_exalt_cost() -> float:
     stored = get_repo().get_setting("exalted_to_chaos")
     if stored:
         return float(stored)
-    return float(get_config().get("currency.exalted_to_chaos", 10.0) or 10.0)
+    return float(get_config().get("currency.exalted_to_chaos", 1.25) or 1.25)
 
 
 def flash(kind: str, message: str) -> None:

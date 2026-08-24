@@ -1,225 +1,203 @@
-"""Reading a market rate out of an exchange book.
+"""Reading currency rates out of a poe.ninja overview.
 
-Every fixture here is shaped from a real book captured live on 2026-08-24
-against league "Allflame". The two that matter:
+Fixtures are trimmed from the real payload captured on 2026-08-24 for league
+"Allflame", cross-checked against what poe.ninja's own page renders (Divine Orb
+showed "211" and "9.7M" for a `primaryValue` of 210.9 and a
+`volumePrimaryValue` of 9668224).
 
-  divine  199, 210, 215, 219, 219, 220, 229, 230, 240, 240
-          -- a real spread, with the deep offers sitting at the top end
-  exalted 1, 2, 2.95, 3, 20, 25, 50, 50, 90, 150
-          -- four bait offers, then the real market
-
-The old estimator read the median of the ten cheapest offers and returned 219
-and 15-22.5 respectively, against a market of roughly 230 and 25.
+The number that matters most here is the Exalted Orb at 1.25 chaos. An earlier
+version of this module read GGG's live order book instead, decided the 1-3 chaos
+offers on it were bait, and returned 25. See `test_the_exalted_orb_is_cheap`.
 """
 from __future__ import annotations
 
 import pytest
 
 from src.market.currency_source import (
+    EXCHANGE,
+    STASH,
     ExchangeRateError,
-    Offer,
-    parse_offers,
-    rate_from_offers,
-    reject_bait,
-    weighted_median,
+    RateQuote,
+    fetch_rate_quote,
+    parse_overview,
 )
 
-# (chaos, amount, stock) exactly as the live divine book came back.
-DIVINE_BOOK = [
-    Offer(199.0, 1.0, 269),
-    Offer(210.0, 1.0, 9),
-    Offer(215.0, 1.0, 24),
-    Offer(219.0, 1.0, 25),
-    Offer(219.0, 1.0, 316),
-    Offer(220.0, 1.0, 2),
-    Offer(229.0, 1.0, 857),
-    Offer(230.0, 1.0, 153),
-    Offer(480.0, 2.0, 102),
-    Offer(240.0, 1.0, 31),
-]
+EXCHANGE_PAYLOAD = {
+    "lines": [
+        {"id": "chaos", "primaryValue": 1, "volumePrimaryValue": 9668224},
+        {"id": "divine", "primaryValue": 210.9, "volumePrimaryValue": 9668224},
+        {"id": "exalted", "primaryValue": 1.25, "volumePrimaryValue": 46873},
+        {"id": "mirror", "primaryValue": 194310, "volumePrimaryValue": 21309336},
+        {"id": "tainted-chaos-orb", "primaryValue": 9.47, "volumePrimaryValue": 402.3},
+    ]
+}
 
-EXALTED_BOOK = [
-    Offer(1.0, 1.0, 2),
-    Offer(200.0, 100.0, 1270),
-    Offer(59.0, 20.0, 271),
-    Offer(3.0, 1.0, 52),
-    Offer(20.0, 1.0, 5),
-    Offer(25.0, 1.0, 119),
-    Offer(50.0, 1.0, 1),
-    Offer(50.0, 1.0, 83),
-    Offer(90.0, 1.0, 3),
-    Offer(150.0, 1.0, 10),
-]
+# The older pay/receive shape, keyed and priced differently.
+STASH_PAYLOAD = {
+    "lines": [
+        {"currencyTypeName": "Divine Orb", "chaosEquivalent": 189.2},
+        {"currencyTypeName": "Exalted Orb", "chaosEquivalent": 3.02},
+    ]
+}
 
 
-def test_a_bulk_offer_is_priced_per_unit():
-    """480 chaos for 2 divine is a 240 rate, not a 480 one."""
-    assert Offer(480.0, 2.0, 102).ratio == 240.0
+def _rates(payload=EXCHANGE_PAYLOAD, source=EXCHANGE):
+    return parse_overview(payload, "Allflame", source)
 
 
 # ---------------------------------------------------------------------------
-# Bait rejection
+# Reading the exchange overview
 # ---------------------------------------------------------------------------
-def test_bait_at_the_cheap_end_is_rejected():
-    """The four sub-3-chaos exalted offers are not a price anyone can fill."""
-    kept = {round(o.ratio, 2) for o in reject_bait(EXALTED_BOOK)}
-    assert kept == {20.0, 25.0, 50.0, 90.0}, (
-        "1, 2, 2.95 and 3 are bait against a 22.5 centre; 150 is the mirror image"
-    )
+def test_a_currency_is_priced_in_chaos():
+    assert _rates()["divine"].chaos == 210.9
 
 
-def test_a_real_spread_is_left_intact():
-    """Divine trades in a 199-240 band. None of that is an outlier."""
-    assert len(reject_bait(DIVINE_BOOK)) == len(DIVINE_BOOK)
+def test_the_exalted_orb_is_cheap():
+    """The whole reason this module was rewritten.
 
-
-def test_bait_is_judged_by_count_not_by_stock():
-    """Stock is the part of an offer that is free to inflate.
-
-    The live exalted book put 1270 units behind a 2-chaos offer -- more stock
-    than every honest offer combined. If the centre were stock-weighted, that
-    one offer would define the market and the real 20-50 cluster would be
-    rejected as the outlier instead.
+    Reading GGG's order book and rejecting its 1-3 chaos cluster as bait
+    returned 25 chaos for an Exalted Orb. poe.ninja puts it at 1.25 against
+    47k volume an hour. The discarded cluster was the market.
     """
-    kept = reject_bait(EXALTED_BOOK)
-    assert all(o.ratio > 5 for o in kept)
+    exalted = _rates()["exalted"]
+    assert exalted.chaos == 1.25
+    assert exalted.volume == 46873
 
 
-def test_a_book_too_short_to_judge_is_kept_whole():
-    two = [Offer(1.0, 1.0, 1), Offer(300.0, 1.0, 1)]
-    assert reject_bait(two) == two, "with two offers there is no centre to be off"
+def test_volume_comes_across_so_a_rate_can_be_doubted():
+    assert _rates()["divine"].volume == 9668224
+    assert not _rates()["divine"].thin
 
 
-def test_offers_with_no_quantity_are_dropped():
-    assert reject_bait([Offer(5.0, 0.0, 1)] * 3) == []
+def test_an_illiquid_currency_is_flagged_rather_than_hidden():
+    """A rate is still returned -- the caller is told not to lean on it."""
+    quiet = _rates()["tainted-chaos-orb"]
+    assert quiet.chaos == 9.47
+    assert quiet.thin
+    assert "low volume" in quiet.summary()
+
+
+def test_the_summary_names_its_source_and_volume():
+    summary = _rates()["divine"].summary()
+    assert "1 divine = 210.9 chaos" in summary
+    assert "poe.ninja exchange" in summary
+    assert "9.7M chaos/hour" in summary, "written the way poe.ninja's page writes it"
 
 
 # ---------------------------------------------------------------------------
-# The weighted median
+# Reading the stash overview, which is a different number on purpose
 # ---------------------------------------------------------------------------
-def test_deep_offers_pull_the_rate_towards_themselves():
-    """The whole point: 857 units at 229 outweighs 2 units at 220."""
-    assert weighted_median(DIVINE_BOOK) == 229.0
+def test_the_stash_shape_is_understood_too():
+    rates = _rates(STASH_PAYLOAD, STASH)
+    assert rates["divine"].chaos == 189.2
+    assert rates["exalted"].chaos == 3.02
 
 
-def test_the_unweighted_median_is_the_number_being_moved_away_from():
-    """Guards the size of the fix, not just its direction.
+def test_the_two_sources_key_the_same_way():
+    """"Divine Orb" and "divine" have to land on the same key, or a caller
+    asking for a rate gets one from the exchange and nothing from the stash."""
+    assert set(_rates(STASH_PAYLOAD, STASH)) <= set(_rates())
 
-    Counting offers equally gives 219.5 -- roughly ten chaos under the market,
-    which is exactly the error that was reported.
+
+def test_the_stash_overview_says_which_source_it_came_from():
+    """The two disagree by 10% on divine and 2.4x on exalted, so a rate that
+    does not say where it came from is not enough to act on."""
+    assert "poe.ninja stash" in _rates(STASH_PAYLOAD, STASH)["divine"].summary()
+
+
+# ---------------------------------------------------------------------------
+# Malformed payloads
+# ---------------------------------------------------------------------------
+def test_an_empty_payload_yields_nothing():
+    assert parse_overview({}, "Allflame") == {}
+    assert parse_overview({"lines": []}, "Allflame") == {}
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        {"id": "divine"},                                # no price at all
+        {"id": "divine", "primaryValue": None},
+        {"id": "divine", "primaryValue": "nonsense"},
+        {"id": "divine", "primaryValue": 0},             # a zero rate divides badly
+        {"id": "divine", "primaryValue": -5},
+        {"primaryValue": 210.9},                         # no id to file it under
+        "not a dict at all",
+    ],
+)
+def test_a_malformed_line_is_skipped_not_guessed(line):
+    assert parse_overview({"lines": [line]}, "Allflame") == {}
+
+
+# ---------------------------------------------------------------------------
+# The fetch layer, driven through a stub session
+# ---------------------------------------------------------------------------
+class _NoLimit:
+    """The limiter is real everywhere else; here it would only add sleeps."""
+
+    def acquire(self, *args, **kwargs):
+        return 0.0
+
+    def update_from_headers(self, headers):
+        pass
+
+    def note_retry_after(self, seconds):
+        pass
+
+
+class _Response:
+    def __init__(self, payload, status=200):
+        self._payload = payload
+        self.status_code = status
+        self.headers: dict[str, str] = {}
+
+    def json(self):
+        return self._payload
+
+
+class _Session:
+    def __init__(self, response):
+        self._response = response
+        self.calls: list[dict] = []
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        self.calls.append({"url": url, "params": params})
+        return self._response
+
+
+def _fetch(payload, want="divine", status=200):
+    session = _Session(_Response(payload, status))
+    quote = fetch_rate_quote("Allflame", "ua", want, session, limiter=_NoLimit())
+    return quote, session
+
+
+def test_a_rate_is_fetched_and_returned():
+    quote, session = _fetch(EXCHANGE_PAYLOAD)
+    assert isinstance(quote, RateQuote) and quote.chaos == 210.9
+    assert session.calls[0]["params"] == {"league": "Allflame", "type": "Currency"}
+    assert session.calls[0]["url"] == EXCHANGE
+
+
+def test_one_response_carries_every_currency():
+    """Two rates used to mean two requests against GGG's endpoint."""
+    assert set(parse_overview(EXCHANGE_PAYLOAD, "Allflame")) >= {"divine", "exalted"}
+
+
+def test_an_unknown_league_is_named_rather_than_read_as_no_data():
+    """poe.ninja answers an unrecognised league with HTTP 200 and no lines.
+
+    Silence is the worst possible shape for that failure -- it looks like the
+    market having nothing to say, so it has to be called out explicitly.
     """
-    flat = [Offer(o.chaos, o.amount, 1) for o in DIVINE_BOOK]
-    assert weighted_median(flat) == 219.0
-    assert weighted_median(DIVINE_BOOK) - weighted_median(flat) == 10.0
+    with pytest.raises(ExchangeRateError, match="League setting"):
+        _fetch({"lines": []})
 
 
-def test_an_offer_without_stock_still_counts_once():
-    """A missing stock figure must not silently delete the offer."""
-    assert weighted_median([Offer(100.0, 1.0, 0)]) == 100.0
+def test_a_missing_currency_is_distinguished_from_a_missing_league():
+    with pytest.raises(ExchangeRateError, match="priced 5 other currencies"):
+        _fetch(EXCHANGE_PAYLOAD, want="ancient-orb")
 
 
-def test_an_empty_book_is_an_error_not_a_zero():
-    with pytest.raises(ExchangeRateError):
-        weighted_median([])
-
-
-# ---------------------------------------------------------------------------
-# End to end over the captured books
-# ---------------------------------------------------------------------------
-def test_the_divine_rate_lands_on_the_market_not_its_floor():
-    quote = rate_from_offers(DIVINE_BOOK, "divine", "Allflame")
-    assert quote.chaos == 229.0
-    assert quote.offers_used == 10
-    assert not quote.thin
-
-
-def test_the_exalted_rate_ignores_the_bait_it_used_to_average_in():
-    quote = rate_from_offers(EXALTED_BOOK, "exalted", "Allflame")
-    assert quote.chaos == 25.0, "the real cluster, not the 1-3 chaos bait"
-    assert quote.offers_seen == 10
-    assert quote.offers_used == 5, "20, 25, 50, 50 and 90 survive"
-
-
-def test_the_summary_says_how_many_offers_were_thrown_away():
-    summary = rate_from_offers(EXALTED_BOOK, "exalted", "Allflame").summary()
-    assert "5 rejected as bait" in summary
-
-
-def test_a_thin_book_is_flagged_rather_than_hidden():
-    quote = rate_from_offers([Offer(200.0, 1.0, 5)] * 3, "divine", "Allflame")
-    assert quote.thin
-    assert "thin book" in quote.summary()
-
-
-# ---------------------------------------------------------------------------
-# Parsing
-# ---------------------------------------------------------------------------
-def _payload(*offers):
-    return {
-        "result": {
-            str(i): {"listing": {"offers": [o]}} for i, o in enumerate(offers)
-        }
-    }
-
-
-def _offer(chaos, amount, want="divine", stock=10):
-    return {
-        "exchange": {"currency": "chaos", "amount": chaos},
-        "item": {"currency": want, "amount": amount, "stock": stock},
-    }
-
-
-def test_offers_are_read_out_of_a_response():
-    offers = parse_offers(_payload(_offer(200, 1), _offer(220, 1)), "divine")
-    assert [o.ratio for o in offers] == [200.0, 220.0]
-
-
-def test_every_offer_on_a_listing_is_read_not_just_the_first():
-    payload = {"result": {"a": {"listing": {"offers": [_offer(200, 1), _offer(210, 1)]}}}}
-    assert len(parse_offers(payload, "divine")) == 2
-
-
-def test_an_offer_in_another_currency_pair_is_skipped():
-    assert parse_offers(_payload(_offer(200, 1, want="exalted")), "divine") == []
-
-
-@pytest.mark.parametrize("bad", [None, 0, "", "nonsense"])
-def test_a_malformed_amount_does_not_crash_the_read(bad):
-    payload = _payload(_offer(200, bad))
-    assert parse_offers(payload, "divine") == []
-
-
-def test_an_empty_response_yields_nothing():
-    assert parse_offers({}, "divine") == []
-    assert parse_offers({"result": {}}, "divine") == []
-
-
-# ---------------------------------------------------------------------------
-# The status choice, which is the least obvious decision in the module
-# ---------------------------------------------------------------------------
-def test_the_book_is_read_online_not_any():
-    """`any` returns more offers and a much worse answer.
-
-    Measured live on 2026-08-24: `any` reported 176 exalted offers, returned the
-    100 cheapest because the response caps there and the book is sorted
-    ascending, and those ran 1 to 10 chaos with a median of 4 -- against a
-    market of 25. `online` returns ten offers and all ten of them.
-
-    This is here because widening the filter is the first thing anyone would try
-    on a ten-offer sample, and the reason not to is invisible in the code.
-    """
-    from src.market.currency_source import DEFAULT_STATUS
-
-    assert DEFAULT_STATUS == "online"
-
-
-def test_the_truncated_any_page_is_what_the_online_book_avoids():
-    """The bottom-100 page of a deep book, shaped from the live capture."""
-    page = [Offer(r, 1.0, 10) for r in [1.0] * 16 + [2.0] * 17 + [3.0] * 11
-            + [4.0] * 8 + [5.0] * 22 + [6.0] * 5 + [10.0] * 21]
-    truncated = rate_from_offers(page, "exalted", "Allflame")
-    honest = rate_from_offers(EXALTED_BOOK, "exalted", "Allflame")
-    assert truncated.chaos < 6.0 and honest.chaos == 25.0, (
-        "no estimator recovers a market from a page that excludes it -- the fix "
-        "has to be the query, not the statistics"
-    )
+def test_an_http_error_is_surfaced():
+    with pytest.raises(ExchangeRateError, match="HTTP 503"):
+        _fetch(EXCHANGE_PAYLOAD, status=503)

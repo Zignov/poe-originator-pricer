@@ -31,7 +31,7 @@ _DEFAULTS: dict[str, Any] = {
         "retrain_interval_hours": 24,
     },
     "display": {"currency": "chaos"},
-    "currency": {"divine_to_chaos": 220.0, "exalted_to_chaos": 10.0},
+    "currency": {"divine_to_chaos": 210.0, "exalted_to_chaos": 1.25},
     "market": {
         "max_age_days": 7,
         "plausible_price_chaos": [5, 1000],

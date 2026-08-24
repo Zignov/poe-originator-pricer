@@ -99,7 +99,6 @@ reports GGG's `Retry-After` on 429 rather than retrying immediately.
 POST https://www.pathofexile.com/api/trade/search/{league}
 GET  https://www.pathofexile.com/api/trade/fetch/{ids}?query={queryId}
 GET  https://www.pathofexile.com/api/trade/data/{stats|filters|leagues|items}
-POST https://www.pathofexile.com/api/trade/exchange/{league}
 ```
 
 **Confirmed — verified live, unauthenticated, 2026-08-23.** All of the above
@@ -208,15 +207,30 @@ behalf.
 ## 5. Currency rates
 
 ```
-POST https://www.pathofexile.com/api/trade/exchange/{league}
-body {"query":{"status":{"option":"online"},"have":["chaos"],"want":["divine"]},
-      "sort":{"have":"asc"}, "engine":"new"}
+GET https://poe.ninja/poe1/api/economy/exchange/current/overview
+    ?league={league}&type=Currency
 ```
 
-**Confirmed — verified live.** Returns real chaos-for-divine offers. The median of
-the cheapest offers is used as the divine/chaos rate, stored **timestamped** in
-`currency_rates`, and is always overridable by hand in Settings. No exchange rate
-is hardcoded anywhere as a permanent constant.
+**Confirmed — verified live, 2026-08-24.** One request returns every currency as
+`primaryValue` (its chaos price) and `volumePrimaryValue` (chaos traded per
+hour). Cross-checked against poe.ninja's own rendered page: Divine Orb read
+210.9 / 9668224 against a displayed "211" and "9.7M". Note the old
+`poe.ninja/api/data/currencyoverview` path 404s — poe.ninja moved its API under
+`/poe1/api/economy/` in mid-2026.
+
+An unrecognised league answers **HTTP 200 with an empty `lines` list** rather
+than an error, so the client names that case explicitly instead of reading it as
+a market with no data.
+
+**GGG's own `POST /api/trade/exchange/{league}` was tried first and abandoned.**
+It returns a live order book, which is a different thing from a rate: on the
+exalted book it gave 1, 2, 2.95, 3, 20, 25, 50, 50, 90, 150 chaos, and no
+statistic over ten listings distinguishes the real market (~1.25) from the
+outliers. Volume is what settles it, and poe.ninja has it.
+
+Rates are stored **timestamped** in `currency_rates` / `app_settings` and are
+always overridable by hand in Settings. No exchange rate is hardcoded anywhere as
+a permanent constant.
 
 Observed on 2026-08-23: 1 divine ≈ **214.5** chaos.
 

@@ -102,7 +102,7 @@ def render() -> None:
 
         st.markdown("**Orb prices in chaos**")
         st.caption(
-            "Type over either one to override what the exchange endpoint reported. "
+            "Type over either one to override what poe.ninja reported. "
             "Refresh them from the live market on the **Market Data** page."
         )
         stored = repo.get_divine_rate(cfg.get("league"))
@@ -111,8 +111,11 @@ def render() -> None:
         rate = orb_cols[0].number_input(
             "1 Divine Orb =", 1.0, 100000.0, float(default_rate), step=1.0
         )
+        # A fine step and two decimals because the orb is *cheap* -- it sits
+        # near 1.25 chaos, where a step of 1 is most of the value.
         exalt_cost = orb_cols[1].number_input(
-            "1 Exalted Orb =", 0.1, 100000.0, float(get_exalt_cost()), step=1.0
+            "1 Exalted Orb =", 0.01, 100000.0, float(get_exalt_cost()),
+            step=0.05, format="%.2f",
         )
         st.caption(
             "Divine is what every stored listing price is normalised through. "
