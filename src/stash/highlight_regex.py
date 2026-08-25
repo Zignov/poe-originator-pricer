@@ -46,53 +46,97 @@ POE1_SEARCH_LIMIT = 250
 #: enough to be about the map.
 MIN_FRAGMENT = 3
 
-#: Text the stash search reads off a map that this app never parsed.
+#: The floor for a fragment that is **not** anchored to the start or end of a
+#: line. Three characters is fine for `^cos`, which can only match a line that
+#: begins that way, and reckless for a bare `cos`, which matches those three
+#: letters anywhere in the item.
 #:
-#: The exclusion corpus is built from what the parser kept -- the name, the base
-#: type, the modifier lines -- and that is a strictly smaller thing than what the
-#: game searches. A listed map also carries the **price note the seller set**,
-#: the stock "Travel to a Map..." description, its property lines and its rarity
-#: word, and the search matches all of them. None of that reaches the corpus, so
-#: a fragment drawn from one of those words looks unambiguous here and lights up
-#: the entire tab in game.
+#: This is the lesson of every over-matching pattern this generator has
+#: produced. `hao` from "Chaos Bearings" matched the `~price 5 chaos` note.
+#: `cit` from "Cosmic Incitement" matched "impli(cit)". `dev` matched "Map
+#: Device", `lev` matched "Item Level". Each one was three letters, unanchored,
+#: and a perfectly ordinary English fragment that happened to sit inside a line
+#: printed on every map in the tab.
 #:
-#: That is not a hypothetical. A map called "Chaos Bearings" offers `cha`, `hao`
-#: and `aos`, every one of which sits inside `~price 5 chaos` -- the note on all
-#: sixty maps in a selling tab. The pattern reports itself as exact and then
-#: highlights everything.
+#: `UNPARSED_ITEM_TEXT` below rules out the lines we know about. This rules out
+#: the ones we do not -- the currency, scarabs and fragments sharing the tab,
+#: whose text this app never sees at all. On real tabs it costs no coverage and
+#: about nine characters of the 250, which is the cheapest insurance here.
+MIN_UNANCHORED_FRAGMENT = 4
+
+#: The text the stash search reads off a map that this app never parsed.
 #:
-#: So this vocabulary is merged into the corpus on every build, whatever the
-#: caller passed. It costs coverage -- "Chaos Bearings" has to be reached
-#: through its second word now -- and that is the right trade: a fragment that
-#: is merely expensive is reported honestly as dropped or unmatchable, while one
-#: that is wrong is reported as exact.
-UNPARSED_ITEM_TEXT = """Travel to a Map of this tier or lower by using this in a personal Map Device.
+#: The game matches each line of the **Ctrl+C item text**, and that text is a
+#: much bigger thing than what the parser keeps. The parser keeps the name, the
+#: base type and the modifier sentences; the item also prints its item class,
+#: its rarity, a property block, an item level, the stock description, the
+#: seller's price note, and -- the one that does the most damage -- a
+#: parenthetical tag on the end of half those lines.
+#:
+#: `(implicit)` is the worst of them. A map called "Cosmic Incitement" offers
+#: `cit` as a three-character fragment, no map in the tab has "cit" anywhere the
+#: parser can see, and every single map in the game prints "(implicit)" on its
+#: implicit line. The pattern reports itself as exact and highlights the entire
+#: tab. `(augmented)` does the same to any name containing `ent`, `men` or
+#: `ment` -- "Incitement", "Torment", "Judgement" -- and those are common in the
+#: rare name pool.
+#:
+#: So this is written as the item text itself rather than as a list of words,
+#: with the tags and punctuation in place, because the fragments are checked
+#: per line and anchored fragments need real lines to be checked against. It is
+#: merged into the corpus on every build, whatever the caller passed.
+#:
+#: It costs coverage, not correctness: a name that loses a fragment here is
+#: reached through another one, and a name that loses all of them is reported as
+#: unmatchable instead of being silently wrong.
+UNPARSED_ITEM_TEXT = """\
+Item Class: Maps
+Item Class: Stackable Currency
+Rarity: Normal
+Rarity: Magic
+Rarity: Rare
+Rarity: Unique
+Rarity: Currency
+--------
+Map Tier: 16
+Atlas Region: Valdo's Rest
+Item Quantity: +100% (augmented)
+Item Rarity: +100% (augmented)
+Monster Pack Size: +100% (augmented)
+Quality: +20% (augmented)
+More Currency: +100% (augmented)
+More Maps: +100% (augmented)
+More Scarabs: +100% (augmented)
+More Divination Cards: +100% (augmented)
+Area Level: 83
+Monster Level: 83
+Stack Size: 1/10
+--------
+Item Level: 100
+Talisman Tier: 1
+--------
+Area is Influenced by the Originator's Memories (implicit)
+Superior (implicit)
+(implicit)
+(augmented)
+(crafted)
+(enchant)
+(fractured)
+(scourge)
+(veiled)
+--------
+Travel to a Map of this tier or lower by using this in a personal Map Device.
 Maps can only be used once.
 Travel to this Map by using it in a personal Map Device. Maps can only be used once.
-Right click to use.
-Shift click to unstack.
-Map Tier
-Area Level
-Monster Level
-Item Level
-Item Quantity
-Item Rarity
-Monster Pack Size
-Quality
-More Currency
-More Maps
-More Scarabs
-More Divination Cards
-Normal
-Magic
-Rare
-Unique
-Superior
-Corrupted
-Unidentified
-Mirrored
-Split
-Synthesised
+Right click to use. Shift click to unstack.
+Can be used in a personal Map Device.
+--------
+Note: ~price 1 chaos
+Note: ~b/o 1 divine
+Note: ~price 1 divine
+Note: ~b/o 1 exalted
+Note: ~price 1 exalt
+Note: ~gb/o 1 mirror
 price
 buyout
 chaos
@@ -123,6 +167,19 @@ binding
 horizon
 orb
 shard
+--------
+Corrupted
+Unidentified
+Mirrored
+Split
+Fractured Item
+Synthesised Item
+Shaper Item
+Elder Item
+Searing Exarch Item
+Eater of Worlds Item
+Blighted
+Delirious
 """
 
 
@@ -249,7 +306,7 @@ def _fragments(name: str) -> list[tuple[str, str]]:
         return []
     out: list[tuple[str, str]] = []
     for word in words:
-        for size in range(MIN_FRAGMENT, len(word) + 1):
+        for size in range(MIN_UNANCHORED_FRAGMENT, len(word) + 1):
             for start in range(0, len(word) - size + 1):
                 out.append((word[start : start + size], PLAIN))
     for size in range(MIN_FRAGMENT, len(words[0]) + 1):

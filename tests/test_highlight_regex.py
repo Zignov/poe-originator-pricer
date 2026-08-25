@@ -17,6 +17,7 @@ import pytest
 
 from src.stash.highlight_regex import (
     MIN_FRAGMENT,
+    MIN_UNANCHORED_FRAGMENT,
     POE1_SEARCH_LIMIT,
     build_highlight_regex,
 )
@@ -357,3 +358,112 @@ def test_the_unseen_vocabulary_does_not_make_ordinary_names_unreachable():
     result = build_highlight_regex(["Chaos Bearings"], [_text("Rune Path")])
     assert result.exact, result.explain()
     assert _matches(result.pattern, _listed_text("Chaos Bearings"))
+
+
+# ---------------------------------------------------------------------------
+# The real haystack: the Ctrl+C item text
+# ---------------------------------------------------------------------------
+#: What the stash search actually reads, line by line. The parser keeps the
+#: name, the base type and the modifier sentences -- everything else here is
+#: invisible to it, and the game matches all of it.
+#:
+#: The parenthetical tags are the dangerous part and the reason this is written
+#: out in full rather than summarised: "(implicit)" is printed on every map in
+#: the game and it contains "cit".
+CTRL_C_SKELETON = """\
+Item Class: Maps
+Rarity: Rare
+{name}
+Map (Tier 16)
+--------
+Map Tier: 16
+Item Quantity: +107% (augmented)
+Item Rarity: +159% (augmented)
+Monster Pack Size: +32% (augmented)
+--------
+Item Level: 84
+--------
+Area is Influenced by the Originator's Memories (implicit)
+--------
+Monsters have 100% increased Poison Duration
+Players have 25% less Defences
+--------
+Travel to a Map of this tier or lower by using this in a personal Map Device. \
+Maps can only be used once.
+--------
+Note: ~price 5 chaos"""
+
+
+def _ctrl_c(name: str) -> str:
+    return CTRL_C_SKELETON.format(name=name)
+
+
+def _lights_up(pattern: str, name: str) -> bool:
+    """Match the way the game does, against the whole item text."""
+    return bool(re.search(pattern, _ctrl_c(name), re.IGNORECASE | re.MULTILINE))
+
+
+def test_a_fragment_is_never_drawn_from_a_parenthetical_tag():
+    """The one that survived the first fix.
+
+    "Cosmic Incitement" offers `cit`, nothing the parser can see contains it,
+    and every map in the game prints "(implicit)". The pattern called itself
+    exact and highlighted the entire tab.
+    """
+    result = build_highlight_regex(["Cosmic Incitement"], [_text("Rune Path")])
+    assert result.pattern
+    assert not _lights_up(result.pattern, "Rune Path"), (
+        f"{result.pattern!r} matches the (implicit) tag every map carries"
+    )
+
+
+def test_no_fragment_survives_against_a_whole_untouched_item():
+    """The general form, over every name in the sample.
+
+    Each name is asked for on its own against one excluded map, and the pattern
+    is then matched against a *different* map's full Ctrl+C text. Nothing in
+    that text belongs to the selected map, so nothing should match.
+    """
+    unrelated = "Rune Path"
+    for name in NAMES + ["Cosmic Incitement", "Chaos Bearings", "Torment Reach"]:
+        if name == unrelated:
+            continue
+        result = build_highlight_regex([name], [_text(unrelated)])
+        if not result.pattern:
+            continue
+        assert not _lights_up(result.pattern, unrelated), (
+            f"{result.pattern!r} (from {name!r}) matches an unrelated item"
+        )
+
+
+def test_an_unanchored_fragment_is_never_only_three_characters():
+    """Anchored fragments may be short; bare ones may not.
+
+    `^cos` can only match a line that begins that way. A bare `cos` matches
+    those three letters anywhere in the item, and three ordinary letters turn up
+    inside ordinary English constantly -- which is how `hao`, `cit`, `dev` and
+    `lev` each shipped a pattern that lit up the whole tab.
+    """
+    for name in NAMES + ["Cosmic Incitement", "Chaos Bearings"]:
+        result = build_highlight_regex([name], [_text("Rune Path")])
+        if not result.pattern:
+            continue
+        for alternative in result.pattern.split("|"):
+            if alternative.startswith("^") or alternative.endswith("$"):
+                continue
+            if ".*" in alternative:  # cross-word pairs need both halves on a line
+                continue
+            assert len(alternative) >= MIN_UNANCHORED_FRAGMENT, (
+                f"{alternative!r} from {name!r} is an unanchored "
+                f"{len(alternative)}-character fragment"
+            )
+
+
+def test_the_selected_map_still_lights_up_against_its_whole_item_text():
+    """The other half of the contract: it must still find what it promised."""
+    selected = ["Cosmic Incitement", "Chaos Bearings", "Void Inscription"]
+    result = build_highlight_regex(selected, [_text(n) for n in NAMES])
+    for name in result.covered:
+        assert _lights_up(result.pattern, name), (
+            f"{result.pattern!r} promised {name!r} and does not match it"
+        )
