@@ -288,3 +288,72 @@ def test_a_cross_word_fragment_cannot_reach_onto_a_modifier_line():
     excluded = [_text("Hypnotic Vault"), _text("Warped Frontier")]
     pattern = build_highlight_regex(["Hypnotic Frontier"], excluded).pattern
     assert not _matches(pattern, "Hypnotic Vault\nItem Quantity: +107%\nfrontier")
+
+
+# ---------------------------------------------------------------------------
+# Text the game searches that this app never parsed
+# ---------------------------------------------------------------------------
+#: What a listed map actually carries in game beyond anything the parser keeps:
+#: the price note the user set, the stock description, and the property lines.
+#: None of these reach the exclusion corpus through the parsed modifiers, and
+#: all of them are matched by the stash search.
+LISTED_EXTRAS = (
+    "\nTravel to a Map of this tier or lower by using this in a personal Map "
+    "Device. Maps can only be used once.\nItem Level: 84\nRare\n~price 5 chaos"
+)
+
+
+def _listed_text(name: str) -> str:
+    return _text(name) + LISTED_EXTRAS
+
+
+def test_a_fragment_is_never_drawn_from_price_note_vocabulary():
+    """The reported bug, at its smallest.
+
+    "Chaos Bearings" yields `cha`, `hao` and `aos`, and every one of them sits
+    inside the `~price 5 chaos` note that the seller has put on every map in the
+    tab. The parser never sees that note, so nothing in the exclusion corpus
+    rules those fragments out -- and the pattern that looks exact here lights up
+    the whole tab in game.
+    """
+    result = build_highlight_regex(["Chaos Bearings"], [_text("Rune Path")])
+    assert result.pattern
+    assert not _matches(result.pattern, _listed_text("Rune Path")), (
+        f"{result.pattern!r} matches a map that is merely priced in chaos"
+    )
+
+
+def test_a_fragment_is_never_drawn_from_the_stock_map_description():
+    """"Travel to a Map ... personal Map Device" is printed on every map.
+
+    "Devious Travels" offers `dev`, `tra` and `vel`, all of which are in that
+    line. A tab where no *parsed* map happens to contain them would let one
+    through.
+    """
+    result = build_highlight_regex(["Devious Travels"], [_text("Rune Path")])
+    if result.pattern:
+        assert not _matches(result.pattern, _listed_text("Rune Path")), (
+            f"{result.pattern!r} matches the stock map description"
+        )
+
+
+def test_a_fragment_is_never_drawn_from_a_property_or_rarity_line():
+    """"Rarity", "Quantity", "Rare", "Item Level" are on every map too."""
+    for name in ("Rarity Gambit", "Level Course"):
+        result = build_highlight_regex([name], [_text("Rune Path")])
+        if result.pattern:
+            assert not _matches(result.pattern, _listed_text("Rune Path")), (
+                f"{result.pattern!r} (from {name!r}) matches a shared property line"
+            )
+
+
+def test_the_unseen_vocabulary_does_not_make_ordinary_names_unreachable():
+    """Blocking that vocabulary must cost coverage, not correctness.
+
+    "Chaos Bearings" loses its first word entirely and is still reachable
+    through its second -- which is the whole point of building the pattern out
+    of fragments rather than names.
+    """
+    result = build_highlight_regex(["Chaos Bearings"], [_text("Rune Path")])
+    assert result.exact, result.explain()
+    assert _matches(result.pattern, _listed_text("Chaos Bearings"))

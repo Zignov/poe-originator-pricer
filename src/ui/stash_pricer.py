@@ -793,10 +793,48 @@ def _item_text(item) -> str:
     inside one of those shared lines would highlight the whole tab. Handing the
     whole text to the exclusion check rules that out without special-casing any
     particular line.
+
+    The raw payload is mined for the rest of it -- and the **price note** is the
+    one that actually bit. A selling tab has `~price 5 chaos` on every map, the
+    parser keeps none of it, and a map named "Chaos Bearings" then yields `hao`
+    as an apparently unambiguous fragment that highlights the whole tab. The
+    generator carries a static list of this vocabulary as a floor, but the note
+    is the seller's own text and can say things no list predicts, so it is read
+    off the item wherever the source provided one.
     """
     parts = [item.name or "", item.base_type or ""]
     parts.extend(item.raw_modifiers or [])
+    parts.extend(_unparsed_lines(item))
     return "\n".join(p for p in parts if p)
+
+
+def _unparsed_lines(item) -> list[str]:
+    """Searchable text sitting in the raw payload that the parser drops.
+
+    Best-effort by design: the raw data is whatever the source handed over --
+    an API object, a clipboard blob, or nothing at all for a CSV row -- so a
+    missing field is normal and never a reason to fail the pattern.
+    """
+    raw = getattr(item, "raw_item_data", None)
+    if not isinstance(raw, dict):
+        return []
+    if "text" in raw:  # clipboard import keeps the whole tooltip
+        return str(raw["text"]).splitlines()
+
+    out = [
+        str(raw.get(key) or "")
+        for key in ("note", "typeLine", "descrText", "secDescrText", "rarity")
+    ]
+    for prop in raw.get("properties") or []:
+        values = " ".join(str(v[0]) for v in (prop.get("values") or []) if v)
+        out.append(f"{prop.get('name') or ''}: {values}".strip())
+    if raw.get("ilvl"):
+        out.append(f"Item Level: {raw['ilvl']}")
+    if raw.get("corrupted"):
+        out.append("Corrupted")
+    if raw.get("identified") is False:
+        out.append("Unidentified")
+    return [line for line in out if line.strip()]
 
 
 @st.cache_data(show_spinner=False, max_entries=32)

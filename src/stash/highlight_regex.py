@@ -46,6 +46,85 @@ POE1_SEARCH_LIMIT = 250
 #: enough to be about the map.
 MIN_FRAGMENT = 3
 
+#: Text the stash search reads off a map that this app never parsed.
+#:
+#: The exclusion corpus is built from what the parser kept -- the name, the base
+#: type, the modifier lines -- and that is a strictly smaller thing than what the
+#: game searches. A listed map also carries the **price note the seller set**,
+#: the stock "Travel to a Map..." description, its property lines and its rarity
+#: word, and the search matches all of them. None of that reaches the corpus, so
+#: a fragment drawn from one of those words looks unambiguous here and lights up
+#: the entire tab in game.
+#:
+#: That is not a hypothetical. A map called "Chaos Bearings" offers `cha`, `hao`
+#: and `aos`, every one of which sits inside `~price 5 chaos` -- the note on all
+#: sixty maps in a selling tab. The pattern reports itself as exact and then
+#: highlights everything.
+#:
+#: So this vocabulary is merged into the corpus on every build, whatever the
+#: caller passed. It costs coverage -- "Chaos Bearings" has to be reached
+#: through its second word now -- and that is the right trade: a fragment that
+#: is merely expensive is reported honestly as dropped or unmatchable, while one
+#: that is wrong is reported as exact.
+UNPARSED_ITEM_TEXT = """Travel to a Map of this tier or lower by using this in a personal Map Device.
+Maps can only be used once.
+Travel to this Map by using it in a personal Map Device. Maps can only be used once.
+Right click to use.
+Shift click to unstack.
+Map Tier
+Area Level
+Monster Level
+Item Level
+Item Quantity
+Item Rarity
+Monster Pack Size
+Quality
+More Currency
+More Maps
+More Scarabs
+More Divination Cards
+Normal
+Magic
+Rare
+Unique
+Superior
+Corrupted
+Unidentified
+Mirrored
+Split
+Synthesised
+price
+buyout
+chaos
+divine
+exalted
+exalt
+mirror
+annulment
+annul
+regal
+alchemy
+alteration
+augmentation
+transmutation
+scouring
+chisel
+chromatic
+fusing
+jeweller
+blessed
+vaal
+gemcutter
+ancient
+harbinger
+engineer
+chance
+binding
+horizon
+orb
+shard
+"""
+
 
 @dataclass(frozen=True)
 class HighlightRegex:
@@ -269,6 +348,13 @@ def build_highlight_regex(
     corpus = [_normalise_text(t) for t in excluded_text if t and t.strip()]
     lowered = [_normalise(n) for n in wanted]
 
+    # Fragments are checked against the parsed maps *and* the text the parser
+    # never sees; the duplicate-name check below is not, because a name that
+    # collides with boilerplate is not "shared with a map below the threshold"
+    # and saying so would send the user hunting for a map that is not there.
+    # It falls through to `unmatchable`, which says the true thing.
+    safety_corpus = corpus + [_normalise_text(UNPARSED_ITEM_TEXT)]
+
     # A map whose name is printed on an excluded map cannot be singled out by
     # any text at all. Report it rather than emitting a pattern that quietly
     # highlights both.
@@ -287,7 +373,7 @@ def build_highlight_regex(
             ambiguous=tuple(ambiguous), selected=len(wanted), limit=limit
         )
 
-    candidates = _safe_candidates(targets, corpus)
+    candidates = _safe_candidates(targets, safety_corpus)
     reachable = set().union(*(c.covers for c in candidates)) if candidates else set()
 
     # Cross-word pairs are quadratic, so they are only generated for the maps
@@ -295,7 +381,7 @@ def build_highlight_regex(
     # is a handful out of sixty.
     stranded = [i for i in range(len(targets)) if i not in reachable]
     if stranded:
-        extra = _safe_candidates(targets, corpus, only=stranded, cross=True)
+        extra = _safe_candidates(targets, safety_corpus, only=stranded, cross=True)
         candidates = list(candidates) + extra
         if extra:
             reachable |= set().union(*(c.covers for c in extra))
