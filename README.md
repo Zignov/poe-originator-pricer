@@ -521,15 +521,18 @@ python -m src.ml.train                 # or: python -m src.cli train
 python -m src.cli train --tune-weights # also search recency-weight schedules
 ```
 
-or the **Retrain model** button in Settings.
+or **Collect and retrain** on the Market Data page, which does both in one go
+and is the button to reach for by default — collecting without retraining is
+what leaves the app showing old numbers over new data. **Retrain model** in
+Settings trains without collecting.
 
 > `model.retrain_interval_hours` in the config is **not** a schedule. It is
 > stored and shown in Settings, but no code path acts on it. Treat it as a note
 > to yourself until it does something.
 
 Because that is easy to lose track of, the **Dashboard** compares the two and
-says which state you are in — either *"Model is current: trained on 2,622 of
-2,622 usable listings"* or a warning naming the gap and pointing at Retrain.
+says which state you are in — either *"Model is current: trained on 4,199 of
+4,199 usable listings"* or a warning naming the gap and pointing at Retrain.
 Check there after a collection run.
 
 ### Sharing the dataset instead of everyone collecting it
@@ -539,7 +542,7 @@ there is no reason for each person to repeat it. A ready-made export lives in
 the repo:
 
 ```
-data/originator_listings_allflame.csv     # 2,622 listings, ~180 KB
+data/originator_listings_allflame.csv     # 4,199 listings, ~290 KB
 ```
 
 Import it on **Market Data → Import → CSV**, then retrain. It is the same
@@ -550,8 +553,8 @@ Three honest caveats:
 
 - **Seller and listing id are blank.** They are stripped on export, which is
   what makes the file safe to publish. The cost is that two identical maps at
-  the same price can no longer be told apart, so a re-import merges them — 2,622
-  rows land as 2,621.
+  the same price can no longer be told apart, so a re-import merges a handful
+  of them.
 - **It is a snapshot, not a feed.** Prices move through a league. An export from
   three weeks ago will train a model that prices a market that no longer exists.
   The `indexed_at` column is preserved so age is at least visible.

@@ -18,6 +18,7 @@ from src.market.ingest import collect_from_trade_api, converter_for, refresh_out
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
     get_config,
+    invalidate_model_cache,
     get_converter,
     get_formatter,
     flash,
@@ -63,7 +64,19 @@ def _collect(cfg, repo) -> None:
     )
     limit = st.number_input("How many listings to collect", 50, 5000, 500, step=50)
     already = repo.count_listings(cfg.get("league"))["total"]
-    if st.button("Collect from trade API", type="primary"):
+
+    buttons = st.columns(2)
+    collect_only = buttons[0].button("Collect from trade API")
+    # The pairing exists because collecting on its own changes no price. The
+    # model is a separate artefact and nothing retrains it on a timer, so
+    # "collect" without "retrain" leaves the app showing the old numbers over
+    # newer data -- which is exactly the state that is impossible to notice.
+    collect_and_train = buttons[1].button(
+        "Collect and retrain", type="primary",
+        help="Collect, re-run outlier detection, then retrain on the result.",
+    )
+
+    if collect_only or collect_and_train:
         bar = st.progress(0.0, text="Starting...")
         detail = st.empty()
 
@@ -94,18 +107,50 @@ def _collect(cfg, repo) -> None:
         if stats.get("error"):
             bar.empty()
             st.error(stats["error"])
-        else:
-            total = repo.count_listings(cfg.get("league"))["total"]
-            bar.progress(1.0, text=f"{total} maps indexed")
-            detail.empty()
-            st.success(
-                f"Inserted {stats['inserted']}, refreshed {stats['updated']}, "
-                f"flagged {stats.get('flagged', 0)} outliers. "
-                f"{total} maps indexed in total (was {already})."
-            )
+            return
+
+        total = repo.count_listings(cfg.get("league"))["total"]
+        bar.progress(1.0, text=f"{total} maps indexed")
+        detail.empty()
+        st.success(
+            f"Inserted {stats['inserted']}, refreshed {stats['updated']}, "
+            f"flagged {stats.get('flagged', 0)} outliers. "
+            f"{total} maps indexed in total (was {already})."
+        )
+        if collect_and_train:
+            _retrain(cfg)
 
     st.markdown("---")
     _orb_prices(cfg, repo)
+
+
+def _retrain(cfg) -> None:
+    """Train on what is in the database now, streaming the log to the page.
+
+    Deliberately in-line rather than a background job: training takes seconds,
+    and a button that returns instantly while the model quietly changes
+    underneath the other pages is worse than one that makes you wait.
+    """
+    from src.ml.train import NotEnoughData, train
+
+    log_area = st.empty()
+    lines: list[str] = []
+
+    def log(message: str) -> None:
+        lines.append(str(message))
+        log_area.code("\n".join(lines), language="text")
+
+    with st.spinner("Retraining on the collected data..."):
+        try:
+            train(cfg, log=log)
+        except NotEnoughData as exc:
+            st.error(f"Collected, but not retrained: {exc}")
+            return
+    invalidate_model_cache()
+    st.success(
+        "Retrained on the newly collected data. Every page now prices with the "
+        "new model."
+    )
 
 
 def _chaos(value: float) -> str:
