@@ -87,3 +87,73 @@ def test_a_model_ahead_of_the_data_does_not_warn(st):
 def test_a_missing_dataset_size_does_not_crash_the_dashboard(st):
     _training_status(_counts(2000), {"dataset_size": None})
     assert st.warnings or st.captions
+
+
+# -- the floor made the two numbers mean different things --------------------
+class _Repo:
+    def __init__(self, prices):
+        self._prices = prices
+
+    def usable_prices(self, league=None):
+        return list(self._prices)
+
+
+class _Cfg:
+    def get(self, *_a, **_k):
+        return "Allflame"
+
+
+def test_a_freshly_trained_model_is_not_reported_as_behind(monkeypatch):
+    """The regression this exists for.
+
+    dataset_size counts rows *fitted*; the dashboard counted rows *stored*.
+    Once the training floor held back the reroll pile the two stopped matching,
+    so a run that had just finished successfully was reported as 1,368 listings
+    behind -- every time, however often you retrained. It looked exactly like
+    training not saving.
+    """
+    import src.ui.dashboard as page
+
+    warnings, captions = [], []
+    monkeypatch.setattr(page.st, "markdown", lambda msg, **k: warnings.append(msg))
+    monkeypatch.setattr(page.st, "caption", lambda msg, **k: captions.append(msg))
+
+    prices = [10.0] * 1368 + [100.0] * 2734       # exactly the shipped dataset
+    counts = {"total": 4746, "outliers": 644}     # 4,102 usable
+    page._training_status(counts, {"dataset_size": 2734}, _Repo(prices), _Cfg())
+
+    assert not warnings, f"reported as behind after a successful train: {warnings}"
+    assert captions and "current" in captions[0]
+
+
+def test_the_held_back_rows_are_explained_not_just_missing():
+    """Two unequal numbers with no reason given is what made this look broken."""
+    import src.ui.dashboard as page
+
+    note = page._floor_note({"total": 4746, "outliers": 644}, 2734)
+    assert "1,368" in note and "30c" in note
+
+
+def test_real_new_data_is_still_reported_as_behind(monkeypatch):
+    """The fix must not paper over the case the status line was built for."""
+    import src.ui.dashboard as page
+
+    warnings = []
+    monkeypatch.setattr(page.st, "markdown", lambda msg, **k: warnings.append(msg))
+    monkeypatch.setattr(page.st, "caption", lambda msg, **k: None)
+
+    prices = [100.0] * 3000                       # all trainable, model saw 2,734
+    page._training_status({"total": 3000, "outliers": 0}, {"dataset_size": 2734},
+                          _Repo(prices), _Cfg())
+    assert warnings and "behind the data" in warnings[0]
+
+
+def test_it_survives_a_repository_that_cannot_answer(monkeypatch):
+    """A dashboard that raises is worse than one that falls back."""
+    import src.ui.dashboard as page
+
+    class Broken:
+        def usable_prices(self, league=None):
+            raise RuntimeError("no such column")
+
+    assert page._trainable_count({"total": 100, "outliers": 10}, Broken(), _Cfg()) == 90

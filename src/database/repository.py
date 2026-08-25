@@ -168,6 +168,21 @@ class Repository:
         ).fetchone()["c"]
         return {"total": total, "outliers": outliers, "last_24h": today}
 
+    def usable_prices(self, league: str | None = None) -> list[float]:
+        """Chaos prices of every row a training run would consider.
+
+        Deliberately just the prices: the caller decides which of them get
+        fitted, so the dashboard and the trainer can answer "how many rows is
+        this model built on" with the same rule instead of two that drift.
+        """
+        rows = self.conn.execute(
+            "SELECT price_chaos FROM originator_listings "
+            "WHERE is_outlier = 0 AND price_chaos IS NOT NULL AND price_chaos > 0 "
+            "AND (? IS NULL OR league = ?)",
+            (league, league),
+        ).fetchall()
+        return [float(row["price_chaos"]) for row in rows]
+
     def latest_capture(self) -> datetime | None:
         row = self.conn.execute(
             "SELECT MAX(captured_at) AS m FROM originator_listings"

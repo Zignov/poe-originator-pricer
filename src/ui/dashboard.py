@@ -5,7 +5,10 @@ import json
 from datetime import datetime, timezone
 
 import pandas as pd
+import numpy as np
 import streamlit as st
+
+from src.ml.decision_bands import REROLL_BELOW_CHAOS, apply_training_floor
 
 from src.ui.common import (
     get_config,
@@ -79,7 +82,7 @@ def render() -> None:
         ]
     )
 
-    _training_status(counts, run)
+    _training_status(counts, run, repo, cfg)
 
     if model_error:
         st.markdown(f'<div class="warn">{model_error}</div>', unsafe_allow_html=True)
@@ -127,7 +130,7 @@ def render() -> None:
 STALE_ROW_MARGIN = 100
 
 
-def _training_status(counts: dict, run) -> None:
+def _training_status(counts: dict, run, repo=None, cfg=None) -> None:
     """Say whether the model has seen the data that is in the database.
 
     Nothing retrains on its own -- `model.retrain_interval_hours` is a stored
@@ -135,8 +138,16 @@ def _training_status(counts: dict, run) -> None:
     improve any price until Retrain is pressed. The dashboard used to show only
     *when* the model trained, which cannot answer the question people actually
     have after a collection run: is this number built on what I just collected?
+
+    The two numbers being compared have to mean the same thing. When the
+    training floor arrived, `dataset_size` started counting rows *fitted* while
+    this still counted rows *stored*, so a run that had just finished
+    successfully was reported as 1,368 listings behind -- every time, no matter
+    how often you retrained. A status line that says "not saved" after a
+    successful save is worse than no status line, so the comparison now applies
+    the same floor the trainer does, from the same function.
     """
-    usable = counts["total"] - counts["outliers"]
+    usable = _trainable_count(counts, repo, cfg)
     if run is None:
         st.markdown(
             f'<div class="warn"><b>No model trained yet.</b> {usable:,} listings are '
@@ -158,9 +169,42 @@ def _training_status(counts: dict, run) -> None:
         )
     else:
         st.caption(
-            f"Model is current: trained on {trained_on:,} of {usable:,} usable "
-            "listings. Training only happens when you ask for it."
+            f"Model is current: trained on {trained_on:,} of {usable:,} trainable "
+            f"listings{_floor_note(counts, usable)}. "
+            "Training only happens when you ask for it."
         )
+
+
+def _trainable_count(counts: dict, repo, cfg) -> int:
+    """How many stored rows a training run would actually fit.
+
+    Falls back to the plain usable count when there is no repository to ask --
+    the tests that drive this function directly, and any caller written before
+    the floor existed.
+    """
+    stored = counts["total"] - counts["outliers"]
+    if repo is None:
+        return stored
+    try:
+        prices = repo.usable_prices(cfg.get("league") if cfg else None)
+    except Exception:
+        return stored
+    if not prices:
+        return stored
+    keep, _ = apply_training_floor(np.asarray(prices, dtype=float))
+    return int(keep.sum())
+
+
+def _floor_note(counts: dict, trainable: int) -> str:
+    """Name the gap rather than leaving two unequal numbers unexplained."""
+    stored = counts["total"] - counts["outliers"]
+    held_back = stored - trainable
+    if held_back <= 0:
+        return ""
+    return (
+        f" ({held_back:,} more are under {REROLL_BELOW_CHAOS:g}c and held back "
+        "-- those maps get rerolled, so their price is not worth fitting)"
+    )
 
 
 def _parse(value) -> datetime | None:
