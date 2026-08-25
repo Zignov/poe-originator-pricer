@@ -23,3 +23,6 @@ data/market_comparison_cache.json
 # Kept out of the repo because it carries your own contact address.
 config.yaml
 catboost_info/
+
+# Agent worktrees. Transient, and each one is a full checkout.
+.claude/worktrees/
