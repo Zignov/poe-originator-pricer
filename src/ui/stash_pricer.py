@@ -5,11 +5,16 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 
 import pandas as pd
 import streamlit as st
 
+from src.config import ROOT
 from src.market.comparables import format_age
+from src.overlay.calibration import Calibration, resolution_warning
+from src.overlay.state import state_from_priced, write_state
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.stash.base import StashSource
 from src.stash.clipboard_import import ClipboardStashSource
@@ -168,6 +173,7 @@ def render() -> None:
     # has to stay dark, and the table filters only change what is on screen.
     _highlight_tool(priced, fmt)
     _copy_tools(visible, fmt)
+    _overlay_panel(cfg, priced, fmt, strategy, verdicts)
     _snapshot_button(cfg, repo, items, priced)
 
 
@@ -629,6 +635,75 @@ def _copy_tools(priced, fmt):
             "Prices are for you to type into the game yourself. This tool never "
             "modifies the game client or your stash."
         )
+
+
+def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
+    """Hand the priced tab to the desktop overlay.
+
+    The overlay is a second process -- tkinter cannot live inside a Streamlit
+    rerun -- so this page's job is only to write the file it watches. See
+    src/overlay/state.py for why the seam is a file.
+
+    The launch button spawns that process **explicitly**, on a click, and says
+    what it did: a GUI quietly appearing over the game because a checkbox was
+    ticked is the sort of thing that gets a tool uninstalled. If the spawn
+    fails, the command to type is on screen either way.
+    """
+    positioned = [p for p in priced if p.item.x is not None and p.item.y is not None]
+    if not positioned:
+        return
+
+    st.markdown("### Draw this over the game")
+    st.caption(
+        "The overlay is a separate, click-through window that paints these same "
+        "tiles on top of your real stash tab, so you can price out of the tab "
+        "without looking back at the browser. It draws pixels and nothing else — "
+        "it never reads or touches the game client."
+    )
+
+    calibration = Calibration.from_config(cfg)
+    warning = resolution_warning(calibration, None)
+    if warning:
+        st.markdown(f'<div class="warn">{warning}</div>', unsafe_allow_html=True)
+
+    columns = st.columns([1.1, 1, 2])
+    if columns[0].button("Send this tab to the overlay", type="primary"):
+        tab_names = sorted({p.item.stash_tab_name for p in positioned if p.item.stash_tab_name})
+        path = write_state(
+            state_from_priced(
+                priced,
+                fmt,
+                strategy=strategy,
+                league=cfg.get("league"),
+                tab_names=tab_names,
+                verdicts=verdicts,
+            )
+        )
+        st.session_state["overlay_state_path"] = str(path)
+        st.success(
+            f"Wrote {len(positioned)} maps to `{path}`. A running overlay picks this "
+            "up within half a second — no need to restart it."
+        )
+
+    if columns[1].button("Launch overlay window"):
+        try:
+            process = subprocess.Popen(
+                [sys.executable, "-m", "src.cli", "overlay"],
+                cwd=str(ROOT),
+            )
+        except OSError as exc:
+            st.error(f"Could not start the overlay process: {exc}")
+        else:
+            st.success(
+                f"Started the overlay as process {process.pid}. It opens its own "
+                "window with a small control strip; close it from there."
+            )
+
+    columns[2].caption(
+        "Or run it yourself, which is the better way if you want to see its "
+        "errors:  \n`python -m src.cli overlay --calibrate` once to line the grid "
+        "up with your stash tab, then `python -m src.cli overlay`."
+    )
 
 
 def _snapshot_button(cfg, repo, items, priced):

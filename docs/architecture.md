@@ -48,11 +48,28 @@ producing wrong prices.
 | `src/database/` | SQLite schema, migrations, all SQL | schema |
 | `src/ml/` | features, backends, training, prediction, confidence, explanation | schema, database |
 | `src/pricing/` | currency, selling strategy, and the `PricingService` façade | everything below |
+| `src/overlay/` | the desktop overlay: its JSON contract, calibration, layout and tkinter window | schema, pricing, the palette |
 | `src/ui/` | Streamlit pages | `PricingService` and repositories only |
 | `src/cli.py` | the same operations without Streamlit | same as UI |
 
 Nothing in `src/ml/` imports anything from `src/ui/`. Nothing in `src/parsing/`
-imports from `src/market/` or `src/stash/`.
+imports from `src/market/` or `src/stash/`. Nothing in `src/overlay/` imports
+Streamlit -- it runs in its own process, and `src/ui/palette.py` exists so the
+two can share the value-band colours without one dragging the other in.
+
+### The overlay is a second process, joined by a file
+
+Streamlit re-runs its script on every widget touch; tkinter wants the main
+thread and a blocking `mainloop`. They cannot share a process, so the Stash
+Pricer page writes `data/overlay_state.json` and the overlay watches it. That
+file is the whole interface between them, it is versioned, and it is defined in
+one place: `src/overlay/state.py`.
+
+Everything with a decision in it -- coordinate maths, colour bands,
+serialisation, the resolution-mismatch check -- is a plain function or frozen
+dataclass in `state.py` / `calibration.py` / `layout.py`, tested headlessly.
+`window.py` is a renderer with no judgement in it, which is why nothing in the
+test suite needs a display.
 
 ## Adapters
 

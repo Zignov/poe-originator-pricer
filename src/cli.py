@@ -7,6 +7,8 @@
     python -m src.cli price-tab --tab "Originator Maps"
     python -m src.cli inspect-stash
     python -m src.cli import-market listings.json
+    python -m src.cli overlay --calibrate
+    python -m src.cli overlay
     python -m src.cli status
 """
 from __future__ import annotations
@@ -23,6 +25,7 @@ from src.market.comparables import format_age
 from src.market.ingest import collect_from_trade_api, converter_for, store
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.ml.decision_bands import verdict
+from src.overlay.state import DEFAULT_STATE_PATH, state_from_priced, write_state
 from src.pricing.display import PriceFormatter
 from src.pricing.fair_value import PricedMap, PricingService
 from src.pricing.sell_strategy import STRATEGIES
@@ -276,6 +279,22 @@ def cmd_price_tab(args) -> int:
             )
             print(f"\nsaved snapshot {snapshot_id}")
 
+        if args.overlay:
+            # Positions come from the stash payload, so this is only meaningful
+            # for a real tab -- the clipboard source numbers maps in paste
+            # order, and those entries carry no coordinates to draw at.
+            path = write_state(
+                state_from_priced(
+                    priced,
+                    service.formatter,
+                    strategy=args.strategy,
+                    league=cfg.get("league"),
+                    tab_names=[t.name for t in wanted],
+                )
+            )
+            print(f"\noverlay state written to {path}")
+            print("run `python -m src.cli overlay` to draw it over the game")
+
         if args.copy_all:
             print("\ncopy-all block:")
             for entry in supported:
@@ -284,6 +303,33 @@ def cmd_price_tab(args) -> int:
                     f"{service.formatter.format(entry.suggested_chaos)}"
                 )
     return 0
+
+
+def cmd_overlay(args) -> int:
+    """Open the desktop overlay, or the calibration screen.
+
+    Deliberately a separate process from the Streamlit app: tkinter wants the
+    main thread and a blocking mainloop, and Streamlit re-runs its script on
+    every widget touch. The two meet at data/overlay_state.json instead -- see
+    src/overlay/state.py for the contract.
+    """
+    from src.overlay.calibration import Calibration, resolution_warning
+    from src.overlay.window import OverlayUnavailable, run_overlay
+
+    cfg = load_config(args.config)
+    calibration = Calibration.from_config(cfg)
+    if not args.calibrate:
+        # The screen size is not known until Tk is up, so this only catches the
+        # never-calibrated case here; a resolution change is reported in the
+        # overlay's own status strip.
+        warning = resolution_warning(calibration, None)
+        if warning:
+            print(f"note: {warning}", file=sys.stderr)
+    try:
+        return run_overlay(cfg, calibrate=args.calibrate, state_path=args.state)
+    except OverlayUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 def _stash_source(cfg, args):
@@ -349,7 +395,21 @@ def build_parser() -> argparse.ArgumentParser:
     tab.add_argument("--comparables", action="store_true", help="also print closest listings")
     tab.add_argument("--copy-all", action="store_true", help="print a copy-all price block")
     tab.add_argument("--save-snapshot", action="store_true")
+    tab.add_argument(
+        "--overlay",
+        action="store_true",
+        help="also write data/overlay_state.json for the desktop overlay",
+    )
     tab.set_defaults(func=cmd_price_tab)
+
+    overlay = sub.add_parser("overlay", help="draw the priced tab over the game window")
+    overlay.add_argument(
+        "--calibrate", action="store_true", help="line the grid up with the stash tab"
+    )
+    overlay.add_argument(
+        "--state", default=None, help=f"state file to watch (default {DEFAULT_STATE_PATH})"
+    )
+    overlay.set_defaults(func=cmd_overlay)
 
     return parser
 

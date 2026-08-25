@@ -74,6 +74,39 @@ scope:
   map_tier: 16
   require_uncorrupted: true
 
+overlay:
+  # The desktop overlay draws the stash grid on top of the real stash tab. It
+  # cannot find the tab by itself -- that would mean screen-reading the game --
+  # so you line it up once with `python -m src.cli overlay --calibrate` and this
+  # block is what that writes back.
+  #
+  # Screen pixels of the top-left corner of cell (0,0). Negative values are
+  # correct and expected on a monitor to the left of, or above, the primary one:
+  # these are virtual-desktop coordinates, not per-monitor ones.
+  origin: [0, 0]
+  # Cell pitch in pixels, deliberately a float. The stash panel scales with the
+  # window, so 12 columns rarely land on a whole number, and rounding to 53
+  # instead of 53.4 walks five pixels out of line by the right-hand column --
+  # far enough to put a price on the neighbouring map.
+  cell_px: 53.4
+  # Columns x rows. 12x12 is a normal tab; a quad tab is 24x24. The grid also
+  # grows on its own to fit whatever the priced tab actually contains.
+  grid: [12, 12]
+  # Window transparency. Below ~0.35 the numbers stop being readable over a lit
+  # map device; at 1.0 you cannot see the maps underneath at all.
+  opacity: 0.55
+  # Which monitor you calibrated on. Informational -- `origin` already carries
+  # the offset -- but it makes a mismatched calibration explainable.
+  monitor: 0
+  # System-wide show/hide chord, registered with Windows via RegisterHotKey.
+  # If another application already owns it the overlay says so and carries on;
+  # the control strip's buttons keep working regardless.
+  hotkey_toggle: "ctrl+alt+o"
+  # `screen: [width, height]` is written by the calibration screen and is not
+  # set here on purpose: its absence is what tells the overlay it has never been
+  # calibrated. If it no longer matches your resolution, the overlay warns
+  # rather than drawing a tidy grid of prices over the wrong maps.
+
 http:
   # GGG publishes rate limits in response headers; the client obeys whatever the
   # server reports. These are only the initial conservative guesses.

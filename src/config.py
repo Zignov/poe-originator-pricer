@@ -40,6 +40,17 @@ _DEFAULTS: dict[str, Any] = {
     },
     "pricing": {"strategies": {"quick_sell": 0.94, "market": 0.99, "patient": 1.06}},
     "scope": {"map_tier": 16, "require_uncorrupted": True},
+    # The desktop overlay's calibration. No `screen` key by default, and that
+    # absence is what marks it as never calibrated -- see
+    # src/overlay/calibration.py.
+    "overlay": {
+        "origin": [0, 0],
+        "cell_px": 53.4,
+        "grid": [12, 12],
+        "opacity": 0.55,
+        "monitor": 0,
+        "hotkey_toggle": "ctrl+alt+o",
+    },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
 }
 

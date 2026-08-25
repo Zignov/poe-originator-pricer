@@ -17,6 +17,7 @@ from typing import Sequence
 import streamlit as st
 
 from src.market.comparables import percentile_bands, value_category
+from src.overlay.state import tile_price
 from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
@@ -99,10 +100,13 @@ def _tile_price(entry: PricedMap) -> float:
 
     Falls back to fair value if no suggestion was produced, so a tile never goes
     blank because a strategy multiplier was missing.
+
+    The rule itself lives in src/overlay/state.py, which is the Streamlit-free
+    module the desktop overlay reads. Two copies of it would eventually drift,
+    and the one thing the overlay must never do is show a different number from
+    the tile it is mirroring.
     """
-    if entry.suggested_chaos is not None:
-        return entry.suggested_chaos
-    return entry.estimate.fair_value_chaos if entry.estimate else 0.0
+    return tile_price(entry)
 
 
 #: Below this many priced maps the percentile bands are too close together to

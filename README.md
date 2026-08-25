@@ -23,10 +23,14 @@ Estimate a fair value, a suggested listing price and a likely range
 Show the closest real listings as a cross-check
         v
 Draw the prices onto a picture of your stash grid
+        v
+...or onto the real stash tab, with a transparent desktop overlay
 ```
 
 You get a sortable table, a visual stash grid with the price written on each
-map's actual position, and per-map explanations of where the number came from.
+map's actual position, per-map explanations of where the number came from, and
+an optional click-through overlay that puts the same tiles on top of the game
+window itself (section 7).
 
 ---
 
@@ -355,6 +359,90 @@ python -m src.cli price-tab --tab "Originator Maps" --comparables --copy-all
 python -m src.cli price-tab --json my-stash-export.json
 python -m src.cli price-item map.txt
 ```
+
+### Drawing the prices over the game itself
+
+The stash grid in the browser still asks you to look away from the game and
+match a picture of your tab against the real one. The **desktop overlay** removes
+that step: it is a transparent, always-on-top, click-through window that draws
+the same tiles — same percentile colour bands, same suggested listing price, same
+exalt rings — directly on top of the real stash tab, aligned cell for cell.
+
+It is a passive draw-on-top window. It reads a JSON file this app wrote and
+paints pixels above whatever is underneath. It does not read the game's memory,
+hook it, or send it a single keystroke — it is click-through precisely so that
+it *cannot* interact with anything.
+
+**One-time calibration.** The overlay cannot find your stash tab by itself, and
+finding it would mean screen-reading the client. So you tell it, once:
+
+```bash
+python -m src.cli overlay --calibrate
+```
+
+A cyan grid appears. Line it up with the stash tab's own cell borders:
+
+| key | does |
+| --- | --- |
+| arrow keys | move the grid by one pixel |
+| shift + arrows | resize the grid by one pixel |
+| `+` / `-` | more or less opaque |
+| `Enter` | save to `config.yaml` and start drawing |
+| `Esc` | cancel, keeping the previous calibration |
+
+Line up the *inner* lines, not just the outer border: cell size is stored as a
+float (53.4px, not 53px) because 12 columns rarely land on a whole number, and
+half a pixel per column is a price on the wrong map by the twelfth one.
+
+The calibration is saved under `overlay:` in `config.yaml` together with the
+screen resolution it was made at. Change resolution and the overlay says so
+rather than drawing a tidy grid of prices over the wrong maps.
+
+**Using it.** Price a tab as normal, then press **Send this tab to the overlay**
+on the Stash Pricer page (or run `python -m src.cli price-tab --tab "Originator
+Maps" --overlay`). That writes `data/overlay_state.json`. Then:
+
+```bash
+python -m src.cli overlay
+```
+
+A running overlay notices a new export within half a second — there is no need
+to restart it when you re-price, change strategy, or switch tabs.
+
+**Controls.** The overlay window itself cannot be clicked or focused, by design,
+so the controls live in two places:
+
+- **Ctrl+Alt+O** (configurable as `overlay.hotkey_toggle`) shows and hides it,
+  system-wide, while the game has focus. This is a Windows `RegisterHotKey`
+  reservation of that one chord — not a keyboard hook, and nothing else about
+  your typing is visible to the process. If another application already owns the
+  chord, the overlay says so in its status line and carries on.
+- A small **control strip** sits above the grid with *show/hide*, *reload*,
+  *calibrate* and *quit* buttons (and the same as `o`, `r`, `c`, `q` when it has
+  focus). It is draggable. It exists because a click-through window can never
+  receive a keypress, so a second and third stolen global chord would be the
+  only alternative.
+
+**Honest limitations:**
+
+- **Fullscreen-exclusive mode will cover it.** That mode hands the display to
+  the game and takes the desktop compositor out of the path; no overlay of this
+  kind can draw over it. Use **windowed fullscreen**, which is what the overlay
+  is built for and costs nothing in practice.
+- **Windows only.** The transparency, the click-through flag and the hotkey are
+  all Win32. Elsewhere the overlay refuses to start rather than opening an
+  opaque window that swallows clicks.
+- **Calibration is per resolution and per tab layout.** A 12x12 tab and a 24x24
+  quad tab need different `grid` values; the overlay grows the grid to fit what
+  it is given but the *cell size* is yours to set.
+- **It draws only maps that have real stash coordinates.** Clipboard-pasted maps
+  are numbered in paste order, which is not a layout, so they are left out
+  rather than drawn on top of maps they do not belong to.
+- **It does not follow the game window.** Move or resize the client and the
+  calibration is stale until you redo it.
+- The *Launch overlay window* button on the Stash Pricer page starts the process
+  for you, but running `python -m src.cli overlay` in a terminal is better while
+  you are setting it up — that is where its errors are printed.
 
 ---
 
@@ -742,6 +830,11 @@ Read this part.
   listings per seller, and training down-weights any residual block. If you
   import market data by hand, the weighting is what protects you.
 
+- **The desktop overlay is aligned by hand, and cannot draw over
+  fullscreen-exclusive mode.** It is Windows-only, it does not follow the game
+  window when you move it, and its calibration is tied to one screen resolution.
+  Section 7 has the full list.
+
 - **Stash access via POESESSID is not officially supported.** It works, but GGG
   offers no stability guarantee and the cookie expires.
 
@@ -794,6 +887,9 @@ src/
   ml/                      features, models, train, predict, confidence, explain
                            affix_catalogue -- per-affix reward contributions
   pricing/                 currency, sell_strategy, fair_value, exalt
+  overlay/                 the desktop overlay: state (the JSON contract),
+                           calibration, layout -- and window, the only module
+                           that imports tkinter
   ui/                      one module per page
   cli.py                   everything the UI does, without Streamlit
 docs/

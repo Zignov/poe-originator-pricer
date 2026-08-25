@@ -14,13 +14,10 @@ from src.pricing.currency import CurrencyConverter
 from src.pricing.display import PriceFormatter
 from src.pricing.fair_value import PricingService
 
-VALUE_COLOURS = {
-    "low": "#5b6470",
-    "medium": "#2f7d5c",
-    "high": "#a8791f",
-    "very high": "#9b3d8a",
-    "unknown": "#3a3f47",
-}
+# Re-exported: the palette itself lives in src/ui/palette.py so the desktop
+# overlay, which runs in a tkinter process with no Streamlit in it, can share
+# the same colours without importing this module.
+from src.ui.palette import VALUE_COLOURS  # noqa: F401
 
 CSS = """
 <style>
