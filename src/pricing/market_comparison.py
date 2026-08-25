@@ -1,0 +1,397 @@
+"""The market-comparison pricing mode, wired up.
+
+`src/market/live_comparables.py` holds the logic -- query windows, tolerance
+widening, bucket keys, weighting, the derivation and the budget. This module is
+the adapter: it reads the config block, builds the trade client, walks a tab
+while reporting progress, and turns each result into the same `PricedMap` the
+model mode produces so that neither the UI nor the CLI has to special-case it.
+
+The two modes sit beside each other and neither overwrites the other. A
+`PricedMap` says which one produced it (`source`), and where both have run the
+UI shows both columns -- the maps they disagree about most are the interesting
+ones, and collapsing that into a single number would throw the signal away.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, Sequence
+
+import pandas as pd
+
+from src.config import Config, ROOT, user_agent
+from src.database.repository import Repository
+from src.market.collectors.official_trade_api import OfficialTradeApiCollector
+from src.market.ingest import converter_for
+from src.market.live_comparables import (
+    DEFAULT_MAX_COMPARABLES,
+    DEFAULT_MAX_LISTING_AGE_HOURS,
+    DEFAULT_MIN_COMPARABLES,
+    DEFAULT_TOLERANCE_SCHEDULE,
+    BucketCache,
+    LiveComparableFinder,
+    MapOutcome,
+    MarketProgress,
+    MarketRunState,
+    NoComparables,
+    RequestBudget,
+    TradeSearchClient,
+    derive_market_estimate,
+    estimate_seconds,
+)
+from src.market.outliers import DEFAULT_PLAUSIBLE_CHAOS
+from src.pricing.fair_value import PricedMap, PricingService
+from src.schema import FEATURE_NAMES, NormalizedMap
+
+#: Where the bucket cache lives when the config does not say. Under data/ with
+#: the database, because it is the same kind of thing: fetched market state that
+#: is worth keeping between runs and worth throwing away without a second
+#: thought.
+DEFAULT_CACHE_PATH = "data/market_comparison_cache.json"
+
+
+@dataclass
+class MarketComparisonSettings:
+    """The `market_comparison` config block, with the defaults spelled out."""
+
+    tolerance_schedule: tuple[float, ...] = DEFAULT_TOLERANCE_SCHEDULE
+    min_comparables: int = DEFAULT_MIN_COMPARABLES
+    max_comparables: int = DEFAULT_MAX_COMPARABLES
+    request_budget: int = 200
+    cache_ttl_minutes: float = 30.0
+    max_listing_age_hours: float = DEFAULT_MAX_LISTING_AGE_HOURS
+    status: str = "online"
+    cache_path: str = DEFAULT_CACHE_PATH
+    plausible_chaos: tuple[float, float] = DEFAULT_PLAUSIBLE_CHAOS
+
+    @classmethod
+    def from_config(cls, cfg: Config) -> "MarketComparisonSettings":
+        block = cfg.get("market_comparison", {}) or {}
+        bounds = cfg.get("market.plausible_price_chaos", list(DEFAULT_PLAUSIBLE_CHAOS))
+        schedule = tuple(float(x) for x in block.get("tolerance_schedule", DEFAULT_TOLERANCE_SCHEDULE))
+        return cls(
+            tolerance_schedule=schedule or DEFAULT_TOLERANCE_SCHEDULE,
+            min_comparables=int(block.get("min_comparables", DEFAULT_MIN_COMPARABLES)),
+            max_comparables=int(block.get("max_comparables", DEFAULT_MAX_COMPARABLES)),
+            request_budget=int(block.get("request_budget", 200)),
+            cache_ttl_minutes=float(block.get("cache_ttl_minutes", 30.0)),
+            max_listing_age_hours=float(
+                block.get("max_listing_age_hours", DEFAULT_MAX_LISTING_AGE_HOURS)
+            ),
+            status=str(block.get("status", "online")),
+            cache_path=str(block.get("cache_path", DEFAULT_CACHE_PATH)),
+            plausible_chaos=(float(bounds[0]), float(bounds[1])),
+        )
+
+    def resolved_cache_path(self) -> Path:
+        path = Path(self.cache_path)
+        return path if path.is_absolute() else (ROOT / path)
+
+
+def client_for(cfg: Config, repo: Repository) -> OfficialTradeApiCollector:
+    """The same collector the training path uses, with the same limiter.
+
+    Reused rather than reimplemented on purpose: the User-Agent, the
+    header-driven rate limiting and the 429 back-off are not things this mode
+    should have its own opinion about.
+    """
+    return OfficialTradeApiCollector(
+        league=cfg.get("league"),
+        user_agent=user_agent(cfg),
+        converter=converter_for(cfg, repo),
+        min_interval=cfg.get("http.min_request_interval_seconds", 2.0),
+        map_tier=cfg.get("scope.map_tier"),
+        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+    )
+
+
+def comparables_frame(outcome: MapOutcome, now: datetime | None = None) -> pd.DataFrame:
+    """The evidence behind one price, in the same shape the model mode shows.
+
+    Same column names as `src/market/comparables.py` so the existing detail panel
+    renders it without knowing which mode produced it, plus the two columns that
+    are the point of this mode: how far each listing is from the map, and how
+    much of the answer it therefore carries.
+    """
+    columns = list(FEATURE_NAMES) + [
+        "price_chaos",
+        "price_amount",
+        "price_currency",
+        "seller",
+        "age_hours",
+        "distance",
+        "weight",
+    ]
+    if outcome.derivation is None:
+        return pd.DataFrame(columns=columns)
+    now = now or datetime.now(timezone.utc)
+    records = [
+        {
+            **{name: int(comp.features.get(name, 0) or 0) for name in FEATURE_NAMES},
+            "price_chaos": comp.price_chaos,
+            "price_amount": comp.price_amount,
+            "price_currency": comp.price_currency,
+            "seller": comp.seller,
+            "age_hours": comp.age_hours(now),
+            "distance": comp.distance,
+            "weight": comp.weight,
+        }
+        for comp in outcome.derivation.comparables
+    ]
+    return pd.DataFrame.from_records(records, columns=columns)
+
+
+class MarketComparisonPricer:
+    """Prices a set of maps from live listings, resumably and within a budget."""
+
+    def __init__(
+        self,
+        service: PricingService,
+        client: TradeSearchClient,
+        settings: MarketComparisonSettings | None = None,
+        cache: BucketCache | None = None,
+        budget: RequestBudget | None = None,
+    ):
+        self.service = service
+        self.client = client
+        self.settings = settings or MarketComparisonSettings()
+        self.cache = cache or BucketCache(
+            ttl_minutes=self.settings.cache_ttl_minutes,
+            path=self.settings.resolved_cache_path(),
+        )
+        self.budget = budget or RequestBudget(limit=self.settings.request_budget)
+        self.finder = LiveComparableFinder(
+            client=client,
+            cache=self.cache,
+            budget=self.budget,
+            league=service.cfg.get("league", ""),
+            tolerance_schedule=self.settings.tolerance_schedule,
+            min_comparables=self.settings.min_comparables,
+            max_comparables=self.settings.max_comparables,
+            status=self.settings.status,
+        )
+
+    # ------------------------------------------------------------------
+    @classmethod
+    def build(
+        cls,
+        cfg: Config,
+        repo: Repository,
+        service: PricingService,
+        budget: int | None = None,
+        tolerance_schedule: Sequence[float] | None = None,
+    ) -> "MarketComparisonPricer":
+        settings = MarketComparisonSettings.from_config(cfg)
+        if budget is not None:
+            settings.request_budget = int(budget)
+        if tolerance_schedule:
+            settings.tolerance_schedule = tuple(float(x) for x in tolerance_schedule)
+        return cls(service=service, client=client_for(cfg, repo), settings=settings)
+
+    # ------------------------------------------------------------------
+    def seconds_per_request(self) -> float:
+        """What one more request costs in wall-clock, at the sustained rate."""
+        limiter = getattr(self.client, "search_limiter", None)
+        if limiter is None:
+            return 0.0
+        return limiter.sustained_interval()
+
+    def run(
+        self,
+        items: Sequence[NormalizedMap],
+        state: MarketRunState | None = None,
+        progress: Callable[[MarketProgress], None] | None = None,
+        stop: Callable[[], bool] | None = None,
+    ) -> MarketRunState:
+        """Price everything not already priced, until the budget runs out.
+
+        Returns the state, whether it finished or not. Nothing is thrown away
+        when it does not: every map already priced stays priced, and calling this
+        again with the same state continues from there.
+        """
+        state = state or MarketRunState()
+        pending = state.pending(items)
+        total = len(items)
+        #: Maps that actually reached the network, so the estimate is per *paid*
+        #: map. Counting every outcome would divide the requests spent by a total
+        #: padded with unsupported maps and cache hits, which cost nothing, and
+        #: the estimate would fall as the run went on rather than converging.
+        paid_lookups = 0
+
+        def report(message: str) -> None:
+            if not progress:
+                return
+            left = len(state.pending(items))
+            # Two requests -- one search, one fetch -- is the floor for a map that
+            # answers on the first tolerance step, so it is the optimistic
+            # assumption until the run has measured its own average.
+            per_map = max(2.0, self.budget.used / paid_lookups) if paid_lookups else 2.0
+            projected = min(self.budget.remaining, int(left * per_map))
+            progress(
+                MarketProgress(
+                    done=len(state.outcomes),
+                    total=total,
+                    requests_used=self.budget.used,
+                    request_budget=self.budget.limit,
+                    eta_seconds=estimate_seconds(projected, self.seconds_per_request()),
+                    message=message,
+                )
+            )
+
+        report("starting")
+        for item in pending:
+            if stop is not None and stop():
+                state.stopped_reason = "stopped by the user"
+                break
+            if self.budget.exhausted:
+                state.stopped_reason = (
+                    f"request budget of {self.budget.limit} used up; "
+                    f"{len(state.pending(items))} maps left. Run it again to continue."
+                )
+                break
+            if not item.supported:
+                state.record(
+                    MapOutcome(
+                        fingerprint=item.fingerprint(),
+                        reason=item.unsupported_reason or "unsupported",
+                    )
+                )
+                continue
+
+            outcome = self.finder.find(item)
+            state.requests_used = self.budget.used
+            if outcome.from_cache:
+                state.cache_hits += 1
+            else:
+                paid_lookups += 1
+
+            if outcome.budget_exhausted and not outcome.comparables:
+                state.stopped_reason = (
+                    f"request budget of {self.budget.limit} used up; "
+                    f"{len(state.pending(items))} maps left. Run it again to continue."
+                )
+                break
+
+            if not outcome.comparables:
+                state.record(
+                    MapOutcome(
+                        fingerprint=item.fingerprint(),
+                        reason=outcome.error
+                        or "no live listings matched, even at the widest tolerance",
+                    )
+                )
+                report(f"{item.position_label()}: nothing comparable listed")
+                continue
+
+            try:
+                derivation = derive_market_estimate(
+                    item,
+                    outcome.comparables,
+                    tolerance=outcome.tolerance,
+                    min_comparables=self.settings.min_comparables,
+                    max_age_hours=self.settings.max_listing_age_hours,
+                    plausible_chaos=self.settings.plausible_chaos,
+                    total_matching=outcome.total_matching,
+                )
+            except NoComparables as exc:
+                state.record(
+                    MapOutcome(fingerprint=item.fingerprint(), reason=str(exc))
+                )
+                continue
+            derivation.requests_used = outcome.requests
+            derivation.from_cache = outcome.from_cache
+            state.record(MapOutcome(fingerprint=item.fingerprint(), derivation=derivation))
+            report(
+                f"{item.position_label()}: {len(derivation.comparables)} comparables "
+                f"at {derivation.tolerance:g}x"
+            )
+
+        self.cache.save()
+        state.requests_used = self.budget.used
+        report(state.stopped_reason or "finished")
+        return state
+
+    # ------------------------------------------------------------------
+    def priced(
+        self,
+        items: Sequence[NormalizedMap],
+        state: MarketRunState,
+        strategy: str = "market",
+    ) -> list[PricedMap]:
+        """`PricedMap` rows for every item, priced or not, in the order given."""
+        out: list[PricedMap] = []
+        for item in items:
+            outcome = state.get(item)
+            if outcome is None or outcome.derivation is None:
+                out.append(
+                    PricedMap(
+                        item=item,
+                        estimate=None,
+                        strategy=strategy,
+                        source="market",
+                        note=(outcome.reason if outcome else "not priced yet"),
+                    )
+                )
+                continue
+            out.append(
+                self.service.price_from_market(
+                    item,
+                    outcome.derivation,
+                    comparables=comparables_frame(outcome),
+                    strategy=strategy,
+                )
+            )
+        return out
+
+
+@dataclass
+class ModeComparison:
+    """One map, priced both ways, and how far apart the two answers are."""
+
+    item: NormalizedMap
+    model_chaos: float | None
+    market_chaos: float | None
+
+    @property
+    def gap_ratio(self) -> float | None:
+        """Market / model. 1.0 is agreement; 2.0 is the market asking double."""
+        if not self.model_chaos or not self.market_chaos:
+            return None
+        return self.market_chaos / self.model_chaos
+
+    @property
+    def disagreement(self) -> float:
+        """How far apart, symmetrically, for sorting. 0.0 when either is missing."""
+        ratio = self.gap_ratio
+        if ratio is None or ratio <= 0:
+            return 0.0
+        return abs(ratio - 1.0) if ratio >= 1 else abs(1.0 / ratio - 1.0)
+
+
+def compare_modes(
+    model_priced: Sequence[PricedMap], market_priced: Sequence[PricedMap]
+) -> list[ModeComparison]:
+    """Pair the two modes' answers by item fingerprint, worst disagreement first.
+
+    Where the model and the live market disagree is the genuinely interesting
+    output of running both: it is either a map the model has never seen anything
+    like, or a corner of the market that has moved since the model was trained.
+    Either way the user wants to look at it, so it is sorted to the top rather
+    than averaged away.
+    """
+    by_fingerprint = {p.item.fingerprint(): p for p in market_priced}
+    rows: list[ModeComparison] = []
+    for entry in model_priced:
+        other = by_fingerprint.get(entry.item.fingerprint())
+        rows.append(
+            ModeComparison(
+                item=entry.item,
+                model_chaos=entry.estimate.fair_value_chaos if entry.estimate else None,
+                market_chaos=(
+                    other.estimate.fair_value_chaos if other and other.estimate else None
+                ),
+            )
+        )
+    rows.sort(key=lambda r: r.disagreement, reverse=True)
+    return rows

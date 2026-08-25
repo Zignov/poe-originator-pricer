@@ -181,3 +181,34 @@ def test_the_legend_explains_both_rings():
     assert "worth an exalt" in rendered
     assert "not worth the orb" in rendered
     assert "cannot be exalted" in rendered
+
+
+def test_the_market_comparison_mode_renders_without_calling_the_api():
+    """Switching to the slow mode must not start it.
+
+    The whole point of the warning and the button is that a page rerun -- which
+    Streamlit does on every widget touch -- costs nothing. A mode that fired a
+    search on render would spend a tab's worth of requests before the user had
+    agreed to any of them.
+    """
+    import src.market.collectors.official_trade_api as trade_api
+
+    calls: list[str] = []
+    original = trade_api.OfficialTradeApiCollector.search
+    trade_api.OfficialTradeApiCollector.search = lambda self, query: calls.append("search")
+    try:
+        app = AppTest.from_file(APP, default_timeout=240)
+        app.session_state["stash_items"] = _demo_items()
+        app.run()
+        app.sidebar.radio[0].set_value("Stash Pricer").run()
+        modes = [r for r in app.radio if "Pricing mode" in str(r.label)]
+        if not modes:
+            pytest.skip("mode selector not rendered")
+        modes[0].set_value("market").run()
+        assert not app.exception, f"market mode raised: {[str(e) for e in app.exception]}"
+        rendered = " ".join(str(m.value) for m in app.markdown)
+        assert "calls the official trade API" in rendered, "no warning before the cost"
+    finally:
+        trade_api.OfficialTradeApiCollector.search = original
+
+    assert calls == [], "the market mode called the trade API without being asked to"

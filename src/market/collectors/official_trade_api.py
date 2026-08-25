@@ -84,6 +84,7 @@ class OfficialTradeApiCollector(MarketCollector):
         sale_type: str | None = None,
         pack_size: tuple[int | None, int | None] | None = None,
         quantity: tuple[int | None, int | None] | None = None,
+        map_rarity: tuple[int | None, int | None] | None = None,
         collapse: bool = True,
         account: str | None = None,
     ) -> dict[str, Any]:
@@ -103,7 +104,16 @@ class OfficialTradeApiCollector(MarketCollector):
         }
         if self.require_uncorrupted:
             filters["misc_filters"] = {"filters": {"corrupted": {"option": "false"}}}
-        for key, bounds in (("map_packsize", pack_size), ("map_iiq", quantity)):
+        # map_iir is only ever used by the market-comparison mode, which asks for
+        # maps that look like one particular map rather than for a spread of the
+        # market. Verified live on 2026-08-25: a query carrying map_iiq, map_iir
+        # and map_packsize windows together returned only listings whose printed
+        # properties all sat inside them.
+        for key, bounds in (
+            ("map_packsize", pack_size),
+            ("map_iiq", quantity),
+            ("map_iir", map_rarity),
+        ):
             if not bounds:
                 continue
             spec: dict[str, Any] = {}

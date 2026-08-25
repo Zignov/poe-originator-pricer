@@ -34,6 +34,14 @@ class PricedMap:
     market_reference_chaos: float | None = None
     strategy: str = "market"
     note: str = ""
+    #: Which pricing mode produced this row -- "model" or "market". The two modes
+    #: sit beside each other rather than one replacing the other, so a caller
+    #: holding a list of these has to be able to tell which it is looking at.
+    source: str = "model"
+    #: The live derivation behind a market-comparison row: the comparables, the
+    #: tolerance the search had to reach, and what was discarded. `None` on a
+    #: model row. Typed loosely to keep the import one-directional.
+    derivation: Any | None = None
 
     @property
     def supported(self) -> bool:
@@ -123,6 +131,48 @@ class PricingService:
             market_reference_chaos=market_reference_price(comps),
             strategy=strategy,
             note=f"~price {amount:g} {unit}",
+        )
+
+    def price_from_market(
+        self,
+        item: NormalizedMap,
+        derivation,
+        comparables: pd.DataFrame | None = None,
+        strategy: str = "market",
+    ) -> PricedMap:
+        """A `PricedMap` from live comparables instead of the model.
+
+        Everything downstream of the number is shared with the model path on
+        purpose -- the same selling-strategy multipliers, the same rounding to a
+        price a player would actually type, the same `Estimate` shape. The two
+        modes differ in where the fair value comes from and nowhere else, which
+        is what makes the side-by-side comparison meaningful.
+        """
+        estimate = Estimate(
+            fair_value_chaos=derivation.fair_value_chaos,
+            interval_low_chaos=derivation.interval_low_chaos,
+            interval_high_chaos=derivation.interval_high_chaos,
+            confidence=derivation.confidence,
+            confidence_score=derivation.confidence_score,
+            confidence_reasons=list(derivation.confidence_reasons),
+            model_version=f"live market ({derivation.tolerance:g}x tolerance)",
+        )
+        suggested = suggested_price(estimate.fair_value_chaos, strategy, self.multipliers)
+        amount, unit = self.formatter.listing_amount(suggested)
+        frame = comparables if comparables is not None else pd.DataFrame()
+        reference = None
+        if not frame.empty and "price_chaos" in frame:
+            reference = float(frame["price_chaos"].median())
+        return PricedMap(
+            item=item,
+            estimate=estimate,
+            comparables=frame,
+            suggested_chaos=self.formatter.to_chaos(amount, unit),
+            market_reference_chaos=reference,
+            strategy=strategy,
+            note=f"~price {amount:g} {unit}",
+            source="market",
+            derivation=derivation,
         )
 
     @classmethod

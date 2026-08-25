@@ -14,6 +14,9 @@ data/collect*.log
 *.png
 data/*.db-shm
 data/*.db-wal
+# Bucket cache for the market-comparison mode. Short-lived fetched market state;
+# safe to delete at any time and never worth sharing.
+data/market_comparison_cache.json
 .ruff_cache/
 
 # Local config -- copy config.example.yaml to config.yaml and edit.

@@ -81,6 +81,23 @@ class RateLimiter:
                         self._blocked_until, time.monotonic() + rule.period / rule.max_hits
                     )
 
+    def sustained_interval(self) -> float:
+        """Seconds per request the *tightest* reported rule allows, long-run.
+
+        For estimating how long a run will take, nothing else. The burst rules
+        are not the binding constraint on a long run: GGG's live search policy
+        on 2026-08-25 was `5:10:60,15:60:300,30:300:1800,600:21600:3600`, and
+        while the first rule allows a request every two seconds, the third
+        allows thirty every five minutes -- ten seconds each, sustained. Quoting
+        the burst rate would tell a user "one minute" for a run that takes ten.
+
+        Returns the configured guess while no policy has been reported yet.
+        """
+        periods = [rule.period / rule.max_hits for rule in self.rules if rule.max_hits > 0]
+        if not periods:
+            return self.min_interval
+        return max(periods)
+
     def note_retry_after(self, seconds: float) -> None:
         self._blocked_until = max(self._blocked_until, time.monotonic() + seconds)
 

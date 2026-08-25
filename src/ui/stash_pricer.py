@@ -26,6 +26,11 @@ from src.ui.common import get_config, get_repo, get_service
 from src.ui.exalt_panel import affix_label, affixes_for, render_verdict, verdict_for
 from src.ui.stash_grid import render_grid
 
+MODE_LABELS = {
+    "model": "Model",
+    "market": "Market comparison",
+}
+
 SOURCE_LABELS = {
     "session": "Connect account (POESESSID)",
     "json": "Stash JSON export",
@@ -72,6 +77,19 @@ def render() -> None:
         return
 
     st.markdown("---")
+    mode = st.radio(
+        "Pricing mode",
+        list(MODE_LABELS),
+        format_func=MODE_LABELS.get,
+        horizontal=True,
+        key="pricing_mode",
+        help=(
+            "The model prices from what maps like this have historically been listed "
+            "at. Market comparison asks the trade site what maps like this are listed "
+            "at right now, and shows you those listings."
+        ),
+    )
+
     controls = st.columns([1.2, 1, 1, 1, 1])
     strategy = controls[0].selectbox(
         "Selling strategy", STRATEGIES, index=1, format_func=STRATEGY_LABELS.get
@@ -101,7 +119,12 @@ def render() -> None:
         ],
     )
 
-    priced = service.price_many(items, strategy=strategy)
+    model_priced = service.price_many(items, strategy=strategy)
+    if mode == "market":
+        priced = _market_mode(cfg, repo, service, items, strategy)
+    else:
+        priced = model_priced
+
     supported = [p for p in priced if p.supported]
     st.caption(
         f"{len(items)} maps found  |  {len(supported)} priceable  |  "
@@ -169,6 +192,9 @@ def render() -> None:
 
     st.markdown("---")
     _detail_panel(visible, fmt)
+    if mode == "market":
+        _market_evidence(priced, fmt)
+        _mode_comparison(model_priced, priced, fmt)
     # The whole tab, not `visible`: the pattern must know about every map that
     # has to stay dark, and the table filters only change what is on screen.
     _highlight_tool(priced, fmt)
@@ -316,6 +342,238 @@ def _from_clipboard(cfg):
         )
         return source.fetch_tab(cfg.get("league"), source.list_tabs(cfg.get("league"))[0])
     return None
+
+
+# ---------------------------------------------------------------------------
+# Market comparison mode
+# ---------------------------------------------------------------------------
+def _market_mode(cfg, repo, service, items, strategy):
+    """The live-listings mode: warn, run on a button, then show the evidence.
+
+    Nothing happens until the button is pressed. This is the one page in the app
+    that can spend a few hundred API requests and ten minutes of a rate-limited
+    connection, so it says what it will cost before it costs it, and the run is
+    resumable rather than all-or-nothing -- Streamlit reruns the whole script on
+    every widget touch, and a mode that started over each time would never
+    finish.
+    """
+    from src.market.live_comparables import MarketRunState, format_duration
+    from src.pricing.market_comparison import (
+        MarketComparisonPricer,
+        MarketComparisonSettings,
+    )
+
+    settings = MarketComparisonSettings.from_config(cfg)
+    supported = [i for i in items if i.supported]
+    state: MarketRunState = st.session_state.get("market_run_state") or MarketRunState()
+
+    left, right = st.columns([1, 2])
+    budget = int(
+        left.number_input(
+            "Request budget",
+            min_value=1,
+            max_value=5000,
+            value=int(settings.request_budget),
+            step=25,
+            help="Hard ceiling on API requests for one run. Hitting it stops "
+            "cleanly; press the button again to continue where it left off.",
+        )
+    )
+
+    pricer = MarketComparisonPricer.build(cfg, repo, service, budget=budget)
+    per_map = pricer.seconds_per_request()
+    # Two requests is the floor for a bucket that answers on the first tolerance
+    # step: one search plus one fetch. Widening or a full 30 comparables costs
+    # more, so this is the optimistic end and the caption says so.
+    remaining = len(state.pending(items))
+    with right:
+        st.markdown(
+            f'<div class="warn"><b>This mode calls the official trade API.</b> '
+            f"One search per distinct map, widened until enough comparables come "
+            f"back, plus a fetch per ten listings. GGG's search policy allows "
+            f"about one search every {per_map:.0f}s sustained, so {remaining} maps "
+            f"is at least {format_duration(remaining * 2 * per_map)} and up to "
+            f"{format_duration(budget * per_map)} if the budget is spent. "
+            f"Near-identical maps share one query, and results are cached for "
+            f"{settings.cache_ttl_minutes:g} minutes.</div>",
+            unsafe_allow_html=True,
+        )
+
+    columns = st.columns([1, 1, 2])
+    if columns[0].button(
+        "Price from live listings" if not state.outcomes else "Continue pricing",
+        type="primary",
+    ):
+        bar = st.progress(0.0)
+        caption = st.empty()
+
+        def report(update):
+            bar.progress(min(1.0, update.done / max(update.total, 1)))
+            caption.caption(f"{update.caption()}  |  {update.message}")
+
+        state = pricer.run(items, state=state, progress=report)
+        st.session_state["market_run_state"] = state
+        bar.empty()
+
+    if columns[1].button("Clear market prices"):
+        st.session_state.pop("market_run_state", None)
+        state = MarketRunState()
+
+    if state.outcomes:
+        st.caption(
+            f"{state.priced_count} of {len(supported)} priceable maps have a live "
+            f"price  |  {state.requests_used} requests used  |  "
+            f"{state.cache_hits} answered from the bucket cache at no request cost"
+        )
+        if state.stopped_reason:
+            st.markdown(
+                f'<div class="warn">{state.stopped_reason}</div>', unsafe_allow_html=True
+            )
+    else:
+        st.info(
+            "No live prices yet. The table below stays empty until you run the "
+            "mode — the model's numbers are one radio button away and cost nothing."
+        )
+
+    return pricer.priced(items, state, strategy=strategy)
+
+
+def _market_evidence(priced, fmt):
+    """One expander per map: the actual listings the price was derived from.
+
+    This is the mode's whole selling point over the model. A model price is a
+    number you either trust or do not; a market price is a number you can check,
+    and checking it means seeing the rows -- their rewards, their price, how old
+    they are, who is selling, how far they sit from your map and how much of the
+    answer they therefore carried.
+    """
+    rows = [p for p in priced if p.source == "market" and p.derivation is not None]
+    if not rows:
+        return
+
+    st.markdown("### Where each number came from")
+    rows.sort(key=lambda p: p.estimate.fair_value_chaos, reverse=True)
+    for entry in rows:
+        derivation = entry.derivation
+        header = (
+            f"{entry.item.position_label()}  ·  {fmt.format(entry.estimate.fair_value_chaos)}  ·  "
+            f"{len(derivation.comparables)} comparables at {derivation.tolerance:g}x tolerance  ·  "
+            f"{entry.estimate.confidence}"
+        )
+        with st.expander(header):
+            from src.market.live_comparables import describe_window
+
+            st.caption(
+                f"Search window: {describe_window(derivation.window)}. "
+                f"{derivation.total_matching} listings matched; the newest "
+                f"{len(derivation.comparables)} were read"
+                + (" (from the cache, no requests)" if derivation.from_cache else "")
+                + "."
+            )
+            for reason in entry.estimate.confidence_reasons:
+                st.caption(f"- {reason}")
+
+            frame = entry.comparables.copy()
+            frame["Price"] = frame["price_chaos"].map(fmt.value)
+            frame["Age"] = frame["age_hours"].map(format_age)
+            frame["Share"] = frame["weight"] / frame["weight"].sum()
+            st.dataframe(
+                frame[
+                    [
+                        "more_currency",
+                        "more_maps",
+                        "more_scarabs",
+                        "more_divination_cards",
+                        "pack_size",
+                        "quantity",
+                        "rarity",
+                        "Price",
+                        "Age",
+                        "seller",
+                        "distance",
+                        "Share",
+                    ]
+                ].rename(
+                    columns={
+                        "more_currency": "Cur",
+                        "more_maps": "Maps",
+                        "more_scarabs": "Scar",
+                        "more_divination_cards": "Div",
+                        "pack_size": "Pack",
+                        "quantity": "Qty",
+                        "rarity": "Rar",
+                        "seller": "Seller",
+                        "distance": "Distance",
+                    }
+                ),
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Price": st.column_config.NumberColumn(
+                        f"Price ({fmt.column_suffix()})",
+                        format="%.0f" if fmt.unit == "chaos" else "%.2f",
+                    ),
+                    "Distance": st.column_config.NumberColumn("Distance", format="%.2f"),
+                    "Share": st.column_config.NumberColumn("Weight", format="%.0f%%"),
+                },
+            )
+            if derivation.discarded:
+                st.caption(
+                    "Discarded: "
+                    + "; ".join(
+                        f"{fmt.format(c.price_chaos)} ({why})"
+                        for c, why in derivation.discarded[:6]
+                    )
+                )
+
+
+def _mode_comparison(model_priced, market_priced, fmt):
+    """Model against market, worst disagreement first.
+
+    Shown rather than reconciled. A big gap is not an error to be averaged away:
+    it is either a map the model has never seen anything like, or a corner of the
+    market that has moved since the model was trained, and both are things the
+    person about to set a price wants to look at.
+    """
+    from src.pricing.market_comparison import compare_modes
+
+    rows = [r for r in compare_modes(model_priced, market_priced) if r.gap_ratio]
+    if not rows:
+        return
+    st.markdown("### Model vs market")
+    frame = pd.DataFrame(
+        [
+            {
+                "Pos": row.item.position_label(),
+                "Model": fmt.value(row.model_chaos),
+                "Market": fmt.value(row.market_chaos),
+                "Market / model": row.gap_ratio,
+            }
+            for row in rows
+        ]
+    )
+    digits = 0 if fmt.unit == "chaos" else 2
+    st.dataframe(
+        frame,
+        hide_index=True,
+        use_container_width=True,
+        column_config={
+            "Model": st.column_config.NumberColumn(
+                f"Model ({fmt.column_suffix()})", format=f"%.{digits}f"
+            ),
+            "Market": st.column_config.NumberColumn(
+                f"Market ({fmt.column_suffix()})", format=f"%.{digits}f"
+            ),
+            "Market / model": st.column_config.NumberColumn(
+                "Market / model", format="%.2fx"
+            ),
+        },
+    )
+    st.caption(
+        "Neither column overwrites the other. The rows at the top are where the "
+        "trained model and the live market disagree most — worth a look before "
+        "you list those maps."
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -16,11 +16,16 @@ from src.database.repository import Repository, _parse_iso
 from src.schema import FEATURE_NAMES, NormalizedMap
 
 
-def _scaled_distance(matrix: np.ndarray, vector: np.ndarray) -> np.ndarray:
+def scaled_distance(matrix: np.ndarray, vector: np.ndarray) -> np.ndarray:
     """Euclidean distance after per-feature scaling.
 
     Without scaling, rarity (0-160) would drown out more_scarabs (0-40) purely
     because its numbers are bigger.
+
+    Public because the live market-comparison mode weighs its comparables on the
+    same notion of distance (src/market/live_comparables.py). The two modes
+    disagreeing about what "close" means would make their numbers incomparable,
+    which is the one thing the side-by-side view exists to do.
     """
     spread = matrix.std(axis=0)
     scale = np.where(spread > 1e-6, spread, 1.0)
@@ -51,7 +56,7 @@ def find_comparables(
 
     matrix = np.array([[row[name] or 0 for name in FEATURE_NAMES] for row in rows], dtype=float)
     vector = np.array(item.feature_vector(), dtype=float)
-    distances = _scaled_distance(matrix, vector)
+    distances = scaled_distance(matrix, vector)
     order = np.argsort(distances)[:limit]
 
     now = datetime.now(timezone.utc)

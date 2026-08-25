@@ -281,7 +281,7 @@ Two things do not survive the trip, both by design:
   instance as a demo; the real dataset lives on the machine that collected it.
 * **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
   goes out as `you@example.com`, and GGG asks automated clients to identify
-  themselves with a real address (see §12). `POE_LEAGUE` can be set the same way
+  themselves with a real address (see §13). `POE_LEAGUE` can be set the same way
   to override the league without editing config.
 
 POESESSID is deliberately *not* something to put in cloud secrets — it is a
@@ -310,7 +310,9 @@ You get:
 - **copy-ready notes** (`~price 9.8 divine`) and a copy-all block, for you to
   type in yourself;
 - a **stash-search pattern** that highlights the maps above a price you pick —
-  see below.
+  see below;
+- a **Pricing mode** selector — the trained model, or a live market comparison
+  against the maps actually listed right now. See §8.
 
 ### Highlighting the good maps in game
 
@@ -446,7 +448,135 @@ so the controls live in two places:
 
 ---
 
-## 8. Affix count and whether a map is worth an Exalted Orb
+## 8. Two pricing modes: the model, and the live market
+
+The Stash Pricer has a **Pricing mode** selector. The default asks the trained
+model. The other one, **Market comparison**, asks the trade site instead: for
+each map it searches for the maps *currently listed* whose rewards sit inside a
+window around that map's, and derives a price from those actual listings.
+
+```
+Model              7 numbers -> trained model -> a price      instant, free
+Market comparison  7 numbers -> a trade search -> real asks   ~10s/map, API-heavy
+```
+
+### When to prefer it
+
+- **When the model is stale.** The model prices the market it was trained on. A
+  week-old model priced a market that no longer exists; this mode has no such
+  problem because it only ever looks at what is listed now.
+- **When the map is unusual.** A reward combination the model has barely seen
+  comes back with low confidence and a wide band. The live search either finds
+  maps like it or tells you it could not.
+- **When the number is worth real money.** On a 3-divine map it is worth ten
+  seconds to see the six listings the number came from.
+- **Not for a whole quad tab on a whim.** Twenty maps is a couple of minutes;
+  two hundred is most of an hour of rate-limited requests. Price with the model,
+  then re-price the top of the table this way.
+
+### Explainability is the point
+
+Every map priced this way carries the exact listings behind it, in an expander:
+each comparable's rewards, its price, its age, its seller, how far it sits from
+your map in scaled feature space, and what share of the answer it therefore
+carried. The discarded ones are listed too, with why. The model's price is a
+number you trust or you do not; this one you can check.
+
+The fair value is the **distance-weighted median** of those comparables —
+weighted `1/(1+d²)`, so a map twice as far away counts far less than half — and
+the interval is their weighted interquartile band. That band is a statement
+about the market's own spread, not a multiplier chosen to look reassuring: six
+listings all at 70c produce no interval at all, and the same six spread from 30c
+to 150c produce a wide one.
+
+### What it costs, and the four things that keep that bounded
+
+**GGG's search policy is the whole cost model.** Measured live on 2026-08-25:
+
+```
+X-Rate-Limit-Ip: 5:10:60,15:60:300,30:300:1800,600:21600:3600
+```
+
+Five searches per ten seconds looks generous, but thirty per five minutes is the
+binding rule: **one search every ten seconds, sustained**. A map costs one search
+plus one fetch per ten listings read, and more if the window has to be widened.
+So a 20-map tab is roughly 40-60 requests and 3-6 minutes; a 60-map tab is
+15 minutes or more. Estimates shown in the app use the sustained rate, not the
+burst rate, because quoting the burst rate promises a minute for a ten-minute
+run.
+
+Four things keep that from being unbounded:
+
+1. **Adaptive tolerance.** The search starts tight and widens only if too few
+   maps come back — at most three steps. This is not an optimisation, it is
+   necessary: a live probe of a tight window around a real map matched exactly
+   **one** listing in the whole league. **Which step produced the answer is
+   recorded and shown**, because a price found at 4× tolerance is a weaker claim
+   than one found at 1×, and confidence reflects it.
+2. **A bucket cache.** Maps are quantised into buckets by their reward values,
+   so near-identical maps in one tab share a single query and cost zero extra
+   requests. Entries expire after `cache_ttl_minutes` — live prices go stale, and
+   an hour-old answer presented as the current market is worse than no answer.
+3. **A request budget.** A hard ceiling per run, configurable and overridable in
+   the UI. Hitting it stops cleanly rather than half-way through a fetch.
+4. **Resumability.** Stopping — the budget, an interruption, a 429 — leaves every
+   already-priced map priced. Press the button again and it continues; the bucket
+   cache is on disk, so it continues across restarts too.
+
+Rate limiting is never bypassed. This mode goes through the same client, the
+same `RateLimiter` and the same 429 back-off as everything else in §13.
+
+### Confidence, and how it degrades
+
+Same four-signal shape and the same thresholds as the model's confidence, so
+"Medium" means a comparable thing in both columns. It degrades with:
+
+| | |
+|---|---|
+| **few comparables** | a price from three asks is a rumour |
+| **wide tolerance needed** | the window was opened until it caught maps that are not really like yours |
+| **stale listings** | an ask from two days ago is not today's market |
+| **high price dispersion** | the comparables do not agree, so no single number from them means much |
+
+### Model vs market, side by side
+
+Running the live mode does not overwrite the model's numbers. Both are kept, and
+a **Model vs market** table shows them together sorted by how far apart they are.
+That gap is the interesting output: it is either a map the model has never seen
+anything like, or a corner of the market that has moved since training. Neither
+is something to average away.
+
+### Limitations, specifically of this mode
+
+- **Still asking prices.** Same caveat as everywhere else in this README — the
+  trade site publishes asks, never sales.
+- **Online sellers only, by default** (`status: online`), because an offline
+  seller's ask is not an offer you can take. Set it to `any` for a bigger sample.
+- **A quiet market gives no answer.** Some maps genuinely have no comparable
+  listed at any tolerance. The mode says so rather than inventing a number.
+- **Absence of a reward is categorical.** A map with no More Scarabs is compared
+  only against maps with no More Scarabs, never against maps carrying +50%.
+  Verified live: those two sets split the market 492 / 152.
+- **It cannot price what the model can't either.** Magic maps, wrong tier, wrong
+  corruption state — the scope in `config.scope` applies identically.
+
+### From the CLI
+
+```bash
+python -m src.cli price-tab-market --tab "Originator Maps" --budget 150
+python -m src.cli price-tab-market --json my-stash-export.json --comparables
+python -m src.cli price-tab-market --tab "Maps" --tolerance 1 2 4 8
+```
+
+It prints progress, stops at the budget, and re-running continues. With a model
+loaded it also prints where the two modes disagree most.
+
+Configuration lives in the `market_comparison` block of `config.yaml`; every knob
+above is there with a comment explaining it.
+
+---
+
+## 9. Affix count and whether a map is worth an Exalted Orb
 
 Every map loaded from a stash source shows how many affixes it carries — `5/6`,
 or `8/8` on a corrupted one — and, where a slot is still open, what an Exalted
@@ -536,7 +666,7 @@ say.
 
 ---
 
-## 9. Finding bulk lots to buy
+## 10. Finding bulk lots to buy
 
 Originator Maps are bought in bulk, and the **Bulk Buy** page finds sellers with
 several listed at once. It is the inverse of market collection on every axis, and
@@ -607,7 +737,7 @@ client. A test asserts no WebSocket client has crept into `src/`.
 
 ---
 
-## 10. Training the model
+## 11. Training the model
 
 ### What the model is optimised for
 
@@ -765,7 +895,7 @@ interesting reward interactions, and the history of every training run.
 
 ---
 
-## 11. Current limitations
+## 12. Current limitations
 
 Read this part.
 
@@ -849,7 +979,7 @@ Read this part.
 
 ---
 
-## 12. GGG and API compliance
+## 13. GGG and API compliance
 
 - All market data comes from GGG's own endpoints, unauthenticated, at a
   self-limiting rate driven by the rate-limit policy GGG returns in its own
@@ -871,7 +1001,7 @@ are in **[docs/data-access.md](docs/data-access.md)**.
 
 ---
 
-## 13. Project layout
+## 14. Project layout
 
 ```
 app.py                     Streamlit entry point
@@ -883,10 +1013,12 @@ src/
   parsing/                 item_parser / implicit_parser / price_parser / affixes
   market/                  collectors/, comparables, outliers, rate_limit
                            bulk -- the buying path, never stored, never trained on
+                           live_comparables -- the market-comparison pricing mode
   database/                schema, migrations, repository
   ml/                      features, models, train, predict, confidence, explain
                            affix_catalogue -- per-affix reward contributions
   pricing/                 currency, sell_strategy, fair_value, exalt
+                           market_comparison -- live mode wired to PricedMap
   overlay/                 the desktop overlay: state (the JSON contract),
                            calibration, layout -- and window, the only module
                            that imports tkinter
@@ -896,14 +1028,14 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     275 tests, including live-render checks of every page
+tests/                     416 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
-## 14. Tests
+## 15. Tests
 
 ```bash
 python -m pytest
@@ -914,6 +1046,9 @@ and property parsing in both formats, missing and unknown values, stash
 coordinate preservation, price parsing, divine-to-chaos conversion, duplicate
 detection, outlier flagging, feature construction, time-aware validation, model
 serialization and schema refusal, prediction output, comparable ranking, selling
-strategies — and a smoke test that renders every Streamlit page through
+strategies, live-comparable query construction, tolerance widening, bucket
+cache hits and expiry, request budgets, resuming an interrupted run,
+distance-weighted price and interval derivation, confidence degradation — and a
+smoke test that renders every Streamlit page through
 Streamlit's own test harness, so a broken page fails the suite instead of showing
 up as a red box in your browser.

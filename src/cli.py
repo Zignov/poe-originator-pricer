@@ -5,6 +5,7 @@
     python -m src.cli train
     python -m src.cli price-item item.txt
     python -m src.cli price-tab --tab "Originator Maps"
+    python -m src.cli price-tab-market --tab "Originator Maps" --budget 150
     python -m src.cli inspect-stash
     python -m src.cli import-market listings.json
     python -m src.cli overlay --calibrate
@@ -61,8 +62,12 @@ def _print_priced(
         )
         if not entry.supported:
             # "UNSUPPORTED" is wider than the Fair column, so it is spaced
-            # rather than right-aligned into it.
-            print(f"{stats}  UNSUPPORTED  {item.unsupported_reason}")
+            # rather than right-aligned into it. A map the scope allows but the
+            # market mode could not price carries its reason in `note` instead --
+            # "no live listings matched" is not the same statement as "this map
+            # is out of scope", and printing an empty reason hid the difference.
+            reason = item.unsupported_reason or entry.note
+            print(f"{stats}  {'UNSUPPORTED' if item.unsupported_reason else 'NO PRICE   '}  {reason}")
             continue
         est = entry.estimate
         print(
@@ -332,6 +337,78 @@ def cmd_overlay(args) -> int:
         return 2
 
 
+def cmd_price_tab_market(args) -> int:
+    """Price a tab from live listings instead of from the model.
+
+    Headless twin of the Stash Pricer's Market comparison mode. It is slow by
+    construction -- GGG's search policy allows thirty searches per five minutes
+    sustained -- so it prints progress as it goes, stops cleanly at the budget,
+    and can be re-run to continue: the bucket cache on disk means a second run
+    pays nothing for the maps the first one already answered.
+    """
+    from src.market.live_comparables import format_duration
+    from src.pricing.market_comparison import MarketComparisonPricer, compare_modes
+
+    cfg = load_config(args.config)
+    source = _stash_source(cfg, args)
+    ok, why = source.available()
+    if not ok:
+        print(f"stash source unavailable: {why}", file=sys.stderr)
+        print(source.setup_hint, file=sys.stderr)
+        return 2
+
+    tabs = source.list_tabs(cfg.get("league"))
+    wanted = [t for t in tabs if args.tab is None or t.name == args.tab]
+    if not wanted:
+        print(f"no tab named {args.tab!r}. Available: {[t.name for t in tabs]}", file=sys.stderr)
+        return 2
+
+    items = source.fetch_tabs(cfg.get("league"), wanted)
+    with Repository(cfg.db_path) as repo:
+        # The model is optional here: this mode does not need it, but when one is
+        # loaded both numbers can be printed side by side, which is the most
+        # useful thing about running the slow mode at all.
+        service = _service(cfg, repo, require_model=False)
+        pricer = MarketComparisonPricer.build(
+            cfg,
+            repo,
+            service,
+            budget=args.budget,
+            tolerance_schedule=args.tolerance,
+        )
+        supported = [i for i in items if i.supported]
+        print(
+            f"{len(items)} items, {len(supported)} priceable. Budget "
+            f"{pricer.budget.limit} requests; at GGG's sustained search rate that "
+            f"is up to {format_duration(pricer.budget.limit * pricer.seconds_per_request())}."
+        )
+        state = pricer.run(items, progress=lambda p: print(p.caption(), flush=True))
+        priced = pricer.priced(items, state, strategy=args.strategy)
+        priced.sort(key=lambda p: (p.estimate.fair_value_chaos if p.estimate else -1), reverse=True)
+        _print_priced(priced, service.formatter, show_comparables=args.comparables)
+
+        print(
+            f"\n{state.priced_count} priced from live listings  |  "
+            f"{state.requests_used} requests used  |  {state.cache_hits} bucket cache hits"
+        )
+        if state.stopped_reason:
+            print(state.stopped_reason)
+
+        if service.predictor is not None:
+            model_priced = service.price_many(items, strategy=args.strategy)
+            rows = [r for r in compare_modes(model_priced, priced) if r.gap_ratio]
+            if rows:
+                print("\nWhere the two modes disagree most:")
+                for row in rows[:10]:
+                    print(
+                        f"  {row.item.position_label():<5}"
+                        f"model {service.formatter.format(row.model_chaos):>10}   "
+                        f"market {service.formatter.format(row.market_chaos):>10}   "
+                        f"({row.gap_ratio:.2f}x)"
+                    )
+    return 0
+
+
 def _stash_source(cfg, args):
     from src.stash.clipboard_import import ClipboardStashSource
     from src.stash.json_import import JsonStashSource
@@ -410,6 +487,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--state", default=None, help=f"state file to watch (default {DEFAULT_STATE_PATH})"
     )
     overlay.set_defaults(func=cmd_overlay)
+
+    market = sub.add_parser(
+        "price-tab-market",
+        help="price a tab from live trade listings instead of the model (slow, API-heavy)",
+    )
+    _add_stash_args(market)
+    market.add_argument("--tab", default=None, help="tab name; omit to use every tab")
+    market.add_argument("--strategy", choices=STRATEGIES, default="market")
+    market.add_argument(
+        "--budget",
+        type=int,
+        default=None,
+        help="ceiling on total API requests for this run (default: config)",
+    )
+    market.add_argument(
+        "--tolerance",
+        type=float,
+        nargs="*",
+        default=None,
+        metavar="MULT",
+        help="tolerance multipliers to try in order, e.g. --tolerance 1 2 4",
+    )
+    market.add_argument("--comparables", action="store_true", help="print the live comparables")
+    market.set_defaults(func=cmd_price_tab_market)
 
     return parser
 

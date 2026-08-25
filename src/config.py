@@ -38,6 +38,16 @@ _DEFAULTS: dict[str, Any] = {
         "typical_price_chaos": [30, 660],
         "recency_weights": [[12, 1.0], [24, 0.9], [72, 0.7], [168, 0.4], [999999, 0.2]],
     },
+    "market_comparison": {
+        "tolerance_schedule": [1.0, 2.0, 4.0],
+        "min_comparables": 6,
+        "max_comparables": 30,
+        "request_budget": 200,
+        "cache_ttl_minutes": 30,
+        "max_listing_age_hours": 48,
+        "status": "online",
+        "cache_path": "data/market_comparison_cache.json",
+    },
     "pricing": {"strategies": {"quick_sell": 0.94, "market": 0.99, "patient": 1.06}},
     "scope": {"map_tier": 16, "require_uncorrupted": True},
     # The desktop overlay's calibration. No `screen` key by default, and that

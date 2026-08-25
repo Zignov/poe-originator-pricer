@@ -59,6 +59,50 @@ market:
     - [168, 0.4]
     - [999999, 0.2]
 
+market_comparison:
+  # The second pricing mode: instead of asking the trained model, ask the trade
+  # site which maps like this one are listed *right now* and derive a price from
+  # those. Slower and API-heavy, and fully explainable -- every price carries the
+  # listings it came from.
+  #
+  # Tolerance steps, tried in order until enough comparables come back. The
+  # numbers are multipliers on a per-feature window (see TOLERANCE_BASE in
+  # src/market/live_comparables.py): 1.0 means +/-10 quantity, +/-20 rarity,
+  # +/-5 pack size and so on, so one multiplier means the same kind of closeness
+  # on features that do not share a scale.
+  #
+  # It starts tight and widens because a tight window really is usually empty:
+  # a live probe on 2026-08-25 of a 1.0 window around a real map matched exactly
+  # one listing in the whole league. Which step succeeded is recorded and shown,
+  # because an answer found at 4.0 is a weaker answer than one found at 1.0.
+  tolerance_schedule: [1.0, 2.0, 4.0]
+  # Stop widening once this many comparables have come back.
+  min_comparables: 6
+  # Most listings read for one map. Each fetch reads 10 ids, so 30 costs three
+  # fetch requests on top of the search.
+  max_comparables: 30
+  # Hard ceiling on requests for one run, searches and fetches together. This is
+  # not a rate -- the rate limiter already obeys GGG's published policy -- it is
+  # how many requests you are willing to spend at all. GGG's search policy allows
+  # thirty searches per five minutes sustained, so 200 requests is roughly a
+  # 10-15 minute run. Hitting the ceiling stops the run cleanly; already-priced
+  # maps stay priced and re-running continues where it left off.
+  request_budget: 200
+  # How long a bucket's search results stay usable. Live prices go stale, and an
+  # hour-old answer presented as the current market is worse than no answer.
+  # Within the TTL, near-identical maps in the same tab cost zero extra requests.
+  cache_ttl_minutes: 30
+  # Listings older than this are not evidence about the price now, and are
+  # dropped before the price is derived.
+  max_listing_age_hours: 48
+  # "online" | "any". The model is fitted to the whole listing book because that
+  # is the largest honest sample; this mode answers "what is a map like this
+  # selling for right now", and an offline seller's ask is not an offer you can
+  # take.
+  status: online
+  # Where the bucket cache is kept between runs. Safe to delete at any time.
+  cache_path: data/market_comparison_cache.json
+
 pricing:
   # Multipliers applied to fair value. Re-estimated from observed spread once
   # enough market data exists; see src/pricing/sell_strategy.py.

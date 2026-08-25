@@ -125,6 +125,43 @@ GGG's docs: rate limits are *"dynamic and subject to change"*, and *"violating
 rate limits frequently can result in revoked access"*. Hence: read the headers,
 never hardcode, never retry through a 429.
 
+### Narrow "find me maps like this one" queries — verified live 2026-08-25
+
+The market-comparison pricing mode (`src/market/live_comparables.py`) needs a
+different query from the collector's: instead of sampling the market broadly, it
+asks for the listings that sit inside a window around one particular map. Four
+searches and one fetch were spent confirming it works, against league
+**Allflame**:
+
+**Confirmed.** `map_iiq`, `map_iir` and `map_packsize` accept `{min, max}` and
+are honoured together with a pseudo-stat range. One search carrying `map_iiq`
+74-94, `map_iir` 124-144, `map_packsize` 22-42 and
+`pseudo.pseudo_map_more_currency_drops` 37-57 returned listings whose printed
+properties all sat inside those windows (`+77%`, `+128%`, `+28%`, `+47%`).
+`map_iir` was not previously used by this project; the other two were.
+
+**Confirmed.** A tight window really does come back nearly empty. That same
+query matched a `total` of **1** in the whole league. This is why the mode widens
+its tolerance adaptively rather than using a fixed window, and why the tolerance
+that produced an answer is recorded as a confidence signal.
+
+**Confirmed.** `{"type": "not"}` stat groups work, and absence of a reward is
+worth expressing. `not` on `pseudo.pseudo_map_more_scarab_drops` with `min: 1`
+returned **492** listings against **152** for the matching `and` group — the two
+halves partition the market, so a map with no scarab bonus is compared only
+against maps that also have none.
+
+**Confirmed.** The search policy is the cost model for this mode:
+`5:10:60,15:60:300,30:300:1800,600:21600:3600`. The third rule — thirty searches
+per five minutes, one every ten seconds sustained — is the binding one on a long
+run, not the five-per-ten-seconds burst rule. `RateLimiter.sustained_interval()`
+reports that figure so the UI quotes an honest estimate.
+
+**Measured end to end, 2026-08-25.** Pricing three maps out of a 20-item stash
+export cost 14 requests on the first run and 4 on a second run of the same tab,
+the difference being bucket-cache hits. Roughly 4-7 requests per distinct map
+when the tolerance has to widen to its last step, 2-4 when it does not.
+
 ### User-Agent
 
 GGG requires the form `OAuth {clientId}/{version} (contact: {contact})`. With no
