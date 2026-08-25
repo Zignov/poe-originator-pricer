@@ -147,10 +147,15 @@ def _retrain(cfg) -> None:
             st.error(f"Collected, but not retrained: {exc}")
             return
     invalidate_model_cache()
-    st.success(
+    # Same reason as the Retrain button in Settings: everything above this point
+    # was rendered from the outgoing model, so the message has to survive a
+    # rerun rather than be printed into a page that is already out of date.
+    flash(
+        "success",
         "Retrained on the newly collected data. Every page now prices with the "
-        "new model."
+        "new model.",
     )
+    st.rerun()
 
 
 def _chaos(value: float) -> str:

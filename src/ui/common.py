@@ -134,8 +134,13 @@ def get_predictor() -> tuple[Predictor | None, str]:
     return _load_predictor(stamp)
 
 
+#: The stamp must NOT be named with a leading underscore. Streamlit reads that
+#: prefix as "this argument is unhashable, leave it out of the cache key", which
+#: is exactly the opposite of what it is for here: with `_stamp` every value
+#: collided on one entry, so bumping the counter in invalidate_model_cache()
+#: returned the same stale model and only the .clear() beside it did any work.
 @st.cache_resource(show_spinner=False)
-def _load_predictor(_stamp: int) -> tuple[Predictor | None, str]:
+def _load_predictor(stamp: int) -> tuple[Predictor | None, str]:
     try:
         return Predictor.load(get_config()), ""
     except ModelNotTrained as exc:
@@ -152,7 +157,7 @@ def get_catalogue() -> AffixCatalogue | None:
 
 
 @st.cache_resource(show_spinner=False)
-def _load_catalogue(_stamp: int) -> AffixCatalogue | None:
+def _load_catalogue(stamp: int) -> AffixCatalogue | None:  # see _load_predictor
     try:
         return AffixCatalogue.load(get_config().model_dir / CATALOGUE_NAME)
     except Exception:  # a corrupt sidecar must not take the page down

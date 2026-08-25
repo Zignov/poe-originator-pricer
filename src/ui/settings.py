@@ -9,7 +9,14 @@ from src.ml import models as backends
 from src.ml.train import NotEnoughData, train
 from src.pricing.display import UNIT_LABELS, UNITS
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
-from src.ui.common import get_config, get_exalt_cost, get_repo, invalidate_model_cache
+from src.ui.common import (
+    flash,
+    get_config,
+    get_exalt_cost,
+    get_repo,
+    invalidate_model_cache,
+    show_flash,
+)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -53,6 +60,11 @@ def _league_picker(cfg) -> str:
 def render() -> None:
     cfg = get_config()
     repo = get_repo()
+
+    # This page reruns after applying a league, a display unit and a retrain.
+    # Without this every message queued for those reruns is discarded, which is
+    # how retraining came to look like it had done nothing at all.
+    show_flash()
 
     st.title("Settings")
     st.caption(
@@ -238,7 +250,12 @@ def render() -> None:
                     st.error(str(exc))
                 else:
                     invalidate_model_cache()
-                    st.success("Trained. Reload any open page to use the new model.")
+                    # Rerun rather than print. The page above this line was
+                    # drawn from the model that has just been replaced, so
+                    # without a rerun the only thing that changes on screen is
+                    # this message -- which is why the button read as broken.
+                    flash("success", "Trained. Every page now prices with the new model.")
+                    st.rerun()
 
     with account_tab:
         st.markdown(
