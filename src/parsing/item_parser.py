@@ -268,8 +268,19 @@ def classify(
         nm.supported = False
         nm.unsupported_reason = "Corrupted (model scope is uncorrupted only)"
     elif all(v == 0 for v in nm.feature_vector()):
+        # Checked before rarity: an unrolled map is Normal rarity, so both are
+        # true, and "roll it" is the more useful thing to tell someone.
         nm.supported = False
         nm.unsupported_reason = "No reward values -- unrolled map"
+    elif nm.item_rarity_frame and nm.item_rarity_frame.strip().lower() != "rare":
+        # Known-and-not-rare only. An empty frame means the source did not say
+        # (clipboard text without the header, a CSV import), and refusing to
+        # price on a missing field would break the common case; the reward
+        # values the model actually reads are still there.
+        nm.supported = False
+        nm.unsupported_reason = (
+            f"{nm.item_rarity_frame} rarity -- the model prices rare maps only"
+        )
     else:
         nm.supported = True
         nm.unsupported_reason = ""

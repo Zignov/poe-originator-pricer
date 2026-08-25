@@ -119,10 +119,21 @@ League and pricing** without restarting.
 
 ### Scope
 
-By default the model prices **uncorrupted Tier 16** Originator Maps. Anything
-else — corrupted, wrong tier, not an Originator, no rewards rolled — is still
-shown in the table and grid, but marked `Unsupported` with the reason, rather
-than given a questionable price.
+By default the model prices **rare, uncorrupted Tier 16** Originator Maps.
+Anything else — magic or normal rarity, corrupted, wrong tier, not an
+Originator, no rewards rolled — is still shown in the table and grid, but marked
+`Unsupported` with the reason, rather than given a questionable price.
+
+**Rare** is not a preference, it is the scope. A magic map holds one prefix and
+one suffix where a rare holds three of each, so it carries a fraction of the
+reward values and sells for a fraction of the price: in a 4,746-row sample the
+magic listings averaged 18c against a rare market that starts around 30c.
+Trained together they teach the model that low reward totals are normal, and the
+exalt verdict — which assumes the rare 3+3 ceiling — is simply wrong about them.
+The rule is applied in three places, because each leaks differently: the trade
+search asks GGG for `rarity: rare` so nothing new arrives, `classify()` refuses
+to price one already in hand, and the outlier pass flags rows collected before
+the rule existed so they leave training without being deleted.
 
 > **Worth knowing:** on the live trade site the most expensive T16 Originator
 > Maps are *corrupted* 8-mod maps, at 195–300 divine. The uncorrupted market is
@@ -531,8 +542,8 @@ Settings trains without collecting.
 > to yourself until it does something.
 
 Because that is easy to lose track of, the **Dashboard** compares the two and
-says which state you are in — either *"Model is current: trained on 4,199 of
-4,199 usable listings"* or a warning naming the gap and pointing at Retrain.
+says which state you are in — either *"Model is current: trained on 4,102 of
+4,102 usable listings"* or a warning naming the gap and pointing at Retrain.
 Check there after a collection run.
 
 ### Sharing the dataset instead of everyone collecting it
@@ -542,7 +553,7 @@ there is no reason for each person to repeat it. A ready-made export lives in
 the repo:
 
 ```
-data/originator_listings_allflame.csv     # 4,199 listings, ~290 KB
+data/originator_listings_allflame.csv     # 4,102 listings, ~282 KB
 ```
 
 Import it on **Market Data → Import → CSV**, then retrain. It is the same

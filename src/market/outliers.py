@@ -125,6 +125,18 @@ def evaluate(
     return [(row_id, bool(reason), reason) for row_id, reason in decisions.items()]
 
 
+def _column(row, name: str) -> str:
+    """Read an optional column from either a sqlite3.Row or a plain dict.
+
+    sqlite3.Row raises IndexError for a name it does not carry, and dicts built
+    by callers do not always carry every column.
+    """
+    try:
+        return row[name] or ""
+    except (IndexError, KeyError):
+        return ""
+
+
 def _basic_reason(row, now, max_age_days, plausible_chaos) -> str:
     price = row["price_chaos"]
 
@@ -139,6 +151,13 @@ def _basic_reason(row, now, max_age_days, plausible_chaos) -> str:
     # practice these are the listings used to park inventory at absurd prices.
     if all((row[name] or 0) == 0 for name in FEATURE_NAMES):
         return "no reward values on the item"
+
+    # The search now asks GGG for rare maps only, but rows collected before that
+    # are still in the database. Flagging rather than deleting keeps them
+    # auditable and reversible, like every other outlier decision here.
+    rarity_frame = _column(row, "item_rarity_frame")
+    if rarity_frame and rarity_frame.strip().lower() != "rare":
+        return f"{rarity_frame} rarity (the model is scoped to rare maps)"
 
     if (row["price_currency"] or "").lower() == "mirror":
         return "priced in mirrors (price-fixing listing)"

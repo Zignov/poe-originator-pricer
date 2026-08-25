@@ -90,7 +90,16 @@ class OfficialTradeApiCollector(MarketCollector):
         filters: dict[str, Any] = {
             "map_filters": {
                 "filters": {"map_tier": {"min": self.map_tier, "max": self.map_tier}}
-            }
+            },
+            # Rare only, and not negotiable per-slice. A magic map holds one
+            # prefix and one suffix against a rare's three of each, so it carries
+            # a fraction of the reward values and sells for a fraction of the
+            # price -- in a 4,746-row sample, 18c average against a rare market
+            # that starts around 30c. Mixed in, they teach the model that low
+            # reward totals are normal. Key verified against
+            # /api/trade/data/filters on 2026-08-25: type_filters.rarity, with
+            # "rare" among the option ids.
+            "type_filters": {"filters": {"rarity": {"option": "rare"}}},
         }
         if self.require_uncorrupted:
             filters["misc_filters"] = {"filters": {"corrupted": {"option": "false"}}}
