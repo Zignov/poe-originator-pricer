@@ -13,6 +13,7 @@ import pandas as pd
 from src.config import Config
 from src.database.repository import Repository
 from src.market.comparables import find_comparables, market_reference_price
+from src.ml.decision_bands import verdict
 from src.ml.predict import Estimate, Predictor
 from src.pricing.currency import CurrencyConverter
 from src.pricing.display import PriceFormatter, formatter_from
@@ -60,6 +61,11 @@ class PricedMap:
             "Low": amount(est.interval_low_chaos) if est else None,
             "High": amount(est.interval_high_chaos) if est else None,
             "Market Median": amount(self.market_reference_chaos),
+            # What to do with it. The number alone stopped being enough once the
+            # model gained a training floor: below it every map comes back at
+            # roughly the same figure, which reads as a cheap price rather than
+            # as "no price". See src/ml/decision_bands.py.
+            "Action": verdict(est.fair_value_chaos) if est else "",
             "Confidence": est.confidence if est else "-",
             "Status": "" if self.supported else (self.item.unsupported_reason or "Unsupported"),
             "_fingerprint": self.item.fingerprint(),

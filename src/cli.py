@@ -22,6 +22,7 @@ from src.database.repository import Repository
 from src.market.comparables import format_age
 from src.market.ingest import collect_from_trade_api, converter_for, store
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
+from src.ml.decision_bands import verdict
 from src.pricing.display import PriceFormatter
 from src.pricing.fair_value import PricedMap, PricingService
 from src.pricing.sell_strategy import STRATEGIES
@@ -44,7 +45,7 @@ def _print_priced(
 ) -> None:
     header = (
         f"{'Pos':<5}{'Cur':>5}{'Maps':>6}{'Scar':>6}{'Div':>5}{'Pack':>6}"
-        f"{'Qty':>6}{'Rar':>6}{'Fair':>10}{'Sugg':>10}{'Range':>18}  Conf"
+        f"{'Qty':>6}{'Rar':>6}{'Fair':>10}{'Sugg':>10}{'Range':>18}  {'Conf':<7}Action"
     )
     print(header)
     print("-" * len(header))
@@ -66,7 +67,7 @@ def _print_priced(
             f"{formatter.format(est.fair_value_chaos):>10}"
             f"{formatter.format(entry.suggested_chaos):>10}"
             f"{formatter.range(est.interval_low_chaos, est.interval_high_chaos):>18}"
-            f"  {est.confidence}"
+            f"  {est.confidence:<7}{verdict(est.fair_value_chaos)}"
         )
         if show_comparables and not entry.comparables.empty:
             for _, row in entry.comparables.head(5).iterrows():

@@ -30,6 +30,12 @@ from src.ml.features import (
     target_inverse,
     target_transform,
 )
+from src.ml.decision_bands import (
+    WORTH_SELLING_CHAOS,
+    apply_training_floor,
+    decision_metrics,
+    value_weights,
+)
 from src.ml.affix_catalogue import (
     CATALOGUE_NAME,
     fit_catalogue,
@@ -56,7 +62,7 @@ class NotEnoughData(RuntimeError):
     pass
 
 
-def load_training_frame(cfg: Config, repo: Repository) -> pd.DataFrame:
+def load_training_frame(cfg: Config, repo: Repository, log=None) -> pd.DataFrame:
     rate = repo.get_divine_rate(cfg.get("league"))
     divine = rate[0] if rate else cfg.get("currency.divine_to_chaos")
     rows = repo.listing_rows(
@@ -69,7 +75,17 @@ def load_training_frame(cfg: Config, repo: Repository) -> pd.DataFrame:
     frame = rows_to_frame(rows, divine_to_chaos=divine)
     if frame.empty:
         return frame
-    return frame[frame["price_chaos"].notna() & (frame["price_chaos"] > 0)].reset_index(drop=True)
+    frame = frame[frame["price_chaos"].notna() & (frame["price_chaos"] > 0)].reset_index(drop=True)
+
+    # Hold back the reroll pile. These are real listings, not bad data -- they
+    # stay in the database and in every count -- but a map under 30c gets
+    # rerolled rather than sold, so fitting to its exact price spends the
+    # model's capacity on a number nobody reads. See src/ml/decision_bands.py
+    # for the measurement.
+    keep, note = apply_training_floor(frame["price_chaos"].to_numpy(dtype=float))
+    if note and log:
+        log(note)
+    return frame[keep].reset_index(drop=True)
 
 
 def _fit_and_score(
@@ -86,16 +102,19 @@ def _fit_and_score(
     y_train_raw = frame.loc[idx_train, "price_chaos"].to_numpy(dtype=float)
     y_eval_raw = frame.loc[idx_eval, "price_chaos"].to_numpy(dtype=float)
 
-    # Two independent corrections, multiplied: age, and how much of a bulk dump
-    # the row belongs to.
+    # Three independent corrections, multiplied: age, how much of a bulk dump
+    # the row belongs to, and how much money rides on getting it right.
     weights = recency_weights(frame.loc[idx_train, "observed_at"], weight_schedule)
     weights = weights * bulk_listing_weights(frame.loc[idx_train])
+    weights = weights * value_weights(y_train_raw)
     model = backends.build(name, {"monotone": monotone_constraints(list(X_train.columns))})
     backends.fit(model, X_train, target_transform(y_train_raw, target_mode), weights)
 
     pred_eval = target_inverse(np.asarray(model.predict(X_eval), dtype=float), target_mode)
     pred_eval = np.clip(pred_eval, 0.0, None)
-    return model, metrics(y_eval_raw, pred_eval), pred_eval
+    scored = metrics(y_eval_raw, pred_eval)
+    scored.update(decision_metrics(y_eval_raw, pred_eval))
+    return model, scored, pred_eval
 
 
 def train(
@@ -109,7 +128,7 @@ def train(
     cfg = cfg or load_config()
     repo = Repository(cfg.db_path)
     try:
-        frame = load_training_frame(cfg, repo)
+        frame = load_training_frame(cfg, repo, log=log)
         if len(frame) < min_rows:
             raise NotEnoughData(
                 f"only {len(frame)} usable listings; need at least {min_rows}. "
@@ -166,10 +185,18 @@ def train(
                 comparison.append(entry)
                 log(
                     f"  {backend_name:<12} {schedule_name:<12} "
-                    f"MAE {valid_metrics['mae']:.0f}c  medAE {valid_metrics['median_ae']:.0f}c  "
-                    f"SMAPE {valid_metrics['smape']:.1f}%  R2 {valid_metrics['r2']:.3f}"
+                    f"sellMAPE {valid_metrics.get('sell_mape', float('nan')):5.1f}%  "
+                    f"sellMAE {valid_metrics.get('sell_mae', float('nan')):4.0f}c  "
+                    f"| MAE {valid_metrics['mae']:.0f}c  medAE {valid_metrics['median_ae']:.0f}c  "
+                    f"R2 {valid_metrics['r2']:.3f}"
                 )
-                score = valid_metrics["median_ae"]
+                # Selected on accuracy over maps that are actually worth selling.
+                # Overall median_ae picked the model that was best on the reroll
+                # pile -- it is over a third of the rows and none of the money.
+                # Falls back when a slice holds too few sellable maps to rank on.
+                score = valid_metrics.get("sell_mape")
+                if score is None or valid_metrics.get("n_sellable", 0) < 30:
+                    score = valid_metrics["median_ae"]
                 if best is None or score < best["score"]:
                     best = {
                         "score": score,
@@ -284,6 +311,18 @@ def train(
             f"MAE {test_metrics['mae']:.0f}c  medAE {test_metrics['median_ae']:.0f}c  "
             f"SMAPE {test_metrics['smape']:.1f}%  R2 {test_metrics['r2']:.3f}"
         )
+        # The numbers that decide anything. ~29% is the floor for asking-price
+        # data: identical maps are listed at prices scattering that far around
+        # their own median, so a sell_mape near it means the model is done, not
+        # that it is bad. thrown_away is the mistake that costs currency.
+        if "sell_mape" in test_metrics:
+            log(
+                f"  on maps worth selling (>={WORTH_SELLING_CHAOS:g}c, "
+                f"n={test_metrics['n_sellable']}): "
+                f"MAPE {test_metrics['sell_mape']:.1f}%  MAE {test_metrics['sell_mae']:.0f}c  "
+                f"bias {test_metrics['sell_bias']:+.0f}c  "
+                f"| sellable maps called reroll: {test_metrics['thrown_away_pct']:.1f}%"
+            )
         return meta
     finally:
         repo.close()

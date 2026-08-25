@@ -521,6 +521,82 @@ client. A test asserts no WebSocket client has crept into `src/`.
 
 ## 10. Training the model
 
+### What the model is optimised for
+
+A price on an Originator Map feeds exactly one of two decisions, and they want
+completely different things:
+
+| | |
+|---|---|
+| **under ~30c** | the map gets rerolled, and nobody reads the number |
+| **50c and up** | the number is what you list it for, and it is money |
+
+Trained on plain average error over everything, the model optimises the first
+one — the reroll pile is a third of all rows, so it dominates the average and
+every model-selection decision gets made by maps whose prices do not matter.
+
+Three changes follow from that, all measured on a chronological split averaged
+over three split points and two seeds:
+
+```
+                              accuracy on maps    sellable maps the
+                              worth selling       app called "reroll"
+all rows, uniform weight          36.9%                  9.4%
+floor + value weighting           29.5%                  0.8%
+```
+
+1. **A training floor.** Listings under 30c are held out of the fit. They stay
+   in the database and in every count — they are real listings, not bad data —
+   but fitting to their exact price spends capacity on a number nobody reads. If
+   a dataset is mostly cheap listings the floor is skipped and the run says so.
+2. **Value weighting.** Each row's weight rises with the square root of its
+   price, so an error on a 400c map counts for more than the same error on a 40c
+   one. Weighting linearly was measured too: it removes the low-end bias just as
+   well but hands the fit to the top band, and the share of junk correctly
+   identified as junk fell from 88% to 71%.
+3. **Selection on the band that matters.** Backends are ranked by median error
+   over maps worth selling, not overall median error. The old metric kept
+   choosing the model that was best on the maps you throw away.
+
+**29.5% is the floor, not a disappointment.** Identical maps — same seven reward
+values — are listed at prices scattering about 29% around their own median at
+every price level, so that is the irreducible error in asking-price data. An
+oracle that already knew the right answer would score the same. When `sell_mape`
+is near 29 the model is done; chasing it lower is chasing noise.
+
+Because of the floor, every map below it comes back at roughly the same number
+(around 24c — a 0-reward map and a 40-quantity map both land there). That figure
+is not a cheap price, it is the absence of one, so the tables show an **Action**
+column — `Reroll` / `Marginal` / `Sell` — rather than letting it read as a
+precise valuation.
+
+### Above 200 chaos the market has four prices
+
+Measured on 4,102 live listings: above 200c, 71% are priced in divine and
+**every one of those is a whole number of divine** — 1d, 2d, 3d, 4d. Below 200c
+it is 100% chaos, on round numbers. So a suggested price of "just under 340c" is
+not a more precise 2 divine; it is a price nobody types.
+
+Suggested listing prices and the pasteable `~price` note snap to whole divine in
+that band. The displayed table value does not — a column where every expensive
+map reads the same handful of numbers cannot be sorted or compared. The rule
+stops at 5 divine, where the sample runs out.
+
+### Things that were measured and rejected
+
+Kept here so they do not get re-suggested:
+
+- **Affix features.** Every listing stores its explicit affixes as stat hashes.
+  Adding 100 of them as indicator columns made the model *worse* (29.5% → 36.4%
+  R², sell error up): on these maps the affixes essentially *are* the reward
+  values, so it is redundancy plus 100 columns of noise.
+- **Isotonic calibration of the top band.** Halves the top-end bias and costs
+  more than it saves everywhere else (median error 13c → 23c).
+- **Quantile loss above the median.** Improves top-end bias, but the gain sits
+  inside the run-to-run noise band and it adds a knob.
+- **Dropping flat-priced seller blocks.** A controlled A/B removed 8% of the
+  data and bought nothing.
+
 ### When training happens: only when you ask
 
 **Nothing retrains on its own.** Collecting more listings does not change a
