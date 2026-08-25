@@ -73,11 +73,15 @@ class OverlayUnavailable(RuntimeError):
 # ---------------------------------------------------------------------------
 # Windows window flags
 GWL_EXSTYLE = -20
+#: Set by Tk when `-transparentcolor` / `-alpha` are applied, and owned by Tk
+#: thereafter -- see the note in `set_click_through`. Named here so the ex-style
+#: values printed while debugging are readable.
 WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
 #: Keeps the overlay out of the taskbar and out of Alt-Tab. Alt-Tabbing onto a
 #: click-through window would put the game behind a window that cannot be
-#: clicked back out of.
+#: clicked back out of. Tk already sets this for an override-redirect toplevel,
+#: so nothing here has to ask for it.
 WS_EX_TOOLWINDOW = 0x00000080
 
 
@@ -91,10 +95,30 @@ def _hwnd(window) -> int:
 
 
 def set_click_through(window, enabled: bool) -> None:
-    """Add or remove WS_EX_TRANSPARENT, so clicks pass to the game or do not."""
+    """Add or remove WS_EX_TRANSPARENT, so clicks pass to the game or do not.
+
+    Two things here are load-bearing, and getting either wrong makes the whole
+    overlay invisible rather than merely un-clickable -- a layered window whose
+    layer attributes are not set draws *nothing at all*, so the failure looks
+    like "the overlay never opened" instead of "a window flag is wrong".
+
+    - **Only the WS_EX_TRANSPARENT bit is touched.** The rest of the ex-style,
+      WS_EX_LAYERED included, belongs to Tk: it is Tk that sets the layered bit
+      when `-transparentcolor` and `-alpha` are applied, and that pairs it with
+      the `SetLayeredWindowAttributes` call which gives the layer its colour key
+      and opacity. Re-asserting WS_EX_LAYERED from out here is the documented
+      way to lose those attributes.
+    - **The window must already exist on screen.** `winfo_id()` forces the
+      handle into being, so calling this on an unmapped window creates the HWND
+      ahead of Tk's own mapping and the ex-style written here is discarded when
+      Tk maps it -- taking the layer attributes with it. `update_idletasks()`
+      lets Tk finish mapping first, which costs nothing once it already has.
+    """
     if sys.platform != "win32":  # pragma: no cover - Windows-only feature
         return
     import ctypes
+
+    window.update_idletasks()
 
     user32 = ctypes.windll.user32
     # SetWindowLongPtrW only exists on 64-bit; the styles are the same either way.
@@ -105,7 +129,7 @@ def set_click_through(window, enabled: bool) -> None:
     put.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
 
     handle = _hwnd(window)
-    style = int(get(ctypes.c_void_p(handle), GWL_EXSTYLE)) | WS_EX_LAYERED | WS_EX_TOOLWINDOW
+    style = int(get(ctypes.c_void_p(handle), GWL_EXSTYLE))
     if enabled:
         style |= WS_EX_TRANSPARENT
     else:
@@ -170,8 +194,12 @@ class OverlayWindow:
         set_click_through(self.window, True)
         self.strip.report(resolution_warning(calibration, self.screen) or "")
 
-        self.root.after(0, self._poll_state)
-        self.root.after(HOTKEY_POLL_MS, self._poll_hotkeys)
+        # Held so quitting can cancel them. A pending `after` fires into an
+        # interpreter that no longer exists and Tcl reports it on stderr as an
+        # "invalid command name", which looks like a crash on the way out.
+        self._timers: dict[str, str] = {}
+        self._timers["state"] = self.root.after(0, self._poll_state)
+        self._timers["hotkeys"] = self.root.after(HOTKEY_POLL_MS, self._poll_hotkeys)
 
     # -- placement and drawing -------------------------------------------
     def _place(self) -> None:
@@ -218,7 +246,7 @@ class OverlayWindow:
             self.redraw()
         elif self.watcher.error:
             self.strip.report(self.watcher.error)
-        self.root.after(STATE_POLL_MS, self._poll_state)
+        self._timers["state"] = self.root.after(STATE_POLL_MS, self._poll_state)
 
     def reload(self) -> None:
         """Force a re-read even if the stamp has not moved."""
@@ -236,7 +264,7 @@ class OverlayWindow:
         for name in self.hotkeys.poll():
             if name == "toggle":
                 self.toggle()
-        self.root.after(HOTKEY_POLL_MS, self._poll_hotkeys)
+        self._timers["hotkeys"] = self.root.after(HOTKEY_POLL_MS, self._poll_hotkeys)
 
     def toggle(self) -> None:
         self.visible = not self.visible
@@ -245,6 +273,12 @@ class OverlayWindow:
 
     def quit(self) -> None:
         self.hotkeys.stop()
+        for job in self._timers.values():
+            try:
+                self.root.after_cancel(job)
+            except self._tk.TclError:  # pragma: no cover - already fired
+                pass
+        self._timers.clear()
         try:
             self.root.destroy()
         except self._tk.TclError:  # pragma: no cover - already torn down
@@ -259,22 +293,46 @@ class OverlayWindow:
         Click-through comes off first. It has to: a calibration screen you
         cannot focus is one you cannot type into, and the arrow keys are the
         whole interface.
+
+        The keys are bound with `bind_all` rather than on the overlay window,
+        and the focus is handed to the *control strip*, for the same reason:
+        over a game that keeps taking the foreground back, the only window in
+        this app the user can reliably give focus to is the one they can see and
+        click. Binding on the overlay alone means calibration answers exactly
+        one keypress and then goes deaf, because the focus has since moved to
+        the strip or been taken by the game and never comes back on its own.
         """
         self.calibrating = True
         self._pending = self.calibration
         self.visible = True
         set_click_through(self.window, False)
         self.window.attributes("-alpha", max(0.75, self.calibration.opacity))
-        self.window.focus_force()
-        for sequence, handler in (
-            ("<Key>", self._calibration_key),
-            ("<Button-1>", lambda _e: self.window.focus_force()),
-        ):
-            self.window.bind(sequence, handler)
-        self.strip.report("calibrating: arrows move, shift+arrows resize, Enter saves")
+        self.root.bind_all("<Key>", self._calibration_key)
+        self.window.bind("<Button-1>", lambda _e: self._claim_keyboard())
+        self._claim_keyboard()
+        self.strip.report(
+            "calibrating: arrows move, shift+arrows resize, Enter saves. "
+            "If the keys do nothing, click this strip first."
+        )
         self.redraw()
 
-    def _calibration_key(self, event) -> None:
+    def _claim_keyboard(self) -> None:
+        """Put the keyboard back on the strip, which is the window with a body.
+
+        Called after every calibration keypress as well as at the start. A
+        single `focus_force` at the start is not enough: raising and moving a
+        topmost override-redirect window, and a full-screen game underneath that
+        wants the foreground, both end with the focus somewhere else.
+        """
+        try:
+            self.strip.window.focus_force()
+        except self._tk.TclError:  # pragma: no cover - torn down mid-calibration
+            pass
+
+    def _calibration_key(self, event) -> str | None:
+        """Handle one calibration keypress; "break" for the ones we consumed."""
+        if not self.calibrating:
+            return None
         pending = self._pending or self.calibration
         shifted = bool(event.state & 0x0001)
         key = event.keysym
@@ -291,20 +349,22 @@ class OverlayWindow:
             pending = pending.with_opacity(pending.opacity - 0.05)
         elif key in ("Return", "KP_Enter"):
             self._finish_calibration(save=True)
-            return
+            return "break"
         elif key == "Escape":
             self._finish_calibration(save=False)
-            return
+            return "break"
         else:
-            return
+            return None
 
         self._pending = pending
         self.calibration = pending
         self._place()
         self.redraw()
+        self._claim_keyboard()
+        return "break"
 
     def _finish_calibration(self, save: bool) -> None:
-        self.window.unbind("<Key>")
+        self.root.unbind_all("<Key>")
         self.window.unbind("<Button-1>")
         self.calibrating = False
         if save and self._pending is not None:
@@ -405,14 +465,26 @@ class _ControlStrip:
         self.status.pack(fill="x", pady=(3, 0))
 
         # Keys work whenever the strip has focus, which is what makes the
-        # overlay usable at all when the global hotkey is taken by something else.
-        for sequence, handler in (
-            ("<o>", lambda _e: overlay.toggle()),
-            ("<r>", lambda _e: overlay.reload()),
-            ("<c>", lambda _e: overlay.start_calibration()),
-            ("<q>", lambda _e: overlay.quit()),
+        # overlay usable at all when the global hotkey is taken by something
+        # else. They stand down during calibration: the strip is deliberately
+        # holding the keyboard then, and a stray "q" over a half-aligned grid
+        # would close the window rather than type into it.
+        def _unless_calibrating(action):
+            def handler(_event):
+                if overlay.calibrating:
+                    return None
+                action()
+                return "break"
+
+            return handler
+
+        for sequence, action in (
+            ("<o>", overlay.toggle),
+            ("<r>", overlay.reload),
+            ("<c>", overlay.start_calibration),
+            ("<q>", overlay.quit),
         ):
-            self.window.bind(sequence, handler)
+            self.window.bind(sequence, _unless_calibrating(action))
 
         # Draggable, because it is placed above the grid by default and that is
         # occasionally exactly where the game puts something you need to see.

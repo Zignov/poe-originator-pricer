@@ -396,6 +396,11 @@ Line up the *inner* lines, not just the outer border: cell size is stored as a
 float (53.4px, not 53px) because 12 columns rarely land on a whole number, and
 half a pixel per column is a price on the wrong map by the twelfth one.
 
+If the keys do nothing, click the control strip once and try again. The keys go
+to whichever window has focus, and a full-screen game underneath takes the focus
+back at every opportunity; the strip is the one part of the overlay you can
+click, so clicking it is how you hand the keyboard back.
+
 The calibration is saved under `overlay:` in `config.yaml` together with the
 screen resolution it was made at. Change resolution and the overlay says so
 rather than drawing a tidy grid of prices over the wrong maps.
@@ -1028,7 +1033,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     498 tests, including live-render checks of every page
+tests/                     508 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
