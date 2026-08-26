@@ -61,6 +61,18 @@ _DEFAULTS: dict[str, Any] = {
         "monitor": 0,
         "hotkey_toggle": "ctrl+alt+o",
     },
+    # The same block again for the inventory panel, which sits on the other
+    # side of the screen and is 12x5 rather than 12x12, so it cannot share a
+    # single calibration. Its own chord, because both overlays can be up at
+    # once and one key toggling both would defeat the point of having two.
+    "overlay_inventory": {
+        "origin": [0, 0],
+        "cell_px": 53.4,
+        "grid": [12, 5],
+        "opacity": 0.55,
+        "monitor": 0,
+        "hotkey_toggle": "ctrl+alt+i",
+    },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
 }
 

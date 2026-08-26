@@ -202,8 +202,12 @@ def _scored(league, tier, uncorrupted, rate, version, model_stamp):
     # result. That is the state a fresh install is in -- the release ships a
     # trained model but no database -- so this page reached it on first run.
     if frame.empty:
-        st.info("No listings to score against.")
-        return
+        # "empty", not an st.info and a bare return. This function is cached, so
+        # a Streamlit call inside it renders once and then never again on a
+        # cache hit -- and the bare return handed the caller a None to unpack
+        # into three names, which is the crash the fresh-install smoke test
+        # exists to catch. The caller already prints this exact message.
+        return None, None, "empty"
 
     frame = frame[frame["price_chaos"].notna() & (frame["price_chaos"] > 0)]
     if frame.empty:

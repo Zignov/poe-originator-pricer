@@ -26,6 +26,7 @@ from src.market.comparables import format_age
 from src.market.ingest import collect_from_trade_api, converter_for, store
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.ml.decision_bands import verdict
+from src.overlay.profiles import DEFAULT_PROFILE, PROFILE_KEYS, profile_for
 from src.overlay.state import DEFAULT_STATE_PATH, state_from_priced, write_state
 from src.pricing.display import PriceFormatter
 from src.pricing.fair_value import PricedMap, PricingService
@@ -322,7 +323,8 @@ def cmd_overlay(args) -> int:
     from src.overlay.window import OverlayUnavailable, run_overlay
 
     cfg = load_config(args.config)
-    calibration = Calibration.from_config(cfg)
+    profile = profile_for(getattr(args, "profile", None) or DEFAULT_PROFILE.key)
+    calibration = Calibration.from_config(cfg, profile)
     if not args.calibrate:
         # The screen size is not known until Tk is up, so this only catches the
         # never-calibrated case here; a resolution change is reported in the
@@ -331,7 +333,9 @@ def cmd_overlay(args) -> int:
         if warning:
             print(f"note: {warning}", file=sys.stderr)
     try:
-        return run_overlay(cfg, calibrate=args.calibrate, state_path=args.state)
+        return run_overlay(
+            cfg, calibrate=args.calibrate, state_path=args.state, profile=profile
+        )
     except OverlayUnavailable as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -481,10 +485,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     overlay = sub.add_parser("overlay", help="draw the priced tab over the game window")
     overlay.add_argument(
-        "--calibrate", action="store_true", help="line the grid up with the stash tab"
+        "--calibrate",
+        action="store_true",
+        help="line the grid up with the panel this profile draws over",
     )
     overlay.add_argument(
-        "--state", default=None, help=f"state file to watch (default {DEFAULT_STATE_PATH})"
+        "--profile",
+        choices=PROFILE_KEYS,
+        default=DEFAULT_PROFILE.key,
+        help=(
+            "which surface to draw over: the stash tab, or the character "
+            "inventory. Each has its own calibration and its own state file, "
+            "so both can be running at once."
+        ),
+    )
+    overlay.add_argument(
+        "--state",
+        default=None,
+        help=f"state file to watch (default {DEFAULT_STATE_PATH}, per --profile)",
     )
     overlay.set_defaults(func=cmd_overlay)
 

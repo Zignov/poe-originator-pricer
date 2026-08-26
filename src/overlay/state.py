@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from src.config import ROOT
+from src.overlay.profiles import DEFAULT_PROFILE, OverlayProfile, profile_for
 from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
@@ -41,9 +42,25 @@ from src.pricing.fair_value import PricedMap
 #: it was not written for stops; it does not guess.
 OVERLAY_STATE_VERSION = 1
 
-#: Where the app writes and the overlay reads unless told otherwise. Under
-#: data/ because it is regenerated output, not configuration.
-DEFAULT_STATE_PATH = ROOT / "data" / "overlay_state.json"
+#: Where the state files live: under data/ because they are regenerated output,
+#: not configuration.
+STATE_DIR = ROOT / "data"
+
+
+def state_path_for(profile: str | OverlayProfile = DEFAULT_PROFILE) -> Path:
+    """The file one overlay profile writes and its window watches.
+
+    One file per profile rather than one file with two sections. The two halves
+    are updated independently -- you re-price a tab without re-reading your
+    inventory, and vice versa -- and a shared file would mean each write had to
+    read back and merge the other half or silently blank it. Separate files also
+    mean each window's `StateWatcher` wakes only for its own changes.
+    """
+    return STATE_DIR / profile_for(profile).state_filename
+
+
+#: Where the app writes and the stash overlay reads unless told otherwise.
+DEFAULT_STATE_PATH = state_path_for(DEFAULT_PROFILE)
 
 #: The three exalt states a tile can be in, matching the three rings the web
 #: grid draws. "" is deliberate and load-bearing: a map that cannot take an orb

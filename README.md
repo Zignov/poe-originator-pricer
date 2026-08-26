@@ -18,9 +18,9 @@ frozen `.exe`.
 ## 1. What it does
 
 ```
-Connect or import your stash
+Connect or import your stash, or read a character's inventory
         v
-Find every Originator Map in the tab
+Find every Originator Map in it
         v
 Read its seven reward values
         v
@@ -30,7 +30,7 @@ Show the closest real listings as a cross-check
         v
 Draw the prices onto a picture of your stash grid
         v
-...or onto the real stash tab, with a transparent desktop overlay
+...or onto the real stash tab (or inventory), with a transparent desktop overlay
 ```
 
 You get a sortable table, a visual stash grid with the price written on each
@@ -363,6 +363,40 @@ You get:
 - a **Pricing mode** selector — the trained model, or a live market comparison
   against the maps actually listed right now. See §8.
 
+### Pricing what is in your inventory
+
+The same page reads a character's backpack as well as a stash tab: pick
+**Character inventory** as the source, load the character list, choose a
+character, and press **Read inventory**.
+
+It exists because of when you actually want the number. Maps come out of the map
+device into your inventory, and that — before they are dumped into a tab and
+forgotten — is the moment you want to know which of them is worth listing. Going
+"put them in a tab, re-read the tab, come back" is enough friction that in
+practice you stop checking.
+
+It uses the same POESESSID session as the stash reader, one endpoint over
+(`/character-window/get-items`), and everything downstream — the grid, the
+table, the filters, the exalt verdicts, the highlight pattern, the overlay — is
+identical, because an inventory read produces exactly the same normalized maps a
+tab read does.
+
+Two things are specific to it:
+
+- **Only the 12x5 backpack is read.** A character's items response also contains
+  everything equipped, the flasks, the jewels in the tree and whatever is in the
+  map device, and those report `x`/`y` *inside their own slot* — an equipped
+  helmet is at `0, 0`. Drawing those on the inventory grid would put a price on
+  a cell holding something else, so they are dropped.
+- **The character list is filtered to the league you are pricing.** GGG returns
+  every character on the account, standard and hardcore and three years of dead
+  leagues, and a thirty-entry picker in which the wrong pick silently prices
+  nothing is worse than a two-entry one.
+
+If the character list comes back empty, check the league in Settings and that
+your characters are not hidden by your privacy settings on pathofexile.com —
+GGG returns nothing for a hidden profile.
+
 ### Highlighting the good maps in game
 
 Pick a price, copy the pattern, paste it into the stash search box (**Ctrl+F**),
@@ -479,6 +513,31 @@ so the controls live in two places:
   focus). It is draggable. It exists because a click-through window can never
   receive a keypress, so a second and third stolen global chord would be the
   only alternative.
+
+**The second overlay: your inventory.** The inventory panel is on the other
+side of the screen from the stash and is 12x5 rather than 12x12, so it cannot
+share a calibration. It gets its own — the `overlay_inventory:` block in
+`config.yaml` — and its own everything else:
+
+```bash
+python -m src.cli overlay --profile inventory --calibrate   # once
+python -m src.cli overlay --profile inventory
+```
+
+Both are separate processes and can be running at the same time, which is the
+point: you look at your inventory while the stash tab is shut. Each watches its
+own state file (`data/overlay_state.json` and
+`data/overlay_inventory_state.json`), so re-pricing a tab does not disturb the
+inventory overlay and vice versa, and each has its own toggle chord —
+**Ctrl+Alt+O** for the stash, **Ctrl+Alt+I** for the inventory. Their control
+strips are otherwise identical, so each one names the surface it is drawing
+over.
+
+On the Stash Pricer page the **Draw over** selector above the send button
+chooses which of the two receives the current set of maps. It defaults to
+whichever the maps came from, because sending an inventory read to the stash
+overlay draws it in the wrong half of the screen and looks, from inside the
+game, exactly like a bad calibration.
 
 **Honest limitations:**
 
@@ -1091,6 +1150,7 @@ src/
   config.py                config.yaml + .env loading
   auth/poe_oauth.py        OAuth flow (unverified -- see docs/data-access.md)
   stash/                   official_api / json_import / clipboard_import
+                           character_api -- one character's inventory grid
   parsing/                 item_parser / implicit_parser / price_parser / affixes
   market/                  collectors/, comparables, outliers, rate_limit
                            bulk -- the buying path, never stored, never trained on
@@ -1103,6 +1163,8 @@ src/
   overlay/                 the desktop overlay: state (the JSON contract),
                            calibration, layout -- and window, the only module
                            that imports tkinter
+                           profiles -- stash tab vs inventory: two calibrations,
+                           two state files, two processes
   ui/                      one module per page, over one design system in
                            common.py: page_header, stat_rail, section, panels
                            and the CSS -- see "Colour is data" below
@@ -1111,7 +1173,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     531 tests, including live-render checks of every page
+tests/                     606 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.

@@ -172,6 +172,27 @@ overlay:
   # calibrated. If it no longer matches your resolution, the overlay warns
   # rather than drawing a tidy grid of prices over the wrong maps.
 
+overlay_inventory:
+  # The second overlay: the same thing drawn over your character's inventory
+  # instead of a stash tab. Every key means what it means above; it is a
+  # separate block because the inventory panel is on the other side of the
+  # screen and a different shape, so one calibration cannot serve both.
+  #
+  #   python -m src.cli overlay --profile inventory --calibrate
+  #   python -m src.cli overlay --profile inventory
+  #
+  # Both overlays can run at once, as two processes.
+  origin: [0, 0]
+  cell_px: 53.4
+  # The inventory is 12 across and 5 down and, unlike a stash tab, never
+  # anything else -- there is no quad inventory.
+  grid: [12, 5]
+  opacity: 0.55
+  monitor: 0
+  # A different chord from the stash overlay on purpose: with both running, one
+  # key toggling both would defeat the point of having two.
+  hotkey_toggle: "ctrl+alt+i"
+
 http:
   # GGG publishes rate limits in response headers; the client obeys whatever the
   # server reports. These are only the initial conservative guesses.

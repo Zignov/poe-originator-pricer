@@ -29,6 +29,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from src.overlay.profiles import DEFAULT_PROFILE, OverlayProfile, profile_for
+
 #: Below this a "cell" is not a cell any more, and a resize keypress that walked
 #: cell_px to zero would leave a window with no area and no way back.
 MIN_CELL_PX = 4.0
@@ -38,7 +40,11 @@ MIN_CELL_PX = 4.0
 MIN_OPACITY = 0.1
 MAX_OPACITY = 1.0
 
-DEFAULT_HOTKEY = "ctrl+alt+o"
+#: Kept as a name because it is the stash overlay's chord and half the codebase
+#: says "the default hotkey" meaning that one. Per-profile defaults live in
+#: src/overlay/profiles.py; the inventory's is a different chord so that both
+#: overlays can be toggled independently.
+DEFAULT_HOTKEY = DEFAULT_PROFILE.hotkey
 
 
 @dataclass(frozen=True)
@@ -59,6 +65,12 @@ class Calibration:
     monitor: int = 0
     hotkey_toggle: str = DEFAULT_HOTKEY
     screen: tuple[int, int] | None = None
+    #: Which surface this calibration is for -- see src/overlay/profiles.py.
+    #: Carried on the object rather than passed alongside it because every
+    #: `replace()` in the calibration keys would otherwise have to remember it,
+    #: and a calibration that forgot which block it came from would save the
+    #: inventory's origin over the stash's.
+    profile: str = DEFAULT_PROFILE.key
 
     @property
     def calibrated(self) -> bool:
@@ -144,8 +156,14 @@ class Calibration:
             data["screen"] = [int(self.screen[0]), int(self.screen[1])]
         return data
 
+    @property
+    def profile_spec(self) -> OverlayProfile:
+        return profile_for(self.profile)
+
     @classmethod
-    def from_mapping(cls, data: dict[str, Any] | None) -> Calibration:
+    def from_mapping(
+        cls, data: dict[str, Any] | None, profile: str | OverlayProfile = DEFAULT_PROFILE
+    ) -> Calibration:
         """Read the block back, tolerating anything a hand-edited YAML can hold.
 
         Deliberately forgiving: a typo in config.yaml should leave the overlay
@@ -153,9 +171,13 @@ class Calibration:
         startup of a window that has no console attached to print into.
         """
         data = data or {}
+        spec = profile_for(profile)
         default = cls()
         origin = _pair(data.get("origin"), default.origin)
-        grid = _pair(data.get("grid"), default.grid)
+        # The grid and the chord default per profile, not per class: an
+        # inventory block with no `grid` means 12x5, and inheriting 12x12 there
+        # would draw seven rows of tiles over the game below the panel.
+        grid = _pair(data.get("grid"), spec.grid)
         screen = _pair(data.get("screen"), None) if data.get("screen") else None
         return cls(
             origin=(int(origin[0]), int(origin[1])),
@@ -163,16 +185,23 @@ class Calibration:
             grid=(max(1, int(grid[0])), max(1, int(grid[1]))),
             opacity=min(MAX_OPACITY, max(MIN_OPACITY, _number(data.get("opacity"), default.opacity))),
             monitor=int(_number(data.get("monitor"), 0)),
-            hotkey_toggle=str(data.get("hotkey_toggle") or DEFAULT_HOTKEY),
+            hotkey_toggle=str(data.get("hotkey_toggle") or spec.hotkey),
             screen=None if screen is None else (int(screen[0]), int(screen[1])),
+            profile=spec.key,
         )
 
     @classmethod
-    def from_config(cls, cfg) -> Calibration:
-        return cls.from_mapping(cfg.get("overlay") or {})
+    def from_config(cls, cfg, profile: str | OverlayProfile = DEFAULT_PROFILE) -> Calibration:
+        spec = profile_for(profile)
+        return cls.from_mapping(cfg.get(spec.config_key) or {}, spec)
 
 
-def save_to_config(cfg, calibration: Calibration, path: Path | None = None) -> Path:
+def save_to_config(
+    cfg,
+    calibration: Calibration,
+    path: Path | None = None,
+    profile: str | OverlayProfile | None = None,
+) -> Path:
     """Persist a calibration and write config.yaml.
 
     Writes the file rather than only the in-memory config: calibration happens
@@ -180,7 +209,8 @@ def save_to_config(cfg, calibration: Calibration, path: Path | None = None) -> P
     memory is lost and the user would be asked to calibrate again on every
     launch.
     """
-    cfg.set("overlay", calibration.to_mapping())
+    spec = profile_for(profile or calibration.profile)
+    cfg.set(spec.config_key, calibration.to_mapping())
     return cfg.save(path)
 
 
@@ -194,9 +224,10 @@ def resolution_warning(
     of prices, just over the wrong maps.
     """
     if not calibration.calibrated:
+        surface = calibration.profile_spec.label.lower()
         return (
             "The overlay has never been calibrated, so it does not know where your "
-            "stash tab is. Run it with --calibrate first."
+            f"{surface} is. Run it with --calibrate first."
         )
     if current_screen is None:
         return None

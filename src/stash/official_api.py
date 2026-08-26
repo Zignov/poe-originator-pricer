@@ -81,11 +81,23 @@ class SessionStashSource(StashSource):
         self._last_call = time.monotonic()
 
     def _get(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._request(LEGACY_BASE, params)
+
+    def _request(self, url: str, params: dict[str, Any]) -> Any:
+        """One authenticated, throttled GET against a character-window endpoint.
+
+        Split out from `_get` so that the sibling adapters on this credential --
+        the character inventory reader in src/stash/character_api.py -- get the
+        same throttle, the same 403/429 translation and the same session
+        without a second copy of any of it. The return type is `Any` because
+        /get-characters answers with a JSON array where the stash endpoints
+        answer with an object.
+        """
         ok, why = self.available()
         if not ok:
             raise StashAccessError(why)
         self._throttle()
-        resp = self.session.get(LEGACY_BASE, params=params, timeout=30)
+        resp = self.session.get(url, params=params, timeout=30)
         if resp.status_code == 403:
             raise StashAccessError(
                 "GGG returned 403. The POESESSID is usually expired -- log in again "

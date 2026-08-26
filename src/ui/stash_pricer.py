@@ -14,12 +14,14 @@ import streamlit as st
 from src.config import ROOT
 from src.market.comparables import format_age
 from src.overlay.calibration import Calibration, resolution_warning
-from src.overlay.state import state_from_priced, write_state
+from src.overlay.profiles import INVENTORY_PROFILE, STASH_PROFILE
+from src.overlay.state import state_from_priced, state_path_for, write_state
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.stash.base import StashSource
 from src.stash.clipboard_import import ClipboardStashSource
 from src.stash.highlight_regex import build_highlight_batches
 from src.stash.json_import import JsonStashSource, parse_csv
+from src.stash.character_api import CharacterInventorySource
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
 from src.ui.common import (
@@ -42,6 +44,7 @@ MODE_LABELS = {
 
 SOURCE_LABELS = {
     "session": "Connect account (POESESSID)",
+    "inventory": "Character inventory",
     "json": "Stash JSON export",
     "csv": "CSV file",
     "clipboard": "Paste copied item text",
@@ -82,6 +85,8 @@ def render() -> None:
         items = None
         if source_key == "session":
             items = _from_session(cfg)
+        elif source_key == "inventory":
+            items = _from_inventory(cfg)
         elif source_key == "json":
             items = _from_json(cfg)
         elif source_key == "csv":
@@ -94,6 +99,11 @@ def render() -> None:
     if items is not None:
         st.session_state["stash_items"] = items
         st.session_state["stash_source"] = SOURCE_LABELS[source_key]
+        # Remembered so the overlay panel can default to the surface these maps
+        # actually came from: reading an inventory and then being offered the
+        # stash overlay is the sort of default that gets prices drawn in the
+        # wrong half of the screen.
+        st.session_state["stash_source_key"] = source_key
         # The expander's label and open state were decided at the top of this
         # run, before these items existed, so without a second pass the picker
         # stays open saying "choose a source" over a tab it has already loaded.
@@ -314,6 +324,64 @@ def _from_session(cfg):
                 return source.fetch_tabs(cfg.get("league"), chosen)
             except StashAccessError as exc:
                 st.error(str(exc))
+    return None
+
+
+def _from_inventory(cfg):
+    """The maps sitting in a character's backpack, not in a tab.
+
+    Same credential as the stash reader, one endpoint over. Kept as its own
+    source rather than a checkbox on the stash one because it answers a
+    different question -- "what did I just run" rather than "what am I sitting
+    on" -- and because it picks a character where the other picks tabs.
+    """
+    st.caption(
+        "Reads the 12x5 inventory of one of your characters over the same "
+        "POESESSID session as the stash reader. Equipped items and flasks are "
+        "ignored; only the backpack grid has positions the overlay can use."
+    )
+    source = CharacterInventorySource(
+        poesessid=st.session_state.get("poesessid") or None,
+        account_name=st.session_state.get("account_name") or None,
+        realm=cfg.get("realm", "pc"),
+        map_tier=cfg.get("scope.map_tier"),
+        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+    )
+    ok, why = source.available()
+    if not ok:
+        st.warning(f"{why}. {source.setup_hint}")
+        return None
+
+    if st.button("Load character list", type="primary"):
+        try:
+            st.session_state["characters"] = source.list_tabs(cfg.get("league"))
+        except StashAccessError as exc:
+            st.error(str(exc))
+            return None
+
+    characters = st.session_state.get("characters")
+    if characters is None:
+        return None
+    if not characters:
+        st.warning(
+            f"No characters found in {cfg.get('league')}. Check the league in "
+            "Settings, and that your characters are not hidden on your profile."
+        )
+        return None
+
+    chosen_name = st.selectbox("Character", [c.name for c in characters])
+    chosen = next((c for c in characters if c.name == chosen_name), None)
+    if chosen and st.button("Read inventory", type="primary"):
+        with st.spinner(f"Reading {chosen.name}'s inventory..."):
+            try:
+                items = source.fetch_tab(cfg.get("league"), chosen)
+            except StashAccessError as exc:
+                st.error(str(exc))
+                return None
+        if not items:
+            st.info(f"No maps in {chosen.name}'s inventory right now.")
+            return None
+        return items
     return None
 
 
@@ -1138,11 +1206,12 @@ def _copy_tools(priced, fmt):
 
 
 def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
-    """Hand the priced tab to the desktop overlay.
+    """Hand these priced maps to one of the two desktop overlays.
 
     The overlay is a second process -- tkinter cannot live inside a Streamlit
     rerun -- so this page's job is only to write the file it watches. See
-    src/overlay/state.py for why the seam is a file.
+    src/overlay/state.py for why the seam is a file, and
+    src/overlay/profiles.py for why there are two of them.
 
     The launch button spawns that process **explicitly**, on a click, and says
     what it did: a GUI quietly appearing over the game because a checkbox was
@@ -1156,53 +1225,79 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
     st.markdown("### Draw this over the game")
     st.caption(
         "The overlay is a separate, click-through window that paints these same "
-        "tiles on top of your real stash tab, so you can price out of the tab "
+        "tiles on top of the real panel, so you can price out of the game "
         "without looking back at the browser. It draws pixels and nothing else — "
         "it never reads or touches the game client."
     )
 
-    calibration = Calibration.from_config(cfg)
+    # Which surface these maps get drawn over. Two profiles, two calibrations,
+    # two state files, two processes -- see src/overlay/profiles.py. The default
+    # follows where the maps came from, because sending an inventory read to the
+    # stash overlay draws it in the wrong half of the screen and looks, from the
+    # game, exactly like a miscalibration.
+    profiles = [STASH_PROFILE, INVENTORY_PROFILE]
+    default_index = 1 if st.session_state.get("stash_source_key") == "inventory" else 0
+    profile = st.radio(
+        "Draw over",
+        profiles,
+        index=default_index,
+        format_func=lambda p: p.label,
+        horizontal=True,
+        key="overlay_profile",
+        help=(
+            "The stash tab and the inventory sit in different places on screen "
+            "and are different shapes, so each is calibrated once, separately. "
+            "Both overlays can be running at the same time."
+        ),
+    )
+
+    calibration = Calibration.from_config(cfg, profile)
     warning = resolution_warning(calibration, None)
     if warning:
         st.markdown(f'<div class="warn">{warning}</div>', unsafe_allow_html=True)
 
     columns = st.columns([1.1, 1, 2])
-    if columns[0].button("Send this tab to the overlay", type="primary"):
+    if columns[0].button(f"Send to the {profile.label.lower()} overlay", type="primary"):
         tab_names = sorted({p.item.stash_tab_name for p in positioned if p.item.stash_tab_name})
         path = write_state(
             state_from_priced(
                 priced,
                 fmt,
+                grid=profile.grid,
                 strategy=strategy,
                 league=cfg.get("league"),
                 tab_names=tab_names,
                 verdicts=verdicts,
-            )
+            ),
+            state_path_for(profile),
         )
         st.session_state["overlay_state_path"] = str(path)
         st.success(
-            f"Wrote {len(positioned)} maps to `{path}`. A running overlay picks this "
-            "up within half a second — no need to restart it."
+            f"Wrote {len(positioned)} maps to `{path}`. A running "
+            f"{profile.label.lower()} overlay picks this up within half a second "
+            "— no need to restart it."
         )
 
     if columns[1].button("Launch overlay window"):
         try:
             process = subprocess.Popen(
-                [sys.executable, "-m", "src.cli", "overlay"],
+                [sys.executable, "-m", "src.cli", "overlay", "--profile", profile.key],
                 cwd=str(ROOT),
             )
         except OSError as exc:
             st.error(f"Could not start the overlay process: {exc}")
         else:
             st.success(
-                f"Started the overlay as process {process.pid}. It opens its own "
-                "window with a small control strip; close it from there."
+                f"Started the {profile.label.lower()} overlay as process "
+                f"{process.pid}. It opens its own window with a small control "
+                "strip; close it from there."
             )
 
     columns[2].caption(
         "Or run it yourself, which is the better way if you want to see its "
-        "errors:  \n`python -m src.cli overlay --calibrate` once to line the grid "
-        "up with your stash tab, then `python -m src.cli overlay`."
+        f"errors:  \n`python -m src.cli overlay --profile {profile.key} --calibrate` "
+        f"once to line the grid up with your {profile.label.lower()}, then "
+        f"`python -m src.cli overlay --profile {profile.key}`."
     )
 
 

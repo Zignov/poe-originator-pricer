@@ -138,6 +138,43 @@ def test_the_exaltable_filter_does_not_break_the_page():
     assert not app.exception, f"raised with the filter on: {[str(e) for e in app.exception]}"
 
 
+def test_the_inventory_source_is_offered_and_renders_without_credentials():
+    """Picking it with no POESESSID must explain itself, not raise."""
+    app = AppTest.from_file(APP, default_timeout=180)
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    # The source radio's options are keys; SOURCE_LABELS is only the format_func.
+    app.radio[0].set_value("inventory").run()
+    assert not app.exception, f"inventory source raised: {[str(e) for e in app.exception]}"
+    said = " ".join(str(w.value) for w in app.warning) + " ".join(
+        str(c.value) for c in app.caption
+    )
+    assert "POESESSID" in said
+
+
+def test_the_overlay_panel_can_target_either_surface():
+    """Both profiles must be reachable from the page, and neither may raise."""
+    from src.overlay.profiles import INVENTORY_PROFILE, STASH_PROFILE
+
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+
+    targets = [r for r in app.radio if "Draw over" in str(r.label)]
+    if not targets:
+        pytest.skip("no trained model, so the overlay panel is not shown")
+
+    labels = [str(o) for o in targets[0].options]
+    assert any(INVENTORY_PROFILE.label in label for label in labels), labels
+    assert any(STASH_PROFILE.label in label for label in labels), labels
+
+    targets[0].set_value(INVENTORY_PROFILE).run()
+    assert not app.exception, f"inventory target raised: {[str(e) for e in app.exception]}"
+    buttons = [str(b.label) for b in app.button]
+    assert any("inventory" in b.lower() for b in buttons), buttons
+
+
 def _grid_html(app):
     """The rendered stash-grid tiles, which carry the price on each one.
 
