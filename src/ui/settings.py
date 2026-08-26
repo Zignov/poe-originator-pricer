@@ -14,6 +14,7 @@ from src.ui.common import (
     get_config,
     get_exalt_cost,
     get_repo,
+    invalidate_data,
     invalidate_model_cache,
     page_header,
     show_flash,
@@ -139,6 +140,7 @@ def render() -> None:
         if st.button("Apply orb prices and recompute stored listings"):
             repo.set_divine_rate(league, rate, source="manual")
             repo.recompute_price_chaos(rate)
+            invalidate_data()  # every price_chaos in the table just moved
             st.session_state["divine_override"] = rate
             # Stored rather than session-scoped, for the same reason the fetched
             # price is: a hand-set orb cost that vanished on restart would leave

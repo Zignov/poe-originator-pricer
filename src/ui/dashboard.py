@@ -12,18 +12,41 @@ from src.ml.decision_bands import REROLL_BELOW_CHAOS, apply_training_floor
 
 from src.ui.common import (
     CHART_SERIES,
+    data_version,
     get_config,
     get_converter,
     get_formatter,
     get_predictor,
     get_repo,
     hint,
+    latest_capture,
+    listing_counts,
+    listing_records,
     metric_cards,
     page_header,
     price_histogram,
     section,
     typical_focus,
 )
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def _distribution(league, unit, divine, version, focus):
+    """The binned chart and the raw chaos prices behind the hint under it.
+
+    Both were rebuilt on every rerun of the page -- a 150ms query, then a
+    per-row unit conversion over every listing -- to draw a chart that only
+    changes when the data or the display unit does.
+    """
+    from src.pricing.display import PriceFormatter
+
+    fmt = PriceFormatter(unit=unit, divine_to_chaos=divine)
+    chaos = [r["price_chaos"] for r in listing_records(league, False, version)
+             if r["price_chaos"]]
+    if not chaos:
+        return pd.DataFrame(), []
+    amounts = pd.Series([fmt.value(c) for c in chaos])
+    return price_histogram(amounts, focus=focus), chaos
 
 
 def render() -> None:
@@ -41,8 +64,8 @@ def render() -> None:
         f"{scope}T{cfg.get('scope.map_tier')} Originator Maps in {cfg.get('league')}.",
     )
 
-    counts = repo.count_listings(cfg.get("league"))
-    latest = repo.latest_capture()
+    counts = listing_counts(cfg.get("league"), data_version())
+    latest = latest_capture(data_version())
     run = repo.active_model_run()
     rate = repo.get_divine_rate(cfg.get("league"))
     snapshots = repo.list_snapshots(limit=200)
@@ -93,9 +116,12 @@ def render() -> None:
 
     left, right = st.columns([3, 2])
     with left:
-        rows = repo.listing_rows(league=cfg.get("league"), include_outliers=False)
+        chart, chaos = _distribution(
+            cfg.get("league"), fmt.unit, fmt.divine_to_chaos, data_version(),
+            typical_focus(cfg, fmt),
+        )
         section("Price distribution", f"buckets are upper edges, in {fmt.unit}")
-        if not rows:
+        if not chaos:
             st.markdown(
                 '<div class="callout">No market data yet. Open <b>Market Data</b> '
                 "and collect some -- every price in the app is derived from it."
@@ -103,13 +129,7 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
         else:
-            chaos = [r["price_chaos"] for r in rows if r["price_chaos"]]
-            prices = pd.DataFrame({"amount": [fmt.value(c) for c in chaos]})
-            st.bar_chart(
-                price_histogram(prices["amount"], focus=typical_focus(cfg, fmt)),
-                height=260,
-                color=CHART_SERIES,
-            )
+            st.bar_chart(chart, height=260, color=CHART_SERIES)
             median = float(pd.Series(chaos).median())
             p90 = float(pd.Series(chaos).quantile(0.9))
             hint(
@@ -211,6 +231,9 @@ def _trainable_count(counts: dict, repo, cfg) -> int:
     if repo is None:
         return stored
     try:
+        # Deliberately NOT the cached reader: this function is documented to
+        # answer from whatever repository it is handed, including a stub that
+        # raises, and a cached read would quietly ignore the argument.
         prices = repo.usable_prices(cfg.get("league") if cfg else None)
     except Exception:
         return stored
