@@ -15,6 +15,7 @@ from src.ui.common import (
     get_exalt_cost,
     get_repo,
     invalidate_model_cache,
+    page_header,
     show_flash,
 )
 
@@ -66,10 +67,11 @@ def render() -> None:
     # how retraining came to look like it had done nothing at all.
     show_flash()
 
-    st.title("Settings")
-    st.caption(
-        "Changes apply to this session immediately. Use **Save to config.yaml** to "
-        "make them permanent."
+    page_header(
+        "Tool",
+        "Settings",
+        "Changes apply to this session straight away. Save to config.yaml to "
+        "keep them after a restart.",
     )
 
     league_tab, market_tab, model_tab, account_tab = st.tabs(
