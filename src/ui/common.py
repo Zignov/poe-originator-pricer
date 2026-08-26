@@ -19,50 +19,361 @@ from src.pricing.fair_value import PricingService
 # the same colours without importing this module.
 from src.ui.palette import VALUE_COLOURS, confidence_fill  # noqa: F401
 
+#: The colour for a chart that carries one series and therefore no bands.
+#:
+#: Deliberately none of the five in VALUE_COLOURS. A histogram of every listing
+#: is not a percentile band, and painting it in the "high" amber or the "very
+#: high" purple would say it was one. Streamlit's default chart blue was worse
+#: still: it is the one hue on the page that means nothing at all, and it sat
+#: next to four that mean something specific.
+CHART_SERIES = "#6d8fb0"
+
 CSS = """
 <style>
-.block-container { padding-top: 2.2rem; max-width: 1400px; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-.metric-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+/* ==========================================================================
+   The one rule this design follows: COLOUR IS DATA.
+   Every hue on screen belongs to a value band, a confidence level or an exalt
+   verdict. Everything structural -- rules, labels, nav, borders, buttons -- is
+   slate and brass. Streamlit ships a bright red primary, and against four
+   percentile colours that already mean something it read as a fifth signal;
+   demoting the accent to brass is what lets the value bands be seen at all.
+   ========================================================================== */
+:root {
+  --ground:      #0d1014;   /* the panel behind everything */
+  --panel:       #151a21;   /* raised surface */
+  --panel-lift:  #1b2129;   /* inputs, table headers, hovered rows */
+  --rule:        #262d38;   /* hairlines */
+  --rule-soft:   #1e242d;
+  --brass:       #b3894e;   /* structure accent, never data */
+  --brass-dim:   rgba(179,137,78,.32);
+  --ink:         #e7eaf0;
+  --ink-dim:     #8d97a8;
+  --ink-faint:   #656e7d;
+  --cyan:        #39d0d8;   /* the exalt ring, shared with the overlay */
+  --radius:      8px;
+
+  --font-ui:      'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Oswald', 'Inter', system-ui, sans-serif;
+  --font-mono:    'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+  background: var(--ground);
+  font-family: var(--font-ui);
+  color: var(--ink);
+}
+[data-testid="stMainBlockContainer"] { padding-top: 2.6rem; max-width: 1560px; }
+[data-testid="stHeader"] { background: transparent; }
+
+/* Every figure on the page is set in the mono face with tabular figures, so a
+   column of prices lines up on the decimal and a four-digit total cannot be
+   mistaken for a three-digit one at a glance. */
+.mono, .stat-rail .v, .metric-card .value, [data-testid="stMetricValue"] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* -- headings ------------------------------------------------------------- */
+h1, h2, h3, h4, [data-testid="stHeading"] h1, [data-testid="stHeading"] h2,
+[data-testid="stHeading"] h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: .012em;
+  color: var(--ink);
+}
+h1, [data-testid="stHeading"] h1 { font-size: 2.1rem; line-height: 1.15; }
+h2, [data-testid="stHeading"] h2 { font-size: 1.28rem; }
+h3, [data-testid="stHeading"] h3 { font-size: 1.06rem; }
+
+/* The page header: an eyebrow saying which of the app's jobs this is, the
+   title, and a brass hairline that closes it. Repeated identically on every
+   page so that a glance at the top-left always answers "where am I". */
+.page-head { margin: 0 0 1.15rem; }
+.page-head .eyebrow {
+  font-family: var(--font-display); font-size: .72rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .22em; color: var(--brass);
+  margin-bottom: .28rem;
+}
+.page-head h1 {
+  font-size: 2.05rem; margin: 0 0 .3rem; font-family: var(--font-display);
+  font-weight: 500; letter-spacing: .01em;
+}
+.page-head .lede { color: var(--ink-dim); font-size: .9rem; max-width: 72ch; margin: 0; }
+.page-head .rule {
+  height: 1px; margin-top: .95rem;
+  background: linear-gradient(90deg, var(--brass-dim) 0%, var(--rule) 38%, transparent 100%);
+}
+
+/* -- the stat rail -------------------------------------------------------- */
+/* The signature component, and the one that does the most de-cluttering. It
+   replaces every pipe-separated grey caption in the app ("26 maps found | 25
+   priceable | 1 unsupported | ...") with a readout: labels small and quiet,
+   figures large and mono, brass hairlines between them. */
+.stat-rail {
+  display: flex; flex-wrap: wrap; align-items: stretch;
+  border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--panel); margin: 0 0 1.1rem; overflow: hidden;
+}
+.stat-rail .stat {
+  padding: .62rem 1.05rem; min-width: 8.5rem; flex: 0 1 auto;
+  border-left: 1px solid var(--rule-soft);
+}
+.stat-rail .stat:first-child { border-left: 0; box-shadow: inset 2px 0 0 var(--brass); }
+.stat-rail .k {
+  display: block; font-size: .66rem; text-transform: uppercase;
+  letter-spacing: .13em; color: var(--ink-faint); margin-bottom: .18rem;
+  font-weight: 500;
+}
+.stat-rail .v { font-size: 1.02rem; font-weight: 500; color: var(--ink); line-height: 1.2; }
+.stat-rail .v.dim { color: var(--ink-dim); }
+.stat-rail .v em { font-style: normal; color: var(--ink-faint); font-size: .82em; }
+
+/* -- panels --------------------------------------------------------------- */
+.panel {
+  border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--panel); padding: .9rem 1rem 1rem; margin-bottom: 1rem;
+}
+.panel-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; margin-bottom: .55rem;
+}
+.eyebrow {
+  font-family: var(--font-display); font-size: .7rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .18em; color: var(--brass);
+}
+.panel-head .note { font-size: .78rem; color: var(--ink-faint); }
+.hint { font-size: .82rem; color: var(--ink-dim); margin: .2rem 0 .7rem; }
+
+/* -- metric cards --------------------------------------------------------- */
+.metric-row { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.15rem; }
 .metric-card {
-  flex: 1 1 150px; padding: .7rem .9rem; border-radius: 10px;
-  border: 1px solid rgba(128,128,128,.28); background: rgba(128,128,128,.07);
+  flex: 1 1 165px; padding: .72rem .9rem; border-radius: var(--radius);
+  border: 1px solid var(--rule); background: var(--panel);
+  display: flex; flex-direction: column; justify-content: flex-start;
+  min-height: 5.1rem;
 }
 .metric-card .label {
-  font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; opacity: .7;
+  font-size: .66rem; text-transform: uppercase; letter-spacing: .13em;
+  color: var(--ink-faint); font-weight: 500;
 }
-.metric-card .value { font-size: 1.45rem; font-weight: 650; line-height: 1.25; }
-.metric-card .sub { font-size: .75rem; opacity: .65; }
+.metric-card .value {
+  font-size: 1.4rem; font-weight: 500; line-height: 1.25; margin-top: .2rem;
+  /* Long values -- a model id like 20260825-201820 -- shrink instead of
+     wrapping onto a second line and making one card taller than its row. */
+  overflow-wrap: anywhere; font-size: clamp(1rem, 1.4rem, 1.4rem);
+}
+.metric-card .value.long { font-size: 1.02rem; letter-spacing: -.01em; }
+.metric-card .sub { font-size: .73rem; color: var(--ink-faint); margin-top: auto; padding-top: .3rem; }
 
-/* The grid is sized in fixed pixels (12 columns x 46px is wider than half of a
-   1400px page), so it must be allowed to scroll inside its column. Without the
-   wrapper it overflowed to the right and slid underneath the table beside it,
-   which read as the table floating over the stash layout. */
-.stash-grid-wrap {
-  max-width: 100%; overflow-x: auto; padding-bottom: .35rem;
+/* -- sidebar: navigation, not a form ------------------------------------- */
+[data-testid="stSidebar"] { background: #0a0d11; border-right: 1px solid var(--rule); }
+[data-testid="stSidebarContent"] { padding-top: .4rem; }
+.brandmark { padding: .35rem .2rem 1rem; }
+.brandmark .name {
+  font-family: var(--font-display); font-size: 1.06rem; font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--ink);
 }
+.brandmark .sub {
+  font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--brass); margin-top: .12rem;
+}
+.nav-group {
+  font-family: var(--font-display); font-size: .64rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .2em; color: var(--ink-faint);
+  margin: .9rem 0 .3rem .1rem;
+}
+/* The page picker is one radio, because that is exactly what it was before and
+   a radio is the only Streamlit control that remembers which page you are on.
+   The group headings are drawn by CSS on the first option of each group rather
+   than by splitting it into three radios, which would have meant three widgets
+   arguing over one selection. Keyed on position, so the order in app.py's PAGES
+   and these three selectors have to move together. */
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1),
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4),
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6) {
+  position: relative; margin-top: 1.45rem;
+}
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1) { margin-top: .35rem; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before { content: "Price"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before { content: "Market"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before { content: "Tool"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before,
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before,
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before {
+  position: absolute; top: -1.02rem; left: .62rem;
+  font-family: var(--font-display); font-size: .62rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .2em; color: var(--ink-faint);
+  pointer-events: none;
+}
+/* The page picker is an st.radio because that is what drives the app. It is
+   dressed as a nav list: the dot is removed, the row becomes the target, and
+   the current page is marked with a brass edge rather than a filled circle. */
+[data-testid="stSidebar"] [role="radiogroup"] { gap: 1px; }
+/* The dot goes, and the row carries the state instead: a brass left edge and a
+   lifted background. The input itself stays in the DOM and stays focusable --
+   only its rendering is dropped -- so keyboard use and screen readers are
+   unaffected. */
+/* The dot BaseWeb paints is the div immediately before the label text, nested
+   two levels inside the option. Matched by that relationship rather than by
+   depth, so a change in Streamlit's wrapper markup does not silently bring it
+   back. The `span` holding the real input is hidden too -- it is 0x0 and
+   invisible either way, but leaving it displayed adds a stray flex child. */
+[data-testid="stSidebar"] [data-testid="stRadioOption"] > span:first-child,
+[data-testid="stSidebar"] [data-testid="stRadioOption"] div:has(> [data-testid="stMarkdownContainer"]) > div:first-child {
+  display: none;
+}
+[data-testid="stSidebar"] [data-testid="stRadioOption"] {
+  width: 100%; margin: 0; padding: .42rem .6rem; border-radius: 6px;
+  border-left: 2px solid transparent; cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+[data-testid="stSidebar"] [data-testid="stRadioOption"] div { font-size: .88rem; color: var(--ink-dim); }
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:hover { background: rgba(255,255,255,.04); }
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:hover div { color: var(--ink); }
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:has(input:checked) {
+  background: rgba(179,137,78,.10); border-left-color: var(--brass);
+}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:has(input:checked) div {
+  color: var(--ink); font-weight: 500;
+}
+
+/* Context: a key/value block, not five identical grey sentences. */
+.ctx { border-top: 1px solid var(--rule); margin-top: 1rem; padding-top: .7rem; }
+.ctx .row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: .6rem; padding: .2rem 0; font-size: .78rem;
+}
+.ctx .row .k { color: var(--ink-faint); letter-spacing: .04em; }
+.ctx .row .v { color: var(--ink); font-family: var(--font-mono); font-size: .76rem; text-align: right; }
+.ctx .row .v.warn-text { color: #d8a657; }
+.ctx .row .v.ok { color: #6fbf8f; }
+
+/* -- horizontal radios become a segmented control ------------------------- */
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] {
+  gap: 0; border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--panel); padding: 3px; width: max-content; max-width: 100%;
+  flex-wrap: wrap;
+}
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"] > span:first-child,
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"] div:has(> [data-testid="stMarkdownContainer"]) > div:first-child {
+  display: none;
+}
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"] {
+  margin: 0; padding: .34rem .8rem; border-radius: 6px; cursor: pointer;
+}
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"] div {
+  font-size: .84rem; color: var(--ink-dim);
+}
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"]:hover div { color: var(--ink); }
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"]:has(input:checked) {
+  background: var(--panel-lift); box-shadow: inset 0 0 0 1px var(--brass-dim);
+}
+[data-testid="stMain"] [role="radiogroup"][aria-orientation="horizontal"] [data-testid="stRadioOption"]:has(input:checked) div {
+  color: var(--ink); font-weight: 500;
+}
+
+/* -- inputs --------------------------------------------------------------- */
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stNumberInputContainer"],
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextArea"] div[data-baseweb="textarea"] {
+  background: var(--panel-lift); border-color: var(--rule); border-radius: 6px;
+}
+[data-testid="stWidgetLabel"] p, label p {
+  font-size: .72rem !important; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-faint) !important; font-weight: 500;
+}
+/* Checkbox and radio option labels are content, not field names, so they keep
+   sentence case and their normal size. */
+[data-testid="stCheckbox"] label p, [data-testid="stRadioOption"] p {
+  text-transform: none !important; letter-spacing: 0 !important;
+  font-size: .84rem !important; color: var(--ink-dim) !important;
+}
+/* A checkbox has no label above it and a select does, so a checkbox sitting in
+   a row of selects floats a label's height too high. Only the first element of
+   a column is nudged: a checkbox under another checkbox is already aligned. */
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]
+  > div > [data-testid="stElementContainer"]:first-child [data-testid="stCheckbox"] {
+  margin-top: 1.55rem;
+}
+
+/* A label for a group of controls that Streamlit gives no label of its own. */
+.filter-label {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-faint); font-weight: 500; margin: 0 0 .45rem;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+[data-baseweb="select"]:focus-within {
+  outline: 2px solid var(--brass) !important; outline-offset: 1px;
+}
+
+/* -- buttons -------------------------------------------------------------- */
+[data-testid="stBaseButton-primary"] {
+  background: var(--brass); border: 1px solid var(--brass); color: #14171c;
+  font-weight: 600; letter-spacing: .02em; border-radius: 6px;
+}
+[data-testid="stBaseButton-primary"]:hover { background: #c79b5d; border-color: #c79b5d; color: #14171c; }
+[data-testid="stBaseButton-secondary"] {
+  background: transparent; border: 1px solid var(--rule); color: var(--ink);
+  border-radius: 6px;
+}
+[data-testid="stBaseButton-secondary"]:hover { border-color: var(--brass); color: var(--brass); background: rgba(179,137,78,.07); }
+button:focus-visible { outline: 2px solid var(--brass) !important; outline-offset: 2px; }
+
+/* -- tabs: what used to be a six-panel scroll ----------------------------- */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+  gap: .15rem; border-bottom: 1px solid var(--rule); background: transparent;
+}
+[data-testid="stTabs"] [data-baseweb="tab"] {
+  font-family: var(--font-display); font-size: .82rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint); padding: .5rem .95rem;
+}
+[data-testid="stTabs"] [data-baseweb="tab"]:hover { color: var(--ink); }
+[data-testid="stTabs"] [aria-selected="true"] { color: var(--brass); }
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background: var(--brass); }
+
+/* -- expanders ------------------------------------------------------------ */
+[data-testid="stExpander"] details {
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--panel);
+}
+[data-testid="stExpander"] summary:hover { color: var(--brass); }
+
+/* -- dataframe ------------------------------------------------------------ */
+[data-testid="stDataFrame"] { border: 1px solid var(--rule); border-radius: var(--radius); }
+
+/* -- the stash grid ------------------------------------------------------- */
+/* Sized in fixed pixels (12 columns x 46px is wider than half of the page), so
+   it must scroll inside its own column. Without the wrapper it overflowed to
+   the right and slid under the table beside it, which read as the table
+   floating over the stash layout. */
+.stash-grid-wrap { max-width: 100%; overflow-x: auto; padding-bottom: .35rem; }
 .stash-grid {
-  display: grid; gap: 2px; background: rgba(128,128,128,.18);
-  padding: 4px; border-radius: 8px; width: max-content;
-  border: 1px solid rgba(128,128,128,.3);
+  display: grid; gap: 2px; background: var(--ground);
+  padding: 5px; border-radius: 6px; width: max-content;
+  border: 1px solid var(--rule);
 }
 .stash-cell {
-  width: 46px; height: 46px; border-radius: 4px;
-  background: rgba(128,128,128,.10);
+  width: 46px; height: 46px; border-radius: 3px;
+  background: rgba(255,255,255,.035);
   display: flex; align-items: center; justify-content: center;
-  font-size: .68rem; font-weight: 600; color: #f4f4f5;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: .68rem; font-weight: 500; color: #f4f4f5;
   overflow: hidden; text-align: center; line-height: 1.05;
 }
 .stash-cell.filled {
-  color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+  color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
   position: relative;
 }
-/* The confidence meter. Absolutely positioned so it takes no part in the flex
-   centring: the price stays in the middle of the cell whether or not there is a
-   meter under it, which keeps a tab of mixed-confidence maps from looking like
-   the numbers are jittering up and down. The track is opaque rather than a
-   translucent white so that the same score looks the same length and the same
-   weight on all four value bands. Inset 4px to clear the exalt outline. */
+/* The confidence meter. Absolutely positioned -- hence the positioning context
+   on .filled above -- so it takes no part in the flex centring: the price stays
+   in the middle of the cell whether or not there is a meter under it, which
+   keeps a tab of mixed-confidence maps from looking like the numbers are
+   jittering up and down. The track is opaque rather than a translucent white so
+   that the same score looks the same length and the same weight on all four
+   value bands. Inset 4px to clear the exalt outline. */
 .conf-meter {
   position: absolute; left: 4px; right: 4px; bottom: 4px; height: 4px;
   border-radius: 2px; background: #15181d; overflow: hidden;
@@ -76,53 +387,103 @@ CSS = """
    on all four value backgrounds; solid vs dashed carries the same meaning again
    for anyone who cannot separate the two colours. Drawn with outline rather than
    border so tile size and grid alignment are untouched. */
-.stash-cell.exalt-worth {
-  outline: 2px solid #39d0d8;
-  outline-offset: -2px;
-}
-.stash-cell.exalt-skip {
-  outline: 2px dashed rgba(220,220,225,.5);
-  outline-offset: -2px;
-}
-
+.stash-cell.exalt-worth { outline: 2px solid var(--cyan); outline-offset: -2px; }
+.stash-cell.exalt-skip { outline: 2px dashed rgba(220,220,225,.5); outline-offset: -2px; }
 .stash-cell.unsupported {
   background: repeating-linear-gradient(45deg,
-    rgba(128,128,128,.22) 0 5px, rgba(128,128,128,.10) 5px 10px);
-  color: rgba(255,255,255,.55);
+    rgba(255,255,255,.06) 0 5px, rgba(255,255,255,.02) 5px 10px);
+  color: rgba(255,255,255,.5);
+}
+.legend {
+  display: flex; gap: .9rem; flex-wrap: wrap; font-size: .74rem;
+  margin: .65rem 0 .2rem; color: var(--ink-dim);
 }
 /* The same meter at reading size, for the detail panels, where there is room to
    spell out what the bar is and what it scored. */
 .conf-row {
   display: flex; align-items: center; gap: .5rem;
-  font-size: .88rem; margin: .15rem 0 .35rem;
+  font-size: .88rem; margin: .15rem 0 .35rem; color: var(--ink-dim);
 }
 .conf-row .conf-bar {
   flex: 0 0 120px; height: 8px; border-radius: 4px;
   background: #15181d; overflow: hidden;
-  border: 1px solid rgba(128,128,128,.35);
+  border: 1px solid rgba(255,255,255,.14);
 }
 .conf-row .conf-bar > span { display: block; height: 100%; }
-.conf-row .conf-value { opacity: .8; }
-
-.legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .78rem; margin: .6rem 0 1rem; }
+.conf-row .conf-value { opacity: .8; font-variant-numeric: tabular-nums; }
 .legend span.swatch {
-  display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+  display: inline-block; width: 11px; height: 11px; border-radius: 2px;
   margin-right: .35rem; vertical-align: -1px;
 }
-.note-box {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: .82rem; padding: .5rem .7rem; border-radius: 6px;
-  background: rgba(128,128,128,.12); border: 1px solid rgba(128,128,128,.25);
-}
-.exalt-yes, .exalt-no {
-  padding: .55rem .8rem; border-radius: 8px; font-size: .88rem; margin: .3rem 0 .6rem;
-}
-.exalt-yes { border: 1px solid rgba(60,160,110,.5); background: rgba(60,160,110,.13); }
-.exalt-no  { border: 1px solid rgba(128,128,128,.4); background: rgba(128,128,128,.10); }
 
-.warn {
-  padding: .6rem .8rem; border-radius: 8px; font-size: .85rem;
-  border: 1px solid rgba(200,140,40,.45); background: rgba(200,140,40,.12);
+/* -- the readout ---------------------------------------------------------- */
+/* One map's numbers, set to be read against each other. Label left, figure
+   right, hairline between: fair value, the price to list at, the range it might
+   really be worth and how much to trust any of it. As four bold sentences these
+   were four things to read; as a column they are one thing to check. */
+.readout { border-top: 1px solid var(--rule); margin: .2rem 0 .8rem; }
+.readout .row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 1rem; padding: .42rem .1rem; border-bottom: 1px solid var(--rule-soft);
+}
+.readout .row .k {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-faint); font-weight: 500;
+}
+.readout .row .v {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 1rem; color: var(--ink);
+}
+.readout .row .v em { font-style: normal; color: var(--ink-faint); font-size: .78em; }
+.reason {
+  font-size: .78rem; color: var(--ink-dim); padding: .12rem 0 .12rem .85rem;
+  position: relative;
+}
+.reason::before { content: "·"; position: absolute; left: .2rem; color: var(--brass); }
+
+/* -- messages ------------------------------------------------------------- */
+/* One shape for everything the app says about itself: a left edge carrying the
+   meaning, a quiet body. Colour still only ever encodes state. */
+.note-box {
+  font-family: var(--font-mono); font-size: .8rem; padding: .55rem .75rem;
+  border-radius: 6px; background: var(--panel-lift); border: 1px solid var(--rule);
+  color: var(--ink);
+}
+.exalt-yes, .exalt-no, .warn, .callout {
+  padding: .6rem .85rem; border-radius: 6px; font-size: .85rem;
+  border: 1px solid var(--rule); border-left-width: 3px; background: var(--panel);
+  margin: .3rem 0 .7rem; color: var(--ink);
+}
+.exalt-yes { border-left-color: #4a9d74; }
+.exalt-no  { border-left-color: var(--ink-faint); color: var(--ink-dim); }
+.warn      { border-left-color: var(--brass); }
+.callout   { border-left-color: var(--cyan); }
+
+/* Streamlit's own st.info / st.warning / st.error / st.success. They ship as
+   filled pastel blocks -- an olive slab for a warning, a bright green one for a
+   success -- which on this ground are the loudest thing on the page and mean
+   less than any tile in the grid. Given the same shape as the app's own
+   messages: quiet body, one coloured edge carrying the state. */
+[data-testid="stAlertContainer"] {
+  background: var(--panel) !important;
+  border: 1px solid var(--rule) !important;
+  border-left: 3px solid var(--ink-faint) !important;
+  border-radius: 6px !important;
+  color: var(--ink) !important;
+}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) { border-left-color: var(--brass) !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]) { border-left-color: #c0645f !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) { border-left-color: #4a9d74 !important; }
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) { border-left-color: var(--cyan) !important; }
+[data-testid="stAlertContainer"] p { color: var(--ink) !important; font-size: .86rem; }
+
+/* -- quality floor -------------------------------------------------------- */
+@media (max-width: 900px) {
+  [data-testid="stMainBlockContainer"] { padding-left: 1rem; padding-right: 1rem; }
+  .stat-rail .stat { min-width: 6.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
 </style>
 """
@@ -252,9 +613,14 @@ def metric_cards(cards: list[dict[str, Any]]) -> None:
     html = ['<div class="metric-row">']
     for card in cards:
         sub = f'<div class="sub">{card.get("sub", "")}</div>' if card.get("sub") else ""
+        # A model id is fifteen characters where a price is four. Without the
+        # smaller class it wrapped onto a second line and made one card in the
+        # row taller than the rest.
+        value = str(card["value"])
+        long = " long" if len(value) > 11 else ""
         html.append(
             f'<div class="metric-card"><div class="label">{card["label"]}</div>'
-            f'<div class="value">{card["value"]}</div>{sub}</div>'
+            f'<div class="value{long}">{value}</div>{sub}</div>'
         )
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
@@ -284,21 +650,103 @@ def render_confidence(level: str, score: float | None = None) -> None:
     )
 
 
+def page_header(eyebrow: str, title: str, lede: str = "") -> None:
+    """The same three lines at the top of every page.
+
+    An eyebrow naming which of the app's jobs this is, the title, and a brass
+    hairline under it. Repeated identically everywhere so that a glance at the
+    top-left always answers "where am I" -- which `st.title` alone never did,
+    because a title on its own says what the page is called and nothing about
+    where it sits.
+    """
+    body = f'<div class="lede">{lede}</div>' if lede else ""
+    st.markdown(
+        f'<div class="page-head"><div class="eyebrow">{eyebrow}</div>'
+        f"<h1>{title}</h1>{body}<div class=\"rule\"></div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def stat_rail(stats: list[tuple[str, Any]] | list[tuple[str, Any, str]]) -> None:
+    """A row of labelled figures: the readout that replaces pipe-separated text.
+
+    The app used to say things like "26 maps found | 25 priceable | 1
+    unsupported | strategy multipliers from observed-spread" in one grey line.
+    Every figure in it was worth reading and none of them could be found. Here
+    each is a labelled cell with the number set in the mono face, so the row can
+    be scanned rather than parsed.
+
+    Each entry is `(label, value)` or `(label, value, note)`, where the note is
+    the quiet half of the cell -- a unit, an age, a qualifier.
+    """
+    if not stats:
+        return
+    html = ['<div class="stat-rail">']
+    for entry in stats:
+        label, value = entry[0], entry[1]
+        note = entry[2] if len(entry) > 2 else ""
+        tail = f" <em>{note}</em>" if note else ""
+        html.append(
+            f'<div class="stat"><span class="k">{label}</span>'
+            f'<span class="v">{value}{tail}</span></div>'
+        )
+    html.append("</div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+
+def section(eyebrow: str, note: str = "") -> None:
+    """A section label in the same voice as the page eyebrow.
+
+    Used where `st.subheader` was doing the job: a subheader is the same weight
+    as a page title one level down, which made "Stash layout" and "Maps"
+    compete with "Stash Pricer" for the eye.
+    """
+    tail = f'<span class="note">{note}</span>' if note else ""
+    st.markdown(
+        f'<div class="panel-head"><span class="eyebrow">{eyebrow}</span>{tail}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def hint(text: str) -> None:
+    """A line of explanation under a control or a section heading."""
+    st.markdown(f'<div class="hint">{text}</div>', unsafe_allow_html=True)
 def sidebar_context() -> None:
+    """What every price on screen is relative to, as a key/value block.
+
+    This was five grey captions of the same size and colour, which is a wall
+    rather than a reference: the league, the rate, the unit, the sample and the
+    model all read as one paragraph. Aligning the labels left and the values
+    right, in the mono face, turns it into something that can be checked at a
+    glance -- which is all it is ever used for.
+    """
     cfg = get_config()
     repo = get_repo()
     converter = get_converter(cfg, repo)
     predictor, _ = get_predictor()
+    counts = repo.count_listings(cfg.get("league"))
+    scope = "uncorrupted" if cfg.get("scope.require_uncorrupted") else "any"
+    model = (
+        f'<span class="v ok">{predictor.version}</span>'
+        if predictor
+        else '<span class="v warn-text">none trained</span>'
+    )
+    rows = [
+        ("League", f'<span class="v">{cfg.get("league")}</span>'),
+        ("Scope", f'<span class="v">T{cfg.get("scope.map_tier")} {scope}</span>'),
+        ("Divine", f'<span class="v">{converter.divine_to_chaos:.0f}c</span>'),
+        ("Showing", f'<span class="v">{get_formatter(cfg, converter).unit}</span>'),
+        ("Listings", f'<span class="v">{counts["total"]:,} <em></em></span>'),
+        ("Flagged", f'<span class="v">{counts["outliers"]:,}</span>'),
+        ("Model", model),
+    ]
+    body = "".join(
+        f'<div class="row"><span class="k">{k}</span>{v}</div>' for k, v in rows
+    )
     with st.sidebar:
-        st.markdown("### Context")
-        st.caption(f"League **{cfg.get('league')}**  |  T{cfg.get('scope.map_tier')} "
-                   f"{'uncorrupted' if cfg.get('scope.require_uncorrupted') else 'any'}")
-        st.caption(f"1 divine = **{converter.divine_to_chaos:.0f}** chaos")
-        st.caption(f"Showing prices in **{get_formatter(cfg, converter).unit}**")
-        counts = repo.count_listings(cfg.get("league"))
-        st.caption(f"{counts['total']} listings ({counts['outliers']} flagged)")
-        st.caption(
-            f"Model **{predictor.version}**" if predictor else ":orange[No trained model]"
+        st.markdown(
+            f'<div class="ctx"><div class="nav-group">Context</div>{body}</div>',
+            unsafe_allow_html=True,
         )
 
 

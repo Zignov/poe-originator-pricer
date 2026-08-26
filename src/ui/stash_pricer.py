@@ -22,7 +22,16 @@ from src.stash.highlight_regex import build_highlight_regex
 from src.stash.json_import import JsonStashSource, parse_csv
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
-from src.ui.common import get_config, get_repo, get_service, render_confidence
+from src.ui.common import (
+    get_config,
+    get_repo,
+    get_service,
+    hint,
+    page_header,
+    render_confidence,
+    section,
+    stat_rail,
+)
 from src.ui.exalt_panel import affix_label, affixes_for, render_verdict, verdict_for
 from src.ui.stash_grid import render_grid
 
@@ -47,36 +56,57 @@ def render() -> None:
     service, model_error = get_service()
     fmt = service.formatter
 
-    st.title("Stash Pricer")
+    page_header(
+        "Price",
+        "Stash Pricer",
+        "Load a tab, then read it as a set of decisions: what to list, at what "
+        "price, and which maps are worth an Exalted Orb first.",
+    )
     if model_error:
         st.markdown(f'<div class="warn">{model_error}</div>', unsafe_allow_html=True)
 
-    source_key = st.radio(
-        "Where should the maps come from?",
-        list(SOURCE_LABELS),
-        format_func=SOURCE_LABELS.get,
-        horizontal=True,
-    )
+    # The source picker is the first thing on the page and the last thing you
+    # need once a tab is loaded, so it folds itself away. Left open it pushed
+    # every price below the fold and made re-pricing look like a five-step form.
+    loaded = st.session_state.get("stash_items")
+    with st.expander(
+        _source_summary(loaded), expanded=not loaded
+    ):
+        source_key = st.radio(
+            "Where should the maps come from?",
+            list(SOURCE_LABELS),
+            format_func=SOURCE_LABELS.get,
+            horizontal=True,
+        )
 
-    items = None
-    if source_key == "session":
-        items = _from_session(cfg)
-    elif source_key == "json":
-        items = _from_json(cfg)
-    elif source_key == "csv":
-        items = _from_csv(cfg)
-    elif source_key == "snapshot":
-        items = _from_snapshot(cfg, repo)
-    else:
-        items = _from_clipboard(cfg)
+        items = None
+        if source_key == "session":
+            items = _from_session(cfg)
+        elif source_key == "json":
+            items = _from_json(cfg)
+        elif source_key == "csv":
+            items = _from_csv(cfg)
+        elif source_key == "snapshot":
+            items = _from_snapshot(cfg, repo)
+        else:
+            items = _from_clipboard(cfg)
 
     if items is not None:
         st.session_state["stash_items"] = items
+        st.session_state["stash_source"] = SOURCE_LABELS[source_key]
+        # The expander's label and open state were decided at the top of this
+        # run, before these items existed, so without a second pass the picker
+        # stays open saying "choose a source" over a tab it has already loaded.
+        # Guarded by a fingerprint rather than a flag: a loader that returns the
+        # same tab on every rerun would otherwise rerun forever.
+        stamp = (len(items), SOURCE_LABELS[source_key])
+        if st.session_state.get("stash_stamp") != stamp:
+            st.session_state["stash_stamp"] = stamp
+            st.rerun()
     items = st.session_state.get("stash_items")
     if not items:
         return
 
-    st.markdown("---")
     mode = st.radio(
         "Pricing mode",
         list(MODE_LABELS),
@@ -97,6 +127,12 @@ def render() -> None:
     min_value = controls[1].number_input(
         f"Min value ({fmt.column_suffix()})", min_value=0.0, value=0.0,
         step=5.0 if fmt.unit == "chaos" else 0.5,
+    )
+    # The two checkboxes are one question -- what to leave out -- and without a
+    # label of their own they also sat a label's height higher than every other
+    # control in the row.
+    controls[2].markdown(
+        '<div class="filter-label">Show only</div>', unsafe_allow_html=True
     )
     only_confident = controls[2].checkbox("High confidence only")
     exaltable_only = controls[2].checkbox(
@@ -126,10 +162,18 @@ def render() -> None:
         priced = model_priced
 
     supported = [p for p in priced if p.supported]
-    st.caption(
-        f"{len(items)} maps found  |  {len(supported)} priceable  |  "
-        f"{len(items) - len(supported)} unsupported  |  "
-        f"strategy multipliers from {service.multipliers.source}"
+    total_chaos = sum(p.suggested_chaos or 0 for p in supported)
+    exaltable = sum(
+        1 for p in supported if (v := verdict_for(p.item)) and v.available and v.worth_it
+    )
+    stat_rail(
+        [
+            ("Maps in tab", f"{len(items)}"),
+            ("Priceable", f"{len(supported)}", f"of {len(items)}"),
+            ("Skipped", f"{len(items) - len(supported)}", "unsupported"),
+            ("Tab total", fmt.format(total_chaos), STRATEGY_LABELS[strategy].lower()),
+            ("Worth an exalt", f"{exaltable}"),
+        ]
     )
     if service.multipliers.source.startswith("config (observed spread rejected"):
         st.markdown(
@@ -146,22 +190,20 @@ def render() -> None:
     # large gap; the table beside it reflows to whatever is left.
     grid_col, table_col = st.columns([1.25, 1], gap="large")
     with grid_col:
-        st.subheader("Stash layout")
-        st.caption(
-            f"Tiles show the suggested listing price on the "
-            f"**{STRATEGY_LABELS[strategy].lower()}** strategy, outlined by whether "
-            "an Exalted Orb pays for itself. Hover for fair value and the exalt call."
+        section("Stash layout", f"{STRATEGY_LABELS[strategy].lower()} prices")
+        hint(
+            "Each tile is the price to list that map at. A solid cyan outline "
+            "means an Exalted Orb pays for itself; a dashed one means it does "
+            "not. Hover a tile for fair value and the reasoning."
         )
         # Verdicts are keyed by object identity so the grid never has to know how
         # a map is priced -- ~2ms each, so a full tab costs about a tenth of a
         # second per rerun.
         verdicts = {id(p): verdict_for(p.item) for p in priced if p.supported}
         render_grid(priced, fmt, verdicts=verdicts)
-        total = sum(p.suggested_chaos or 0 for p in supported)
-        st.metric("Tab total (suggested)", fmt.format(total))
 
     with table_col:
-        st.subheader("Maps")
+        section("Maps", f"{len(visible)} shown")
         if not visible:
             st.info(_no_matches_reason(priced, exaltable_only))
         else:
@@ -190,20 +232,50 @@ def render() -> None:
                 column_config=_price_columns(frame, fmt),
             )
 
-    st.markdown("---")
-    _detail_panel(visible, fmt)
+    # Everything below the results used to be one long scroll of unrelated
+    # tools: inspect a map, then the market evidence, then a stash-search
+    # pattern, then a copy block, then the overlay, then a save button. They
+    # answer different questions on different occasions and only one is ever
+    # wanted at a time, so they are tabs.
+    names = ["Inspect a map", "Highlight in game", "Copy & save", "Overlay"]
     if mode == "market":
-        _market_evidence(priced, fmt)
-        _mode_comparison(model_priced, priced, fmt)
-    # The whole tab, not `visible`: the pattern must know about every map that
-    # has to stay dark, and the table filters only change what is on screen.
-    _highlight_tool(priced, fmt, repo, cfg.get("league"))
-    _copy_tools(visible, fmt)
-    _overlay_panel(cfg, priced, fmt, strategy, verdicts)
-    _snapshot_button(cfg, repo, items, priced)
+        names.insert(1, "Market evidence")
+    tabs = st.tabs(names)
+    panes = dict(zip(names, tabs))
+
+    with panes["Inspect a map"]:
+        _detail_panel(visible, fmt)
+    if mode == "market":
+        with panes["Market evidence"]:
+            _market_evidence(priced, fmt)
+            _mode_comparison(model_priced, priced, fmt)
+    with panes["Highlight in game"]:
+        # The whole tab, not `visible`: the pattern must know about every map
+        # that has to stay dark, and the table filters only change what is on
+        # screen. repo and league are what let it name every map that *could*
+        # be in the tab, not just the ones scanned into it.
+        _highlight_tool(priced, fmt, repo, cfg.get("league"))
+    with panes["Copy & save"]:
+        _copy_tools(visible, fmt)
+        _snapshot_button(cfg, repo, items, priced)
+    with panes["Overlay"]:
+        _overlay_panel(cfg, priced, fmt, strategy, verdicts)
 
 
 # ---------------------------------------------------------------------------
+def _source_summary(items) -> str:
+    """The one line the collapsed source picker shows.
+
+    Says what is loaded rather than what the control does, because once a tab is
+    in hand that is the only question left about it -- and it keeps the way back
+    visible without keeping five radio options and a file picker on screen.
+    """
+    if not items:
+        return "Choose where the maps come from"
+    where = st.session_state.get("stash_source", "a saved source")
+    return f"{len(items)} maps loaded from {where}  --  click to load something else"
+
+
 def _from_session(cfg):
     st.caption(
         "Uses the POESESSID cookie from your own browser session, against GGG's own "
@@ -691,16 +763,37 @@ def _detail_panel(priced, fmt):
 
     left, right = st.columns([1, 1.4])
     with left:
-        st.markdown(
-            f"**Estimated fair value:** {fmt.format(est.fair_value_chaos)}  \n"
-            f"**Suggested listing ({STRATEGY_LABELS[entry.strategy]}):** "
-            f"{fmt.format(entry.suggested_chaos)}  \n"
-            f"**Likely range:** "
-            f"{fmt.range(est.interval_low_chaos, est.interval_high_chaos)}"
+        # Set as a readout rather than four bold sentences: the three numbers are
+        # read against each other -- is the suggestion inside the range -- and
+        # three lines of running text is the one layout that makes comparing
+        # them hard. Confidence follows as a meter rather than a fourth row:
+        # "Medium 0.51" and "Medium 0.68" are the same sentence at a glance and
+        # visibly different bars, and that difference is most of what the score
+        # is for.
+        rows = [
+            ("Fair value", fmt.format(est.fair_value_chaos), ""),
+            (
+                "List at",
+                fmt.format(entry.suggested_chaos),
+                STRATEGY_LABELS[entry.strategy].lower(),
+            ),
+            (
+                "Likely range",
+                fmt.range(est.interval_low_chaos, est.interval_high_chaos),
+                "",
+            ),
+        ]
+        body = "".join(
+            f'<div class="row"><span class="k">{k}</span>'
+            f'<span class="v">{v}{f" <em>{n}</em>" if n else ""}</span></div>'
+            for k, v, n in rows
         )
+        st.markdown(f'<div class="readout">{body}</div>', unsafe_allow_html=True)
         render_confidence(est.confidence, est.confidence_score)
         for reason in est.confidence_reasons:
-            st.caption(f"- {reason}")
+            st.markdown(
+                f'<div class="reason">{reason}</div>', unsafe_allow_html=True
+            )
         st.markdown(f'<div class="note-box">{entry.note}</div>', unsafe_allow_html=True)
 
         st.markdown("---")

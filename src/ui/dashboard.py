@@ -11,13 +11,17 @@ import streamlit as st
 from src.ml.decision_bands import REROLL_BELOW_CHAOS, apply_training_floor
 
 from src.ui.common import (
+    CHART_SERIES,
     get_config,
     get_converter,
     get_formatter,
     get_predictor,
     get_repo,
+    hint,
     metric_cards,
+    page_header,
     price_histogram,
+    section,
     typical_focus,
 )
 
@@ -29,12 +33,12 @@ def render() -> None:
     fmt = get_formatter(cfg, converter)
     predictor, model_error = get_predictor()
 
-    st.title("Dashboard")
-    st.caption(
-        f"Pricing uncorrupted T{cfg.get('scope.map_tier')} Originator Maps in "
-        f"**{cfg.get('league')}**."
-        if cfg.get("scope.require_uncorrupted")
-        else f"Pricing T{cfg.get('scope.map_tier')} Originator Maps in **{cfg.get('league')}**."
+    scope = "uncorrupted " if cfg.get("scope.require_uncorrupted") else ""
+    page_header(
+        "Overview",
+        "Dashboard",
+        f"What the prices on every other page are built from: "
+        f"{scope}T{cfg.get('scope.map_tier')} Originator Maps in {cfg.get('league')}.",
     )
 
     counts = repo.count_listings(cfg.get("league"))
@@ -89,38 +93,59 @@ def render() -> None:
 
     left, right = st.columns([3, 2])
     with left:
-        st.subheader("Price distribution")
         rows = repo.listing_rows(league=cfg.get("league"), include_outliers=False)
+        section("Price distribution", f"buckets are upper edges, in {fmt.unit}")
         if not rows:
-            st.info("No market data yet. Collect some on the Market Data page.")
+            st.markdown(
+                '<div class="callout">No market data yet. Open <b>Market Data</b> '
+                "and collect some -- every price in the app is derived from it."
+                "</div>",
+                unsafe_allow_html=True,
+            )
         else:
             chaos = [r["price_chaos"] for r in rows if r["price_chaos"]]
             prices = pd.DataFrame({"amount": [fmt.value(c) for c in chaos]})
-            st.bar_chart(price_histogram(prices["amount"], focus=typical_focus(cfg, fmt)), height=260)
-            st.caption(f"Buckets are upper edges, in {fmt.unit}.")
+            st.bar_chart(
+                price_histogram(prices["amount"], focus=typical_focus(cfg, fmt)),
+                height=260,
+                color=CHART_SERIES,
+            )
             median = float(pd.Series(chaos).median())
             p90 = float(pd.Series(chaos).quantile(0.9))
-            st.caption(
-                f"{len(chaos)} priced listings, median {fmt.format(median)}, "
-                f"90th percentile {fmt.format(p90)}"
+            hint(
+                f"{len(chaos):,} priced listings &nbsp;·&nbsp; median "
+                f"<b>{fmt.format(median)}</b> &nbsp;·&nbsp; 90th percentile "
+                f"<b>{fmt.format(p90)}</b>"
             )
 
     with right:
-        st.subheader("Next step")
+        section("Next step")
         if counts["total"] < 200:
-            st.warning(
-                "Collect more market data before trusting predictions. "
-                "Open **Market Data** in the sidebar and click *Collect from trade API*."
+            st.markdown(
+                '<div class="warn"><b>Collect market data first.</b> There are too '
+                "few listings for a price to mean anything. Open <b>Market Data</b> "
+                "and collect from the trade API.</div>",
+                unsafe_allow_html=True,
             )
         elif predictor is None:
-            st.warning("Market data is present but no model has been trained yet.")
+            st.markdown(
+                '<div class="warn"><b>Train a model.</b> The listings are here but '
+                "nothing has been fitted to them yet. Settings &rarr; Model &rarr; "
+                "<b>Retrain model</b>.</div>",
+                unsafe_allow_html=True,
+            )
         else:
-            st.success("Ready. Open **Stash Pricer** to price a tab, or **Single Map** for one item.")
-        st.markdown("---")
+            st.markdown(
+                '<div class="exalt-yes"><b>Ready to price.</b> Open <b>Stash Pricer</b> '
+                "for a whole tab, or <b>Single Map</b> for one item.</div>",
+                unsafe_allow_html=True,
+            )
         st.markdown(
-            "**Reminder.** Every number is an estimate from *asking* prices, not "
-            "completed sales. Always cross-check against the comparable listings "
-            "shown next to each prediction."
+            '<div class="hint" style="margin-top:1.1rem">Every number here is an '
+            "estimate built from <i>asking</i> prices, not completed sales. The "
+            "comparable listings shown beside each prediction are the check on it."
+            "</div>",
+            unsafe_allow_html=True,
         )
 
 

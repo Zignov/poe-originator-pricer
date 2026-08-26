@@ -17,15 +17,18 @@ from src.market.currency_source import ExchangeRateError, fetch_rate_quote
 from src.market.ingest import collect_from_trade_api, converter_for, refresh_outliers, store
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
-    get_config,
-    invalidate_model_cache,
-    get_converter,
-    get_formatter,
+    CHART_SERIES,
     flash,
+    get_config,
+    get_converter,
     get_exalt_cost,
+    get_formatter,
     get_repo,
+    invalidate_model_cache,
+    page_header,
     price_histogram,
     show_flash,
+    stat_rail,
     typical_focus,
 )
 
@@ -36,12 +39,20 @@ def render() -> None:
     converter = get_converter(cfg, repo)
     fmt = get_formatter(cfg, converter)
 
-    st.title("Market Data")
+    page_header(
+        "Market",
+        "Market Data",
+        "The listings every price is fitted to. Collect them, import them, or "
+        "look at what is already stored.",
+    )
     show_flash()
     counts = repo.count_listings(cfg.get("league"))
-    st.caption(
-        f"{counts['total']} listings stored for **{cfg.get('league')}**, "
-        f"{counts['outliers']} flagged as outliers, {counts['last_24h']} captured in the last 24h."
+    stat_rail(
+        [
+            ("Stored", f"{counts['total']:,}", cfg.get("league")),
+            ("Flagged", f"{counts['outliers']:,}", "outliers"),
+            ("Last 24h", f"{counts['last_24h']:,}", "captured"),
+        ]
     )
 
     collect_tab, import_tab, inspect_tab = st.tabs(
@@ -315,7 +326,11 @@ def _inspect(cfg, repo, fmt) -> None:
         st.markdown(f"**Price distribution ({fmt.unit})**")
         priced = frame[frame["price"] > 0]
         if not priced.empty:
-            st.bar_chart(price_histogram(priced["price"], focus=typical_focus(cfg, fmt)), height=240)
+            st.bar_chart(
+                price_histogram(priced["price"], focus=typical_focus(cfg, fmt)),
+                height=240,
+                color=CHART_SERIES,
+            )
             st.caption(f"Buckets are upper edges, in {fmt.unit}.")
     with right:
         st.markdown("**Most common reward combinations**")

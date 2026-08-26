@@ -1,0 +1,24 @@
+# Streamlit's own theme, so its built-in widgets start from the same ground the
+# CSS in src/ui/common.py builds on. Anything Streamlit renders that CSS cannot
+# reach -- the dataframe canvas, chart defaults, the widget focus colours -- gets
+# its colours from here, and a mismatch between the two shows up as a pale panel
+# in the middle of a dark page.
+#
+# The palette rule the whole design follows: colour is data. Every hue on screen
+# belongs to a value band, a confidence level or an exalt verdict. Structure --
+# rules, labels, borders, buttons, the active nav marker -- is slate and brass.
+# `primaryColor` is therefore brass rather than a signal colour, so a button can
+# never be mistaken for a price.
+[theme]
+base = "dark"
+primaryColor = "#b3894e"
+backgroundColor = "#0d1014"
+secondaryBackgroundColor = "#151a21"
+textColor = "#e7eaf0"
+font = "Inter, sans-serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
