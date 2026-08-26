@@ -300,7 +300,10 @@ You get:
   fair value and the exalt call behind it — outlined by whether an Exalted Orb
   pays for itself (solid cyan yes, dashed no, no outline on a map that cannot
   take one at all), colour-banded by value (percentiles of *this tab*, not hardcoded
-  league thresholds), with full details on hover;
+  league thresholds), with full details on hover, and a **confidence meter**
+  along the bottom edge of each tile — a short bar means the number above it is
+  a rough estimate rather than a price, which is otherwise buried in a tooltip
+  on the one tile you did not think to hover;
 - a **sortable table** — by value, by any reward, by pack size, by confidence, or
   by stash position;
 - **filters** — minimum value, high confidence only, or only maps carrying a
@@ -368,7 +371,8 @@ The stash grid in the browser still asks you to look away from the game and
 match a picture of your tab against the real one. The **desktop overlay** removes
 that step: it is a transparent, always-on-top, click-through window that draws
 the same tiles — same percentile colour bands, same suggested listing price, same
-exalt rings — directly on top of the real stash tab, aligned cell for cell.
+exalt rings, same confidence meter — directly on top of the real stash tab,
+aligned cell for cell.
 
 It is a passive draw-on-top window. It reads a JSON file this app wrote and
 paints pixels above whatever is underneath. It does not read the game's memory,
@@ -974,7 +978,9 @@ Read this part.
 - **Confidence is not a probability.** It answers "how much does the market
   actually tell us about a map like this", from comparable count, neighbour
   distance, interval width and data freshness. Low confidence means treat the
-  number as a rough guide.
+  number as a rough guide. It is drawn as a meter — on the grid tiles, on the
+  overlay tiles and beside the number in the detail panels — because a score
+  that only appears in a tooltip is a score nobody reads.
 
 - **The dataset is a snapshot of the current listing book, not history.** It
   samples what is listed now; it cannot see what has already sold and

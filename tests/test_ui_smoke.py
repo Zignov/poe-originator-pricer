@@ -170,6 +170,31 @@ def test_the_grid_marks_exaltable_maps_with_a_ring():
     assert rings <= plain, "more rings than tiles"
 
 
+def test_every_priced_tile_carries_a_confidence_meter():
+    """The meter has to reach the rendered tiles, not just the helper."""
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    html = _grid_html(app)
+    assert html, "no grid rendered"
+    filled = html.count("stash-cell filled ")
+    assert filled, "no filled tiles"
+    assert html.count('<span class="conf-meter">') == filled
+
+
+def test_the_legend_explains_the_confidence_meter():
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    rendered = " ".join(str(m.value) for m in app.markdown)
+    for level in ("high confidence", "medium confidence", "low confidence"):
+        assert level in rendered
+
+
 def test_the_legend_explains_both_rings():
     app = AppTest.from_file(APP, default_timeout=240)
     app.session_state["stash_items"] = _demo_items()

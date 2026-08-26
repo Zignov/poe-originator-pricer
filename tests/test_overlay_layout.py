@@ -30,7 +30,7 @@ from src.overlay.state import (
     OverlayState,
     OverlayTile,
 )
-from src.ui.palette import VALUE_COLOURS
+from src.ui.palette import CONFIDENCE_COLOURS, VALUE_COLOURS
 
 CAL = Calibration(origin=(100, 200), cell_px=50.0, grid=(12, 12))
 
@@ -141,3 +141,65 @@ def test_rectangles_are_shifted_into_window_coordinates_once():
 @pytest.mark.parametrize("cell_px,expected", [(20.0, 6), (46.0, 11), (200.0, 16)])
 def test_the_font_scales_with_the_cell_and_stays_within_sane_bounds(cell_px, expected):
     assert font_size_for(cell_px) == expected
+
+
+# -- the confidence meter ---------------------------------------------------
+def test_a_priced_tile_carries_a_meter():
+    draws = build_draw_list(_state(_tile(confidence="High", confidence_score=1.0)), CAL)
+    meter = draws[0].meter
+    assert meter is not None
+    # Inset on every side it touches, so it never runs into the exalt ring,
+    # which is drawn 2px in at 2px wide.
+    assert (meter.left, meter.right, meter.bottom) == (104, 146, 246)
+    assert meter.fill_right == meter.right  # a full score fills the track
+
+
+def test_the_meter_length_is_the_score():
+    draws = build_draw_list(_state(_tile(confidence="Low", confidence_score=0.5)), CAL)
+    meter = draws[0].meter
+    assert meter.fill_right == meter.left + (meter.right - meter.left) // 2
+
+
+def test_the_meter_colour_comes_from_the_shared_palette():
+    """The same hex the browser tile uses -- which is the whole point of it."""
+    draws = build_draw_list(_state(_tile(confidence="Medium", confidence_score=0.5)), CAL)
+    assert draws[0].meter.fill == CONFIDENCE_COLOURS["Medium"]
+
+
+def test_an_unsupported_map_gets_no_meter():
+    """There is no estimate to be confident about, so an empty bar would lie."""
+    unsupported = OverlayTile(x=0, y=0, supported=False, confidence="High", confidence_score=0.9)
+    assert build_draw_list(_state(unsupported), CAL)[0].meter is None
+
+
+def test_a_tile_with_no_confidence_recorded_gets_no_meter():
+    assert build_draw_list(_state(_tile()), CAL)[0].meter is None
+
+
+def test_a_label_with_no_score_still_draws_a_meter():
+    """State files written before the score was carried keep working."""
+    draws = build_draw_list(_state(_tile(confidence="High")), CAL)
+    assert draws[0].meter is not None
+
+
+def test_the_worst_possible_score_still_shows_a_sliver():
+    draws = build_draw_list(_state(_tile(confidence="Low", confidence_score=0.0)), CAL)
+    assert draws[0].meter.fill_right > draws[0].meter.left
+
+
+def test_a_cell_too_small_for_both_keeps_the_price_and_drops_the_meter():
+    tiny = Calibration(origin=(0, 0), cell_px=14.0, grid=(12, 12))
+    draws = build_draw_list(_state(_tile(confidence="High", confidence_score=0.9)), tiny)
+    assert draws[0].text  # the price is still drawn
+    assert draws[0].meter is None
+
+
+def test_the_meter_is_shifted_into_window_coordinates_with_its_tile():
+    state = _state(_tile(x=5, y=7, confidence="High", confidence_score=0.5))
+    draw = build_draw_list(state, CAL)[0]
+    box = draw.relative_to(CAL.grid_rect()[:2])
+    assert box.meter.left == draw.meter.left - 100
+    assert box.meter.top == draw.meter.top - 200
+    assert box.meter.fill_right == draw.meter.fill_right - 100
+    # And still inside its own tile after the shift.
+    assert box.left < box.meter.left < box.meter.right < box.right
