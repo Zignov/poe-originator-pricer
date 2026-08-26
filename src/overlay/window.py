@@ -229,6 +229,17 @@ class OverlayWindow:
                     box.left + 2, box.top + 2, box.right - 2, box.bottom - 2,
                     outline=box.ring, width=2, dash=dash,
                 )
+            if box.meter:
+                # Track first, then the fill on top of it: two rectangles rather
+                # than one, so an almost-empty meter still reads as a meter.
+                self.canvas.create_rectangle(
+                    box.meter.left, box.meter.top, box.meter.right, box.meter.bottom,
+                    fill=box.meter.track, outline="",
+                )
+                self.canvas.create_rectangle(
+                    box.meter.left, box.meter.top, box.meter.fill_right, box.meter.bottom,
+                    fill=box.meter.fill, outline="",
+                )
             self.canvas.create_text(
                 (box.left + box.right) / 2,
                 (box.top + box.bottom) / 2,

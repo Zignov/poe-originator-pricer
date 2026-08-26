@@ -22,7 +22,7 @@ from src.stash.highlight_regex import build_highlight_regex
 from src.stash.json_import import JsonStashSource, parse_csv
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
-from src.ui.common import get_config, get_repo, get_service
+from src.ui.common import get_config, get_repo, get_service, render_confidence
 from src.ui.exalt_panel import affix_label, affixes_for, render_verdict, verdict_for
 from src.ui.stash_grid import render_grid
 
@@ -685,9 +685,9 @@ def _detail_panel(priced, fmt):
             f"**Suggested listing ({STRATEGY_LABELS[entry.strategy]}):** "
             f"{fmt.format(entry.suggested_chaos)}  \n"
             f"**Likely range:** "
-            f"{fmt.range(est.interval_low_chaos, est.interval_high_chaos)}  \n"
-            f"**Confidence:** {est.confidence} ({est.confidence_score:.2f})"
+            f"{fmt.range(est.interval_low_chaos, est.interval_high_chaos)}"
         )
+        render_confidence(est.confidence, est.confidence_score)
         for reason in est.confidence_reasons:
             st.caption(f"- {reason}")
         st.markdown(f'<div class="note-box">{entry.note}</div>', unsafe_allow_html=True)

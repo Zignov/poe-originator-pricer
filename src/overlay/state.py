@@ -101,6 +101,12 @@ class OverlayTile:
     label: str = "-"
     fair_value_chaos: float | None = None
     confidence: str = ""
+    #: The 0..1 score behind that label. Carried in addition to the label, not
+    #: instead of it, because the label is what the tooltip and the table say and
+    #: the score is what the meter's length is. `None` is a legitimate value --
+    #: a state file written before the meter existed has the label only -- and
+    #: the meter falls back to the middle of the band rather than disappearing.
+    confidence_score: float | None = None
     exalt: str = EXALT_NONE
     unsupported_reason: str = ""
 
@@ -117,6 +123,7 @@ class OverlayTile:
             "label": self.label,
             "fair_value_chaos": self.fair_value_chaos,
             "confidence": self.confidence,
+            "confidence_score": self.confidence_score,
             "exalt": self.exalt,
             "unsupported_reason": self.unsupported_reason,
         }
@@ -136,6 +143,7 @@ class OverlayTile:
                 label=str(data.get("label", "-")),
                 fair_value_chaos=_optional_float(data.get("fair_value_chaos")),
                 confidence=str(data.get("confidence", "")),
+                confidence_score=_optional_float(data.get("confidence_score")),
                 exalt=str(data.get("exalt", EXALT_NONE)),
                 unsupported_reason=str(data.get("unsupported_reason", "")),
             )
@@ -248,6 +256,9 @@ def state_from_priced(
                     float(entry.estimate.fair_value_chaos) if entry.estimate else None
                 ),
                 confidence=entry.estimate.confidence if entry.estimate else "",
+                confidence_score=(
+                    float(entry.estimate.confidence_score) if entry.estimate else None
+                ),
                 exalt=exalt_state(verdicts.get(id(entry))),
                 unsupported_reason="" if supported else (item.unsupported_reason or "Unsupported"),
             )

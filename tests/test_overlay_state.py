@@ -169,6 +169,29 @@ def test_a_state_survives_a_round_trip_through_json(tmp_path):
     assert restored == original
 
 
+def test_a_tile_carries_the_confidence_score_the_meter_is_drawn_from():
+    state = state_from_priced([_priced()], FMT)
+    assert state.tiles[0].confidence == "High"
+    assert state.tiles[0].confidence_score == pytest.approx(0.9)
+
+
+def test_an_unsupported_map_has_no_confidence_score_to_carry():
+    state = state_from_priced([_priced(supported=False)], FMT)
+    assert state.tiles[0].confidence_score is None
+
+
+def test_a_state_file_written_before_the_score_existed_still_reads(tmp_path):
+    """The label alone is enough to draw a meter -- see confidence_fill."""
+    path = tmp_path / "state.json"
+    payload = state_from_priced([_priced()], FMT).to_dict()
+    for tile in payload["tiles"]:
+        tile.pop("confidence_score")
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    restored = read_state(path)
+    assert restored.tiles[0].confidence == "High"
+    assert restored.tiles[0].confidence_score is None
+
+
 def test_writing_creates_the_directory_it_was_pointed_at(tmp_path):
     path = write_state(OverlayState(), tmp_path / "nested" / "state.json")
     assert path.exists()

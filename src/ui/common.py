@@ -17,7 +17,7 @@ from src.pricing.fair_value import PricingService
 # Re-exported: the palette itself lives in src/ui/palette.py so the desktop
 # overlay, which runs in a tkinter process with no Streamlit in it, can share
 # the same colours without importing this module.
-from src.ui.palette import VALUE_COLOURS  # noqa: F401
+from src.ui.palette import VALUE_COLOURS, confidence_fill  # noqa: F401
 
 CSS = """
 <style>
@@ -53,7 +53,25 @@ CSS = """
   font-size: .68rem; font-weight: 600; color: #f4f4f5;
   overflow: hidden; text-align: center; line-height: 1.05;
 }
-.stash-cell.filled { color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.stash-cell.filled {
+  color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+  position: relative;
+}
+/* The confidence meter. Absolutely positioned so it takes no part in the flex
+   centring: the price stays in the middle of the cell whether or not there is a
+   meter under it, which keeps a tab of mixed-confidence maps from looking like
+   the numbers are jittering up and down. The track is opaque rather than a
+   translucent white so that the same score looks the same length and the same
+   weight on all four value bands. Inset 4px to clear the exalt outline. */
+.conf-meter {
+  position: absolute; left: 4px; right: 4px; bottom: 4px; height: 4px;
+  border-radius: 2px; background: #15181d; overflow: hidden;
+}
+.conf-meter > span { display: block; height: 100%; border-radius: 2px; }
+.legend .conf-meter.legend-meter {
+  position: static; display: inline-block; width: 26px; height: 5px;
+  margin-right: .35rem; vertical-align: 1px;
+}
 /* Exalt state. Cyan appears nowhere in VALUE_COLOURS, so the ring stays legible
    on all four value backgrounds; solid vs dashed carries the same meaning again
    for anyone who cannot separate the two colours. Drawn with outline rather than
@@ -72,6 +90,20 @@ CSS = """
     rgba(128,128,128,.22) 0 5px, rgba(128,128,128,.10) 5px 10px);
   color: rgba(255,255,255,.55);
 }
+/* The same meter at reading size, for the detail panels, where there is room to
+   spell out what the bar is and what it scored. */
+.conf-row {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .88rem; margin: .15rem 0 .35rem;
+}
+.conf-row .conf-bar {
+  flex: 0 0 120px; height: 8px; border-radius: 4px;
+  background: #15181d; overflow: hidden;
+  border: 1px solid rgba(128,128,128,.35);
+}
+.conf-row .conf-bar > span { display: block; height: 100%; }
+.conf-row .conf-value { opacity: .8; }
+
 .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .78rem; margin: .6rem 0 1rem; }
 .legend span.swatch {
   display: inline-block; width: 12px; height: 12px; border-radius: 3px;
@@ -226,6 +258,30 @@ def metric_cards(cards: list[dict[str, Any]]) -> None:
         )
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
+
+
+def render_confidence(level: str, score: float | None = None) -> None:
+    """The confidence meter at reading size, for a detail panel.
+
+    The same bar the grid tiles and the desktop overlay draw, from the same
+    palette function, with the label and the score spelled out beside it. It
+    replaced a line of text that said the same thing, because "Medium (0.51)"
+    and "Medium (0.68)" are the same sentence at a glance and visibly different
+    bars -- and the difference between them is most of what the number is for.
+    """
+    filling = confidence_fill(level, score)
+    if filling is None:
+        st.caption("Confidence: not scored")
+        return
+    colour, fraction = filling
+    value = level if score is None else f"{level} &middot; {score:.2f}"
+    st.markdown(
+        '<div class="conf-row"><span>Confidence</span>'
+        f'<span class="conf-bar"><span style="width:{fraction * 100:.0f}%;'
+        f'background:{colour}"></span></span>'
+        f'<span class="conf-value">{value}</span></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def sidebar_context() -> None:

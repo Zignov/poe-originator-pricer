@@ -22,6 +22,7 @@ from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
 from src.ui.common import VALUE_COLOURS
+from src.ui.palette import CONFIDENCE_COLOURS, confidence_fill
 
 
 def render_grid(
@@ -65,7 +66,8 @@ def render_grid(
             ring = exalt_class((verdicts or {}).get(id(entry)))
             cells.append(
                 f'<div class="stash-cell filled {ring}" style="background:{colour}" '
-                f'title="{tooltip}">{fmt.format(price)}</div>'
+                f'title="{tooltip}">{fmt.format(price)}'
+                f"{confidence_meter(entry)}</div>"
             )
 
     st.markdown(
@@ -78,6 +80,7 @@ def render_grid(
     _legend(bands, fmt, len(values))
     if verdicts:
         _exalt_legend()
+    _confidence_legend()
 
 
 #: Ring drawn round a tile whose map is worth an Exalted Orb, and round one that
@@ -93,6 +96,49 @@ def exalt_class(verdict: ExaltVerdict | None) -> str:
     if verdict is None or not verdict.available:
         return ""
     return EXALT_YES_CLASS if (verdict.net_gain_chaos or 0.0) > 0 else EXALT_NO_CLASS
+
+
+def confidence_meter(entry: PricedMap) -> str:
+    """The little bar along the bottom of a tile: how much to trust the number.
+
+    Empty string for a map with no estimate. The colour and the length come from
+    ``src.ui.palette``, the same function the desktop overlay calls, so the tile
+    that is a third full over the game is a third full here.
+    """
+    est = entry.estimate
+    if not entry.supported or est is None:
+        return ""
+    filling = confidence_fill(est.confidence, est.confidence_score)
+    if filling is None:
+        return ""
+    colour, fraction = filling
+    return (
+        '<span class="conf-meter">'
+        f'<span style="width:{fraction * 100:.0f}%;background:{colour}"></span>'
+        "</span>"
+    )
+
+
+def _confidence_legend() -> None:
+    """Key for the meter.
+
+    Its own row rather than a fourth entry on the value legend: those swatches
+    are what a *price* looks like, and folding a confidence bar in among them
+    invites reading the meter's colour as another value band.
+    """
+    swatches = "".join(
+        f'<div><span class="conf-meter legend-meter">'
+        f'<span style="width:{width};background:{CONFIDENCE_COLOURS[level]}"></span>'
+        f"</span>{level.lower()} confidence</div>"
+        for level, width in (("High", "100%"), ("Medium", "58%"), ("Low", "25%"))
+    )
+    st.markdown(f'<div class="legend">{swatches}</div>', unsafe_allow_html=True)
+    st.caption(
+        "The bar along the bottom of a tile is how much the market actually "
+        "tells us about that map -- how many close comparables there are, how "
+        "recent they are, and how wide the range is. A short bar means the "
+        "number is a rough estimate, not a price."
+    )
 
 
 def _tile_price(entry: PricedMap) -> float:
@@ -193,7 +239,7 @@ def _tooltip(entry: PricedMap, fmt: PriceFormatter, verdict: ExaltVerdict | None
             f"Fair value: {fmt.format(est.fair_value_chaos)}",
             f"Suggested: {fmt.format(entry.suggested_chaos)}",
             f"Range: {fmt.range(est.interval_low_chaos, est.interval_high_chaos)}",
-            f"Confidence: {est.confidence}",
+            f"Confidence: {est.confidence} ({est.confidence_score:.2f})",
         ]
     else:
         lines += ["", f"Unsupported: {item.unsupported_reason}"]

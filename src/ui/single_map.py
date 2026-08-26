@@ -8,7 +8,7 @@ from src.market.comparables import format_age
 from src.parsing.item_parser import ItemParseError, classify, parse_item_text
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.schema import FEATURE_NAMES, NormalizedMap
-from src.ui.common import get_config, get_service
+from src.ui.common import get_config, get_service, render_confidence
 from src.ui.exalt_panel import render_verdict, verdict_for
 
 LABELS = {
@@ -97,9 +97,9 @@ def render() -> None:
         st.markdown(
             f"**Suggested listing:** {fmt.format(priced.suggested_chaos)}  \n"
             f"**Likely range:** "
-            f"{fmt.range(est.interval_low_chaos, est.interval_high_chaos)}  \n"
-            f"**Confidence:** {est.confidence} ({est.confidence_score:.2f})"
+            f"{fmt.range(est.interval_low_chaos, est.interval_high_chaos)}"
         )
+        render_confidence(est.confidence, est.confidence_score)
         for reason in est.confidence_reasons:
             st.caption(f"- {reason}")
         st.markdown(f'<div class="note-box">{priced.note}</div>', unsafe_allow_html=True)
