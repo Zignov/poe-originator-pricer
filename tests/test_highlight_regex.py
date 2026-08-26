@@ -467,3 +467,64 @@ def test_the_selected_map_still_lights_up_against_its_whole_item_text():
         assert _lights_up(result.pattern, name), (
             f"{result.pattern!r} promised {name!r} and does not match it"
         )
+
+
+# ---------------------------------------------------------------------------
+# Maps the app never imported
+# ---------------------------------------------------------------------------
+def test_a_map_the_app_never_saw_is_still_kept_dark():
+    """The failure the exclusion corpus cannot see by construction.
+
+    The tab the pattern is built from is not necessarily the tab being
+    searched. "Doom Trajectory" was imported and "Doom Vector" was not, so
+    `doom` looks unambiguous against everything the app knows -- and lights up
+    a map the app never mentioned.
+
+    Both names come from the same small pool, so the pool is the right thing to
+    steer around, not the import.
+    """
+    result = build_highlight_regex(
+        ["Doom Trajectory"],
+        [_text("Rune Path")],
+        known_names=["Doom Vector", "Rune Path", "Grim Gambit"],
+    )
+    assert result.pattern
+    assert not _lights_up(result.pattern, "Doom Vector"), (
+        f"{result.pattern!r} lights up a map that was never imported"
+    )
+    assert _lights_up(result.pattern, "Doom Trajectory"), result.explain()
+
+
+def test_the_pool_never_poisons_the_names_being_searched_for():
+    """A selected map is in the pool too, and must not rule out its own name."""
+    selected = ["Glyph Solace", "Bleak Lands"]
+    result = build_highlight_regex(
+        selected, [_text(n) for n in NAMES if n not in selected], known_names=NAMES
+    )
+    assert result.covered, result.explain()
+    for name in result.covered:
+        assert _lights_up(result.pattern, name), (
+            f"{result.pattern!r} promised {name!r} and does not match it"
+        )
+
+
+def test_a_name_shared_with_the_pool_is_reported_not_guessed():
+    """When the pool leaves no safe fragment, say so rather than emit a wrong one.
+
+    "Doom Vector" against a pool holding every other Doom and every other
+    Vector has no single-word fragment left. Either the cross-word pair reaches
+    it or it is reported unmatchable -- what it must never do is fall back on
+    `doom` and light up the rest.
+    """
+    pool = ["Doom Trajectory", "Doom Choice", "Grim Vector", "Fate Vector"]
+    result = build_highlight_regex(
+        ["Doom Vector"], [_text("Rune Path")], known_names=pool
+    )
+    for name in pool:
+        assert not _lights_up(result.pattern or "(?!)", name), (
+            f"{result.pattern!r} lights up {name!r}"
+        )
+    if result.covered:
+        assert _lights_up(result.pattern, "Doom Vector"), result.explain()
+    else:
+        assert result.unmatchable, result.explain()

@@ -197,7 +197,7 @@ def render() -> None:
         _mode_comparison(model_priced, priced, fmt)
     # The whole tab, not `visible`: the pattern must know about every map that
     # has to stay dark, and the table filters only change what is on screen.
-    _highlight_tool(priced, fmt)
+    _highlight_tool(priced, fmt, repo, cfg.get("league"))
     _copy_tools(visible, fmt)
     _overlay_panel(cfg, priced, fmt, strategy, verdicts)
     _snapshot_button(cfg, repo, items, priced)
@@ -838,7 +838,9 @@ def _unparsed_lines(item) -> list[str]:
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
-def _cached_regex(names: tuple[str, ...], texts: tuple[str, ...]):
+def _cached_regex(
+    names: tuple[str, ...], texts: tuple[str, ...], known: tuple[str, ...] = ()
+):
     """Memoised because this page reruns on every widget touch.
 
     Building the pattern costs about 20ms for a 60-map tab but a third of a
@@ -846,10 +848,30 @@ def _cached_regex(names: tuple[str, ...], texts: tuple[str, ...]):
     checkbox moves is what would make the page feel slow. The arguments are the
     whole input, so the key is exact -- change a price and the entry misses.
     """
-    return build_highlight_regex(names, texts)
+    return build_highlight_regex(names, texts, known_names=known)
 
 
-def _highlight_tool(priced, fmt):
+@st.cache_data(show_spinner=False, max_entries=4)
+def _known_names(_repo, league) -> tuple[str, ...]:
+    """Every rare map name the app has seen, for the pattern to steer around.
+
+    The tab the pattern is built from is not necessarily the tab being
+    searched -- the import can be an old snapshot, or simply miss whatever was
+    dropped in since -- and a map the app never saw is a map the pattern was
+    never checked against. Leading underscore on `_repo` so Streamlit hashes the
+    league and not the database handle.
+    """
+    if _repo is None:
+        return ()
+    try:
+        return tuple(_repo.known_map_names(league))
+    except Exception:
+        # A missing table or an older database is not a reason to refuse to
+        # build a pattern; it only means falling back to the tab itself.
+        return ()
+
+
+def _highlight_tool(priced, fmt, repo=None, league=None):
     """Turn a price threshold into a pattern for the in-game stash search.
 
     Deliberately fed the *whole* tab rather than the filtered table above: the
@@ -891,6 +913,7 @@ def _highlight_tool(priced, fmt):
     result = _cached_regex(
         tuple(e.item.name for e in selected),
         tuple(_item_text(e.item) for e in excluded),
+        _known_names(repo, league),
     )
 
     with columns[1]:

@@ -391,12 +391,22 @@ def build_highlight_regex(
     selected_names: Sequence[str],
     excluded_text: Iterable[str],
     limit: int = POE1_SEARCH_LIMIT,
+    known_names: Iterable[str] = (),
 ) -> HighlightRegex:
     """A stash-search pattern matching `selected_names` and nothing excluded.
 
     `excluded_text` is the full item text of everything that must stay dark --
     pass the whole text of each map below the threshold rather than just its
     name, so that lines shared by every map cannot leak into a fragment.
+
+    `known_names` is every rare map name that *could* be in the tab, whether or
+    not this app imported it. Without it the pattern is only ever as good as the
+    import: a fragment unambiguous among the maps the app happens to know is
+    still free to match one it has never seen, and the user pastes a pattern
+    that lights up maps the app never mentioned. Since the rare name pool is
+    small and the app has already collected most of it, checking against the
+    whole pool costs about seventy characters of the budget and removes the
+    entire failure.
     """
     wanted = [n for n in (s.strip() for s in selected_names) if n]
     if not wanted:
@@ -411,6 +421,18 @@ def build_highlight_regex(
     # and saying so would send the user hunting for a map that is not there.
     # It falls through to `unmatchable`, which says the true thing.
     safety_corpus = corpus + [_normalise_text(UNPARSED_ITEM_TEXT)]
+
+    # Names of maps that could be in the tab but were not imported. One line
+    # each, because a name is a line on the item and the anchored fragments are
+    # checked line by line. The selected maps are dropped from the pool first --
+    # they are the thing being matched, and leaving them in would poison every
+    # fragment of their own names.
+    chosen_names = {low for low in lowered}
+    others = sorted(
+        {_normalise(n) for n in known_names if n and n.strip()} - chosen_names
+    )
+    if others:
+        safety_corpus.append("\n".join(others))
 
     # A map whose name is printed on an excluded map cannot be singled out by
     # any text at all. Report it rather than emitting a pattern that quietly

@@ -152,6 +152,40 @@ class Repository:
         sql += " ORDER BY COALESCE(indexed_at, captured_at) ASC"
         return self.conn.execute(sql, params).fetchall()
 
+    def known_map_names(self, league: str | None = None) -> list[str]:
+        """Every rare map name this app has ever seen, listed or held.
+
+        The highlight pattern needs this because the tab it is built against is
+        never guaranteed to be the tab being searched. The app only knows the
+        maps it imported; the stash holds whatever is actually in there, and a
+        fragment that is unambiguous among the imported maps will happily light
+        up one that was not.
+
+        The rare name pool is small enough to make this practical -- a hundred
+        or so first words against fifty last ones -- so checking a fragment
+        against every name ever seen is close to checking it against every name
+        that could exist.
+        """
+        names: set[str] = set()
+        sql = (
+            "SELECT DISTINCT name FROM originator_listings "
+            "WHERE name IS NOT NULL AND name != ''"
+        )
+        params: list[Any] = []
+        if league:
+            sql += " AND league = ?"
+            params.append(league)
+        for row in self.conn.execute(sql, params):
+            if row[0]:
+                names.add(str(row[0]).strip())
+        for row in self.conn.execute(
+            "SELECT DISTINCT name FROM stash_items WHERE name IS NOT NULL AND name != ''"
+        ):
+            if row[0]:
+                names.add(str(row[0]).strip())
+        names.discard("")
+        return sorted(names)
+
     def count_listings(self, league: str | None = None) -> dict[str, int]:
         where = "WHERE (? IS NULL OR league = ?)"
         params: list[Any] = [league, league]
