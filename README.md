@@ -1051,7 +1051,9 @@ src/
   overlay/                 the desktop overlay: state (the JSON contract),
                            calibration, layout -- and window, the only module
                            that imports tkinter
-  ui/                      one module per page
+  ui/                      one module per page, over one design system in
+                           common.py: page_header, stat_rail, section, panels
+                           and the CSS -- see "Colour is data" below
   cli.py                   everything the UI does, without Streamlit
 docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
@@ -1061,6 +1063,35 @@ tests/                     531 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
+
+### Colour is data
+
+The interface has one rule, and it is the reason it looks the way it does.
+
+**Every hue on screen belongs to a value band, a confidence level or an exalt
+verdict. Everything structural is slate and brass.** Nav, borders, buttons,
+labels, rules, the active tab -- none of them are allowed a signal colour.
+
+It is not decoration, it is legibility. The stash grid already spends four
+colours on percentile bands and a fifth on the exalt ring, and those five are
+the whole point of the page. Streamlit's default red primary button, its blue
+charts and its pastel alert blocks added three more hues that meant nothing, and
+they were the brightest things on screen. Demoting the accent to a muted brass
+is what lets a purple tile read as "this map is worth something" at a glance.
+
+Three consequences worth knowing before editing a page:
+
+- **Figures are set in the mono face**, with tabular figures, so a column of
+  prices aligns and a four-digit total cannot be mistaken for a three-digit one.
+- **`stat_rail` replaces pipe-separated captions.** The page used to say
+  "26 maps found | 25 priceable | 1 unsupported | ..." in one grey line; every
+  figure in it was worth reading and none could be found.
+- **A single-series chart uses `CHART_SERIES`**, which is deliberately none of
+  the five band colours -- a histogram of every listing is not a percentile band
+  and must not claim to be one.
+
+`.streamlit/config.toml` carries the same palette, so the parts of Streamlit
+that CSS cannot reach start from the same ground.
 
 ---
 

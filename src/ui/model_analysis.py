@@ -10,7 +10,16 @@ import streamlit as st
 from src.ml.explain import INTERESTING_INTERACTIONS, global_importance, interaction_grid
 from src.ml.features import rows_to_frame, target_inverse
 from src.ml.validation import metrics as compute_metrics
-from src.ui.common import get_config, get_converter, get_formatter, get_predictor, get_repo
+from src.ui.common import (
+    CHART_SERIES,
+    get_config,
+    get_converter,
+    get_formatter,
+    get_predictor,
+    get_repo,
+    page_header,
+    stat_rail,
+)
 
 
 def render() -> None:
@@ -20,7 +29,11 @@ def render() -> None:
     fmt = get_formatter(cfg, converter)
     predictor, model_error = get_predictor()
 
-    st.title("Model Analysis")
+    page_header(
+        "Tool",
+        "Model Analysis",
+        "What the model learned, how wrong it tends to be, and where.",
+    )
     if predictor is None:
         st.warning(model_error or "No trained model.")
         return
@@ -28,10 +41,18 @@ def render() -> None:
     meta = predictor.metadata
     rate = converter.divine_to_chaos  # only for the residual plot's own scaling
 
-    st.caption(
-        f"Model **{meta['model_version']}** | backend **{meta['backend']}** | "
-        f"target **{meta['target']}** | trained on **{meta['dataset_size']}** listings "
-        f"({meta.get('market_date_start', '?')[:16]} to {meta.get('market_date_end', '?')[:16]})"
+    stat_rail(
+        [
+            ("Version", meta["model_version"]),
+            ("Backend", meta["backend"]),
+            ("Target", meta["target"]),
+            ("Fitted on", f"{int(meta['dataset_size']):,}", "listings"),
+            (
+                "Data window",
+                meta.get("market_date_start", "?")[:10],
+                f"to {meta.get('market_date_end', '?')[:10]}",
+            ),
+        ]
     )
 
     tabs = st.tabs(
@@ -144,7 +165,7 @@ def _importance(predictor) -> None:
     if frame.empty:
         st.info("This backend exposes no feature importance.")
         return
-    st.bar_chart(frame.set_index("label")["importance"], height=320)
+    st.bar_chart(frame.set_index("label")["importance"], height=320, color=CHART_SERIES)
     st.dataframe(frame, hide_index=True, use_container_width=True)
     st.caption(
         "Importance is whatever the trained backend reports. It says which features "
@@ -185,12 +206,16 @@ def _residuals(cfg, repo, predictor, fmt, rate) -> None:
     unit = fmt.unit
     scale = 1.0 if unit == "chaos" else rate
     plot = pd.DataFrame({f"actual ({unit})": actual / scale, f"predicted ({unit})": predicted / scale})
-    st.scatter_chart(plot, x=f"actual ({unit})", y=f"predicted ({unit})", height=340)
+    st.scatter_chart(
+        plot, x=f"actual ({unit})", y=f"predicted ({unit})", height=340, color=CHART_SERIES
+    )
 
     residual = pd.DataFrame(
         {f"predicted ({unit})": predicted / scale, "residual": (predicted - actual) / scale}
     )
-    st.scatter_chart(residual, x=f"predicted ({unit})", y="residual", height=280)
+    st.scatter_chart(
+        residual, x=f"predicted ({unit})", y="residual", height=280, color=CHART_SERIES
+    )
     st.dataframe(
         pd.DataFrame([_readable(compute_metrics(actual, predicted), fmt)]),
         hide_index=True,

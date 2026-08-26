@@ -24,7 +24,13 @@ from src.market.bulk import (
 )
 from src.market.collectors.official_trade_api import OfficialTradeApiCollector
 from src.market.ingest import converter_for
-from src.ui.common import get_config, get_formatter, get_repo
+from src.ui.common import (
+    get_config,
+    get_formatter,
+    get_repo,
+    hint,
+    page_header,
+)
 
 #: Past this many seconds a scan is old enough that lots may already be gone.
 STALE_SECONDS = 120
@@ -35,14 +41,17 @@ def render() -> None:
     repo = get_repo()
     fmt = get_formatter()
 
-    st.title("Bulk Buy")
-    st.caption(
-        "Sellers listing several maps at once, sorted by what was listed most "
-        "recently rather than what is cheapest — the cheapest end of the market is "
-        "picked over within seconds, so the newest listings inside a price you would "
-        "buy at are the ones still available. Nothing here is stored, and none of it "
-        "reaches the model: these are unrolled maps in flat-priced blocks, which is "
-        "exactly the data training is protected from."
+    page_header(
+        "Market",
+        "Bulk Buy",
+        "Sellers listing several maps at once, newest first rather than "
+        "cheapest -- the cheap end is picked over within seconds, so the newest "
+        "lots inside your price are the ones still there.",
+    )
+    hint(
+        "Nothing on this page is stored and none of it reaches the model: these "
+        "are unrolled maps in flat-priced blocks, which is exactly the data "
+        "training is protected from."
     )
 
     _live_search_callout(cfg, price_max=st.session_state.get("bulk_price_max", DEFAULT_PRICE_MAX))

@@ -8,7 +8,11 @@ from src.market.comparables import format_age
 from src.parsing.item_parser import ItemParseError, classify, parse_item_text
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.schema import FEATURE_NAMES, NormalizedMap
-from src.ui.common import get_config, get_service
+from src.ui.common import (
+    get_config,
+    get_service,
+    page_header,
+)
 from src.ui.exalt_panel import render_verdict, verdict_for
 
 LABELS = {
@@ -27,7 +31,12 @@ def render() -> None:
     service, model_error = get_service()
     fmt = service.formatter
 
-    st.title("Single Map")
+    page_header(
+        "Price",
+        "Single Map",
+        "One map, priced by the same model the whole tab uses -- for when you "
+        "have an item in hand rather than a stash to work through.",
+    )
     if model_error:
         st.markdown(f'<div class="warn">{model_error}</div>', unsafe_allow_html=True)
 
