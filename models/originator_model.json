@@ -1,0 +1,259 @@
+{
+  "model_version": "20260826-063017",
+  "trained_at": "2026-08-26T06:30:17.196746+00:00",
+  "backend": "catboost",
+  "target": "log1p",
+  "dataset_size": 3363,
+  "feature_list": [
+    "quantity",
+    "rarity",
+    "pack_size",
+    "more_currency",
+    "more_maps",
+    "more_scarabs",
+    "more_divination_cards"
+  ],
+  "core_features": [
+    "quantity",
+    "rarity",
+    "pack_size",
+    "more_currency",
+    "more_maps",
+    "more_scarabs",
+    "more_divination_cards"
+  ],
+  "split": "chronological (oldest train, newest test)",
+  "recency_weights_name": "configured",
+  "recency_weights": [
+    [
+      12,
+      1.0
+    ],
+    [
+      24,
+      0.9
+    ],
+    [
+      72,
+      0.7
+    ],
+    [
+      168,
+      0.4
+    ],
+    [
+      999999,
+      0.2
+    ]
+  ],
+  "metrics": {
+    "validation": {
+      "n": 504,
+      "mae": 53.97511869896965,
+      "median_ae": 29.65263124526669,
+      "rmse": 86.26844906681607,
+      "r2": 0.5627973286842208,
+      "smape": 37.89913145146345,
+      "mape": 42.04880312552385,
+      "within_25pct": 33.53174603174603,
+      "within_50pct": 61.30952380952381,
+      "n_sellable": 402,
+      "sell_mae": 61.841164584175985,
+      "sell_mape": 27.906891399542573,
+      "sell_bias": -7.274077502843419,
+      "thrown_away_pct": 0.0
+    },
+    "test": {
+      "n": 505,
+      "mae": 44.83659394110138,
+      "median_ae": 23.85560346708958,
+      "rmse": 79.9558641382083,
+      "r2": 0.6567637924846206,
+      "smape": 34.98669193913853,
+      "mape": 38.53507688274663,
+      "within_25pct": 35.64356435643564,
+      "within_50pct": 61.98019801980198,
+      "n_sellable": 368,
+      "sell_mae": 53.633328320915254,
+      "sell_mape": 26.31800819962583,
+      "sell_bias": -1.7975871066216769,
+      "thrown_away_pct": 0.0
+    },
+    "rolling_folds": [
+      {
+        "n": 672,
+        "mae": 53.77855003480064,
+        "median_ae": 29.978477910197327,
+        "rmse": 93.31904387906009,
+        "r2": 0.5211651831872589,
+        "smape": 37.702579198782175,
+        "mape": 45.02338693836504,
+        "within_25pct": 35.267857142857146,
+        "within_50pct": 59.970238095238095,
+        "n_sellable": 518,
+        "sell_mae": 61.6366313173075,
+        "sell_mape": 28.184184450080597,
+        "sell_bias": 1.6434055286953217,
+        "thrown_away_pct": 0.0
+      },
+      {
+        "n": 672,
+        "mae": 56.84659156220711,
+        "median_ae": 33.47112390562095,
+        "rmse": 92.43570193775886,
+        "r2": 0.6117929756426046,
+        "smape": 37.9162105432442,
+        "mape": 44.01877065331748,
+        "within_25pct": 35.714285714285715,
+        "within_50pct": 59.375,
+        "n_sellable": 516,
+        "sell_mae": 66.47268196419967,
+        "sell_mape": 27.939013304721083,
+        "sell_bias": -1.3801612402821988,
+        "thrown_away_pct": 0.0
+      },
+      {
+        "n": 672,
+        "mae": 50.17347060600923,
+        "median_ae": 27.755475964012394,
+        "rmse": 84.89133754277303,
+        "r2": 0.48521959308286844,
+        "smape": 39.16788993671065,
+        "mape": 43.56595965031412,
+        "within_25pct": 31.101190476190478,
+        "within_50pct": 60.26785714285714,
+        "n_sellable": 510,
+        "sell_mae": 59.21048321182718,
+        "sell_mape": 30.86583495850942,
+        "sell_bias": -2.1657596006206177,
+        "thrown_away_pct": 0.0
+      },
+      {
+        "n": 672,
+        "mae": 50.43509725656856,
+        "median_ae": 25.811109515001128,
+        "rmse": 88.07689433693346,
+        "r2": 0.6478993324553319,
+        "smape": 34.67871173757908,
+        "mape": 37.12828897902939,
+        "within_25pct": 38.24404761904761,
+        "within_50pct": 63.69047619047619,
+        "n_sellable": 515,
+        "sell_mae": 59.43930427426436,
+        "sell_mape": 26.173761548323498,
+        "sell_bias": -6.230791205771496,
+        "thrown_away_pct": 0.0
+      }
+    ],
+    "backend_comparison": [
+      {
+        "backend": "catboost",
+        "weights": "configured",
+        "seconds": 1.89,
+        "n": 504,
+        "mae": 53.97511869896965,
+        "median_ae": 29.65263124526669,
+        "rmse": 86.26844906681607,
+        "r2": 0.5627973286842208,
+        "smape": 37.89913145146345,
+        "mape": 42.04880312552385,
+        "within_25pct": 33.53174603174603,
+        "within_50pct": 61.30952380952381,
+        "n_sellable": 402,
+        "sell_mae": 61.841164584175985,
+        "sell_mape": 27.906891399542573,
+        "sell_bias": -7.274077502843419,
+        "thrown_away_pct": 0.0
+      },
+      {
+        "backend": "catboost_mae",
+        "weights": "configured",
+        "seconds": 1.68,
+        "n": 504,
+        "mae": 53.552937588541795,
+        "median_ae": 30.27594815798283,
+        "rmse": 87.49432705182528,
+        "r2": 0.5502837128414969,
+        "smape": 37.191432425094405,
+        "mape": 39.17496574900501,
+        "within_25pct": 36.904761904761905,
+        "within_50pct": 62.10317460317461,
+        "n_sellable": 402,
+        "sell_mae": 62.563144222828086,
+        "sell_mape": 27.928074438904627,
+        "sell_bias": -12.484503715718766,
+        "thrown_away_pct": 0.4975124378109453
+      },
+      {
+        "backend": "lightgbm",
+        "weights": "configured",
+        "seconds": 1.77,
+        "n": 504,
+        "mae": 55.62419026049231,
+        "median_ae": 31.048614896359403,
+        "rmse": 87.43064377179863,
+        "r2": 0.5509381320827959,
+        "smape": 39.38842577687376,
+        "mape": 46.20943494938428,
+        "within_25pct": 30.753968253968257,
+        "within_50pct": 60.912698412698404,
+        "n_sellable": 402,
+        "sell_mae": 63.73666553525576,
+        "sell_mape": 30.162479236541532,
+        "sell_bias": -1.699018729941855,
+        "thrown_away_pct": 1.2437810945273633
+      },
+      {
+        "backend": "linear",
+        "weights": "configured",
+        "seconds": 0.03,
+        "n": 504,
+        "mae": 71.4591996298717,
+        "median_ae": 48.67533010204598,
+        "rmse": 106.6650027744134,
+        "r2": 0.3316211109991234,
+        "smape": 48.85113225308852,
+        "mape": 68.66229955797436,
+        "within_25pct": 27.579365079365083,
+        "within_50pct": 46.230158730158735,
+        "n_sellable": 402,
+        "sell_mae": 76.68098881091733,
+        "sell_mape": 38.321402418669386,
+        "sell_bias": 7.904356448138785,
+        "thrown_away_pct": 0.0
+      }
+    ]
+  },
+  "conformal": {
+    "low": 0.5654267315034708,
+    "high": 1.7670791518806792,
+    "calibrated_on": 3363,
+    "coverage": 79.95837050252752,
+    "bands": [
+      {
+        "min_chaos": 30.0,
+        "max_chaos": 150.0,
+        "low": 0.5550893785178914,
+        "high": 1.7560355773415157,
+        "calibrated_on": 2347,
+        "coverage": 79.97443544951001
+      },
+      {
+        "min_chaos": 150.0,
+        "max_chaos": 600.0,
+        "low": 0.5968551250321807,
+        "high": 1.7865446308461859,
+        "calibrated_on": 1008,
+        "coverage": 79.96031746031747
+      }
+    ]
+  },
+  "market_date_start": "2026-08-06T13:01:40+00:00",
+  "market_date_end": "2026-08-26T02:41:59+00:00",
+  "league": "Allflame",
+  "scope": {
+    "map_tier": 16,
+    "require_uncorrupted": true
+  },
+  "divine_to_chaos_at_training": 210.9
+}

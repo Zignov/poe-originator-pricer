@@ -21,10 +21,10 @@ Two more are not analysis at all, but the packaging path:
   (`Start Originator Pricer.bat`, `start.sh`), never by hand — the by-hand form
   is still `streamlit run app.py`.
 - `package_release.py` — build `dist/poe-originator-pricer-<version>.zip`, the
-  file attached to a GitHub release. Run it on a machine that has trained a
-  model: the model is bundled when it is present, and that is the difference
-  between a download that prices a stash tab immediately and one that first
-  wants a 20-minute collection run.
+  file attached to a GitHub release. Since 0.2.0 the trained model is tracked,
+  so any checkout builds an identical zip; the script refuses to build one
+  without the model rather than quietly shipping a download that prices
+  nothing.
 
 To cut a release: bump `version` in `pyproject.toml` (the zip takes its name
 from there), run `python scripts/package_release.py`, read the summary it

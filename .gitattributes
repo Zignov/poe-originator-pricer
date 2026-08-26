@@ -3,3 +3,9 @@
 # checked out or unzipped. The shell launcher needs the opposite guarantee.
 *.bat text eol=crlf
 *.sh  text eol=lf
+
+# The tracked model. Git's own binary detection already spares it from the
+# CRLF conversion core.autocrlf=true would otherwise apply, but "already
+# spares it" is a heuristic and the failure it guards against is a pickle that
+# unpickles into a traceback on someone else's machine. Say it outright.
+*.pkl binary

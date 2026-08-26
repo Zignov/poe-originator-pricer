@@ -201,9 +201,13 @@ def _scored(league, tier, uncorrupted, rate, version, model_stamp):
     # either, and asking it for price_chaos is a KeyError rather than an empty
     # result. That is the state a fresh install is in -- the release ships a
     # trained model but no database -- so this page reached it on first run.
+    #
+    # It reports the empty case the same way the filter below does, by
+    # returning "empty" for the caller to render. Calling st.info() from in
+    # here would both break the caller's tuple unpack and put a widget inside
+    # a cached function, which is what this one's docstring warns against.
     if frame.empty:
-        st.info("No listings to score against.")
-        return
+        return None, None, "empty"
 
     frame = frame[frame["price_chaos"].notna() & (frame["price_chaos"] > 0)]
     if frame.empty:
