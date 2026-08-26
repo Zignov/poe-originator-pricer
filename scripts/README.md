@@ -13,3 +13,20 @@ One-off helper scripts. Everything here is also reachable through
 - `export_sample.py [rows]` — write `data/sample_listings.csv`, an anonymised
   sample in the format `python -m src.cli import-market` accepts, so a fresh
   checkout has something to train on without collecting first.
+
+Two more are not analysis at all, but the packaging path:
+
+- `launch.py` — pick a free port, start Streamlit, wait for its health endpoint
+  and only then open the browser. Called by the double-click launchers
+  (`Start Originator Pricer.bat`, `start.sh`), never by hand — the by-hand form
+  is still `streamlit run app.py`.
+- `package_release.py` — build `dist/poe-originator-pricer-<version>.zip`, the
+  file attached to a GitHub release. Run it on a machine that has trained a
+  model: the model is bundled when it is present, and that is the difference
+  between a download that prices a stash tab immediately and one that first
+  wants a 20-minute collection run.
+
+To cut a release: bump `version` in `pyproject.toml` (the zip takes its name
+from there), run `python scripts/package_release.py`, read the summary it
+prints to confirm the model went in, then attach the zip to a tag with
+`gh release create`.
