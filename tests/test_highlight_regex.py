@@ -19,6 +19,7 @@ from src.stash.highlight_regex import (
     MIN_FRAGMENT,
     MIN_UNANCHORED_FRAGMENT,
     POE1_SEARCH_LIMIT,
+    build_highlight_batches,
     build_highlight_regex,
 )
 
@@ -528,3 +529,133 @@ def test_a_name_shared_with_the_pool_is_reported_not_guessed():
         assert _lights_up(result.pattern, "Doom Vector"), result.explain()
     else:
         assert result.unmatchable, result.explain()
+
+
+# ---------------------------------------------------------------------------
+# More maps than one search box holds
+# ---------------------------------------------------------------------------
+def _batches(selected, limit=POE1_SEARCH_LIMIT):
+    excluded = [_text(n) for n in NAMES if n not in selected]
+    return build_highlight_batches(selected, excluded, limit=limit)
+
+
+#: Small enough that the tab in this file cannot be covered in one search, which
+#: is what a real quad tab of good maps does to the real 250-character box.
+TIGHT = 12
+
+
+def test_maps_that_do_not_fit_one_box_are_dealt_into_more_searches():
+    """The whole point: a short box costs the user paste rounds, not maps."""
+    selected = [n for n in NAMES if n != "Mystic Solace"]
+    result = _batches(selected, limit=TIGHT)
+    assert result.count > 1, "everything fitted in one search; TIGHT is too loose"
+    assert not result.dropped, result.explain()
+    for name in selected:
+        assert any(
+            _highlights(page.pattern, name) for page in result.pages
+        ), f"{name} is on no page of {[p.pattern for p in result.pages]}"
+
+
+def test_every_search_fits_the_box_on_its_own():
+    """Each page is pasted alone, so each page -- not the total -- must fit."""
+    result = _batches([n for n in NAMES if n != "Mystic Solace"], limit=TIGHT)
+    for index, page in enumerate(result.pages):
+        assert page.length <= TIGHT, f"search {index + 1} is {page.length} characters"
+
+
+def test_a_later_search_is_as_careful_as_the_first():
+    """The budget resets between pages; the exclusion corpus does not.
+
+    A page built after the obvious fragments are spent is reaching for weaker
+    ones, which is exactly when an over-matching fragment would slip in.
+    """
+    selected = ["Bleak Lands", "Rune Path", "Miracle Toil", "Warped Frontier"]
+    result = _batches(selected, limit=TIGHT)
+    assert result.count > 1
+    for index, page in enumerate(result.pages):
+        for name in NAMES:
+            if name in selected:
+                continue
+            assert not _highlights(page.pattern, name), (
+                f"search {index + 1} ({page.pattern!r}) lights up {name!r}, "
+                "which is below the threshold"
+            )
+
+
+def test_paging_reaches_maps_a_single_pattern_gives_up_on():
+    """The comparison that justifies the feature."""
+    selected = [n for n in NAMES if n != "Mystic Solace"]
+    one = build_highlight_regex(
+        selected, [_text(n) for n in NAMES if n not in selected], limit=TIGHT
+    )
+    many = _batches(selected, limit=TIGHT)
+    assert one.dropped, "nothing was dropped, so there is nothing for paging to fix"
+    assert len(many.covered) > len(one.covered)
+
+
+def test_a_page_reports_the_maps_it_really_lights():
+    """`covered` is what the user reads to know when a page is done with.
+
+    Pages overlap -- a fragment kept for page two can also match a map page one
+    already caught -- so this is checked against the pattern, not against the
+    bookkeeping that produced it.
+    """
+    result = _batches([n for n in NAMES if n != "Mystic Solace"], limit=TIGHT)
+    for page in result.pages:
+        assert page.covered
+        for name in page.covered:
+            assert _highlights(page.pattern, name), (
+                f"{page.pattern!r} promised {name!r} and does not match it"
+            )
+
+
+def test_the_named_maps_are_the_maps_that_light_up():
+    """Across all pages: everything promised lights, nothing else does."""
+    selected = ["Bleak Lands", "Rune Path", "Miracle Toil", "Warped Frontier"]
+    result = _batches(selected, limit=TIGHT)
+    lit = {n for n in NAMES if any(_highlights(p.pattern, n) for p in result.pages)}
+    assert lit == set(result.covered)
+
+
+def test_one_search_is_still_one_search():
+    """A tab that fits keeps the old single-pattern answer, arrows and all."""
+    selected = ["Bleak Lands", "Rune Path"]
+    result = _batches(selected)
+    assert result.count == 1
+    assert result.exact
+    assert result.pages[0].pattern == _build(selected).pattern
+
+
+def test_nothing_above_the_threshold_gives_no_pages():
+    result = build_highlight_batches([], [_text(n) for n in NAMES])
+    assert not result.ok
+    assert result.count == 0
+    assert "nothing to highlight" in result.explain()
+
+
+def test_an_unreachable_map_is_reported_rather_than_paged_forever():
+    """The loop has to stop even when a map can never be covered.
+
+    "Glyph Solace" against a tab holding "Glyph Solace" below the threshold is
+    unmatchable by construction, and a batcher that kept opening pages for it
+    would hang instead of saying so.
+    """
+    result = build_highlight_batches(
+        ["Glyph Solace"], [_text("Glyph Solace"), _text("Rune Path")], limit=TIGHT
+    )
+    assert result.ambiguous or result.unmatchable, result.explain()
+    assert result.count <= 1
+
+
+def test_a_map_needing_more_characters_than_the_box_is_not_paged_forever():
+    """A fragment longer than the whole box cannot be split across pages.
+
+    No number of further searches helps, so the batcher has to stop and say so
+    rather than emit empty pages.
+    """
+    result = build_highlight_batches(
+        ["Interdimensional Secrets"], [_text("Rune Path")], limit=2
+    )
+    assert result.count == 0
+    assert result.dropped == ("Interdimensional Secrets",)
+    assert "2-character box" in result.explain()
