@@ -1,0 +1,5 @@
+# cmd.exe tolerates LF in most of a batch file but mis-parses labels and the
+# final line without CRLF, so the launcher is pinned to CRLF wherever it is
+# checked out or unzipped. The shell launcher needs the opposite guarantee.
+*.bat text eol=crlf
+*.sh  text eol=lf

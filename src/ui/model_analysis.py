@@ -182,6 +182,15 @@ def _residuals(cfg, repo, predictor, fmt, rate) -> None:
         require_uncorrupted=cfg.get("scope.require_uncorrupted"),
     )
     frame = rows_to_frame(rows, divine_to_chaos=rate)
+    # The emptiness check has to come before the price filter, not after it:
+    # with no listings at all rows_to_frame returns a frame with no columns
+    # either, and asking it for price_chaos is a KeyError rather than an empty
+    # result. That is the state a fresh install is in -- the release ships a
+    # trained model but no database -- so this page reached it on first run.
+    if frame.empty:
+        st.info("No listings to score against.")
+        return
+
     frame = frame[frame["price_chaos"].notna() & (frame["price_chaos"] > 0)]
     if frame.empty:
         st.info("No listings to score against.")

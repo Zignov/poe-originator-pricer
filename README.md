@@ -7,6 +7,12 @@ list and for how much without checking each map by hand.
 It is an analysis tool. It never touches the game client, never modifies your
 stash, and never performs a gameplay action.
 
+**[Download the latest release](https://github.com/Zignov/poe-originator-pricer/releases/latest)**,
+extract it, and double-click `Start Originator Pricer.bat`. It ships with a
+trained model, so the first stash tab you paste already gets prices. Needs
+Python 3.11+ installed; §6 covers what the launcher does and why there is no
+frozen `.exe`.
+
 ---
 
 ## 1. What it does
@@ -226,6 +232,46 @@ password. `.env` is gitignored and the Settings page does not write it to disk.
 ---
 
 ## 6. Quick start
+
+### Download and double-click (Windows)
+
+Grab the zip from the [latest release](https://github.com/Zignov/poe-originator-pricer/releases/latest),
+extract it anywhere you like — Desktop is fine, `C:\Program Files` is not —
+and double-click:
+
+```
+Start Originator Pricer.bat
+```
+
+That is the whole install. The first run creates a private Python environment
+inside the folder and downloads the dependencies, which takes a few minutes and
+a few hundred MB; every run after that starts in seconds. When the server is up
+it opens your browser at `http://localhost:8501` by itself.
+
+Starting it from a terminal rather than by double-clicking needs the `.\`
+prefix — `call ".\Start Originator Pricer.bat"`. Without it `cmd` reads the
+quoted name as its own `start` builtin and reports a file it cannot find.
+
+It needs **Python 3.11 or newer** on the machine — from
+[python.org](https://www.python.org/downloads/windows/), with *Add python.exe to
+PATH* ticked in the installer. The launcher says so and stops if it cannot find
+one. There is no frozen `.exe`: this app is a Streamlit server plus three
+gradient-boosting backends, which freezes to roughly 800 MB and breaks on every
+dependency bump, so a venv that `pip` can repair is the more honest package.
+
+The download ships with a **trained model already in it**, so prices work on the
+first stash tab you paste — no collection run needed to see something. What it
+does not ship is the listings database (33 MB, and one league's snapshot), so
+the Market Data and Model Analysis pages start empty until you either collect
+or import `data/originator_listings_allflame.csv` (§11).
+
+Everything the launcher creates — `.venv`, `config.yaml`, `.env`, the database —
+stays inside that one folder. Deleting the folder uninstalls it completely.
+
+On macOS or Linux the equivalent is `./start.sh`. The web app is portable; the
+desktop overlay in §7 is Windows-only.
+
+### From a clone
 
 ```bash
 git clone <this repo>

@@ -41,6 +41,26 @@ def test_page_renders(page):
     assert not app.exception, f"{page} raised: {[str(e) for e in app.exception]}"
 
 
+@pytest.mark.parametrize("page", PAGES)
+def test_page_renders_on_a_fresh_install(page, monkeypatch, tmp_path):
+    """Trained model present, listings database empty.
+
+    That combination is not hypothetical: it is exactly what a downloaded
+    release is on its first run, because the zip ships the model but not the
+    33 MB database. It is also the one configuration the plain smoke test above
+    never sees on a developer machine, where data/originator.db always exists --
+    which is how Model Analysis shipped a KeyError on `price_chaos` that only
+    the empty case could reach.
+    """
+    from src.config import Config
+
+    empty = tmp_path / "empty.db"
+    monkeypatch.setattr(Config, "db_path", property(lambda self: empty))
+
+    app = _run(page)
+    assert not app.exception, f"{page} raised on a fresh install: {[str(e) for e in app.exception]}"
+
+
 def test_single_map_prices_a_manually_entered_map():
     app = _run("Single Map")
     if not app.number_input:

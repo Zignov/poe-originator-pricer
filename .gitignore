@@ -26,3 +26,6 @@ catboost_info/
 
 # Agent worktrees. Transient, and each one is a full checkout.
 .claude/worktrees/
+
+# Release zips built by scripts/package_release.py.
+dist/
