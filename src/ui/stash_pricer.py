@@ -381,21 +381,32 @@ def _market_mode(cfg, repo, service, items, strategy):
     )
 
     pricer = MarketComparisonPricer.build(cfg, repo, service, budget=budget)
-    per_map = pricer.seconds_per_request()
-    # Two requests is the floor for a bucket that answers on the first tolerance
-    # step: one search plus one fetch. Widening or a full 30 comparables costs
-    # more, so this is the optimistic end and the caption says so.
     remaining = len(state.pending(items))
+    # Costed against GGG's published policy for each endpoint rather than
+    # multiplied out at one nominal rate: search and fetch are limited
+    # separately, and the fetches are the larger half of a per-map run.
+    plan = pricer.plan(remaining)
+    if plan.pooled:
+        how = (
+            f"It reads the market <b>once for the whole tab</b> -- "
+            f"{plan.searches} searches and {plan.fetches} fetches, the same "
+            f"whether you price three maps or seventy -- and derives every map's "
+            f"price from that shared set. A map the pool has nothing like falls "
+            f"back to a search of its own."
+        )
+    else:
+        how = (
+            f"It searches per map, widened until enough comparables come back, "
+            f"plus a fetch per ten listings: {plan.searches} searches and "
+            f"{plan.fetches} fetches. That is cheaper than one shared read at "
+            f"this few maps."
+        )
     with right:
         st.markdown(
             f'<div class="warn"><b>This mode calls the official trade API.</b> '
-            f"One search per distinct map, widened until enough comparables come "
-            f"back, plus a fetch per ten listings. GGG's search policy allows "
-            f"about one search every {per_map:.0f}s sustained, so {remaining} maps "
-            f"is at least {format_duration(remaining * 2 * per_map)} and up to "
-            f"{format_duration(budget * per_map)} if the budget is spent. "
-            f"Near-identical maps share one query, and results are cached for "
-            f"{settings.cache_ttl_minutes:g} minutes.</div>",
+            f"{how} For {remaining} maps that is about "
+            f"<b>{format_duration(plan.seconds)}</b> under GGG's rate limits. "
+            f"Results are cached for {settings.cache_ttl_minutes:g} minutes.</div>",
             unsafe_allow_html=True,
         )
 

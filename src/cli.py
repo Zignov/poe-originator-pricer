@@ -377,10 +377,10 @@ def cmd_price_tab_market(args) -> int:
             tolerance_schedule=args.tolerance,
         )
         supported = [i for i in items if i.supported]
+        plan = pricer.plan(len(supported))
         print(
             f"{len(items)} items, {len(supported)} priceable. Budget "
-            f"{pricer.budget.limit} requests; at GGG's sustained search rate that "
-            f"is up to {format_duration(pricer.budget.limit * pricer.seconds_per_request())}."
+            f"{pricer.budget.limit} requests; {plan.caption()}."
         )
         state = pricer.run(items, progress=lambda p: print(p.caption(), flush=True))
         priced = pricer.priced(items, state, strategy=args.strategy)

@@ -88,6 +88,27 @@ market_comparison:
   # 10-15 minute run. Hitting the ceiling stops the run cleanly; already-priced
   # maps stay priced and re-running continues where it left off.
   request_budget: 200
+  # Read the market ONCE for the whole tab instead of once per map.
+  #
+  # This is the difference between a few minutes and an hour and a half on a
+  # full tab. Seventy maps quantise to about sixty-five distinct buckets, so the
+  # bucket cache below saves almost nothing, and each bucket costs a search plus
+  # up to three fetches. A shared read costs sixteen searches whatever the tab
+  # holds -- the same stratified slices the training collector walks -- and every
+  # map's comparables are then picked out of it locally, by the same distance
+  # and the same tolerance schedule a per-map search would have used.
+  #
+  # A map the pool has nothing like still gets a search of its own, so an
+  # unusual map is priced from real comparables rather than from whatever
+  # happened to be nearby. And the run costs both plans against GGG's published
+  # policy and takes the cheaper: on a three-map tab the per-map path wins, and
+  # pooling switches itself off.
+  pool: true
+  # Listing ids read from each slice. Every ten cost one fetch request, and the
+  # fetch policy allows fifty per five minutes, so this knob decides most of a
+  # pooled run's wall-clock. Fifty across sixteen slices is about eight hundred
+  # live listings for eighty fetches.
+  pool_per_slice: 50
   # How long a bucket's search results stay usable. Live prices go stale, and an
   # hour-old answer presented as the current market is worse than no answer.
   # Within the TTL, near-identical maps in the same tab cost zero extra requests.

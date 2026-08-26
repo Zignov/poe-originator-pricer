@@ -21,7 +21,11 @@ from typing import Any, Iterator
 import requests
 
 from src.market.collectors.base import MarketCollector, ProgressUpdate
-from src.market.rate_limit import RateLimiter
+from src.market.rate_limit import (
+    OBSERVED_FETCH_POLICY,
+    OBSERVED_SEARCH_POLICY,
+    RateLimiter,
+)
 from src.parsing.item_parser import classify, parse_api_item
 from src.parsing.price_parser import parse_api_price
 from src.pricing.currency import CurrencyConverter
@@ -56,8 +60,16 @@ class OfficialTradeApiCollector(MarketCollector):
         self.session.headers.update(
             {"User-Agent": user_agent, "Accept": "application/json"}
         )
-        self.search_limiter = RateLimiter("trade-search", min_interval=min_interval)
-        self.fetch_limiter = RateLimiter("trade-fetch", min_interval=min_interval / 2)
+        # Seeded with the last policy GGG was seen to publish, so that anything
+        # asking what a run will cost gets a real answer before the first
+        # request rather than the `min_interval` placeholder. The first response
+        # overwrites both with whatever the server actually says.
+        self.search_limiter = RateLimiter(
+            "trade-search", min_interval=min_interval, policy=OBSERVED_SEARCH_POLICY
+        )
+        self.fetch_limiter = RateLimiter(
+            "trade-fetch", min_interval=min_interval / 2, policy=OBSERVED_FETCH_POLICY
+        )
 
     def available(self) -> tuple[bool, str]:
         try:

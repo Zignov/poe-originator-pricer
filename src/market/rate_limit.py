@@ -17,6 +17,20 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
+#: The policies GGG returned live on 2026-08-25, used as the *opening guess*
+#: until the server states its own -- which it does on the first response, and
+#: which then wins.
+#:
+#: Seeding these matters for one reason: before any request has been made a
+#: limiter knows no rules, and everything that asks it "how long will this run
+#: take" got `min_interval` back instead -- a two-second placeholder against a
+#: real allowance of thirty searches per five minutes. That is how a page came
+#: to promise six minutes for a job that takes an hour and a half. A stale
+#: guess that is the right order of magnitude is worth far more than a fresh
+#: one that is out by eighteen times.
+OBSERVED_SEARCH_POLICY = "5:10:60,15:60:300,30:300:1800,600:21600:3600"
+OBSERVED_FETCH_POLICY = "12:4:10,16:12:300,50:300:300,1000:21600:1800"
+
 
 @dataclass
 class Rule:
@@ -32,9 +46,16 @@ class RateLimiter:
     name: str = "default"
     min_interval: float = 0.0
     rules: list[Rule] = field(default_factory=list)
+    #: An opening guess at the policy, in the header's own format. Replaced by
+    #: whatever the server reports on the first response.
+    policy: str | None = None
     _hits: deque[float] = field(default_factory=deque)
     _blocked_until: float = 0.0
     _last_request: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.rules and self.policy:
+            self.rules = [Rule(m, p, pen) for m, p, pen in self._parse_triplets(self.policy)]
 
     # -- header handling -------------------------------------------------
     @staticmethod
@@ -97,6 +118,34 @@ class RateLimiter:
         if not periods:
             return self.min_interval
         return max(periods)
+
+    def seconds_for(self, count: int) -> float:
+        """How long `count` requests take from a standing start, under the rules.
+
+        Not `count * sustained_interval`, and the difference is the whole point.
+        Multiplying by the sustained rate charges every request at the pace of
+        the *slowest* rule, which for GGG's search policy is the six-hour one at
+        thirty-six seconds each -- a rule that does not bind at all until the
+        six-hundredth request. Quoting it makes a ninety-request run look like
+        an hour when it is twelve minutes.
+
+        What actually happens is that each rule lets `max_hits` through free and
+        then paces the rest at one period per batch, so the cost of a rule is
+        `(count - max_hits) / max_hits * period` and the binding rule is
+        whichever of those is largest. Below every rule's burst allowance the
+        answer is zero, which is right: five searches really do go straight out.
+        """
+        n = max(0, int(count))
+        if n <= 0:
+            return 0.0
+        worst = 0.0
+        for rule in self.rules:
+            if rule.max_hits <= 0:
+                continue
+            worst = max(worst, max(0.0, (n - rule.max_hits)) / rule.max_hits * rule.period)
+        if not self.rules:
+            return n * self.min_interval
+        return worst
 
     def note_retry_after(self, seconds: float) -> None:
         self._blocked_until = max(self._blocked_until, time.monotonic() + seconds)

@@ -496,21 +496,42 @@ to 150c produce a wide one.
 
 ### What it costs, and the four things that keep that bounded
 
-**GGG's search policy is the whole cost model.** Measured live on 2026-08-25:
+**GGG's rate-limit policy is the whole cost model.** Measured live on 2026-08-25,
+and note that the two endpoints are limited *separately*:
 
 ```
-X-Rate-Limit-Ip: 5:10:60,15:60:300,30:300:1800,600:21600:3600
+Search:  5:10:60,15:60:300,30:300:1800,600:21600:3600
+Fetch:   12:4:10,16:12:300,50:300:300,1000:21600:1800
 ```
 
-Five searches per ten seconds looks generous, but thirty per five minutes is the
-binding rule: **one search every ten seconds, sustained**. A map costs one search
-plus one fetch per ten listings read, and more if the window has to be widened.
-So a 20-map tab is roughly 40-60 requests and 3-6 minutes; a 60-map tab is
-15 minutes or more. Estimates shown in the app use the sustained rate, not the
-burst rate, because quoting the burst rate promises a minute for a ten-minute
-run.
+Thirty searches per five minutes is the binding search rule, and **fifty fetches
+per five minutes** the binding fetch one — which matters more than it looks,
+because a search that reads thirty listings is followed by three fetches. On the
+per-map path the fetches are the larger half of the bill.
 
-Four things keep that from being unbounded:
+**So the market is read once for the whole tab, not once per map.** That is the
+single decision that makes a full tab practical. Maps quantise into buckets by
+their reward values, and it turns out that barely helps on a real tab: seventy
+maps sampled from the collected 3.29 data land in a median of **sixty-five
+distinct buckets**, so almost every map was paying its own search plus up to
+three fetches — about 65-195 searches for one tab, and an hour and a half of
+waiting.
+
+A pooled read costs **sixteen searches and eighty fetches whatever the tab
+holds**, because it walks the same stratified slices the training collector uses
+(§4) — a trade search returns at most a hundred ids however many match, so one
+query cannot see the market and sixteen spread across the reward range can. Each
+map's comparables are then selected out of that shared set locally, by the same
+scaled distance and the same widening tolerance schedule a per-map search would
+have used, so a price means exactly what it meant before. **A map the pool has
+nothing like still gets a search of its own** — an unusual map is precisely the
+one worth spending a request on.
+
+The run costs both plans against the published policy and takes the cheaper, so
+on a three-map tab pooling switches itself off rather than spending sixteen
+searches to save none.
+
+Five things keep that from being unbounded:
 
 1. **Adaptive tolerance.** The search starts tight and widens only if too few
    maps come back — at most three steps. This is not an optimisation, it is
@@ -518,13 +539,16 @@ Four things keep that from being unbounded:
    **one** listing in the whole league. **Which step produced the answer is
    recorded and shown**, because a price found at 4× tolerance is a weaker claim
    than one found at 1×, and confidence reflects it.
-2. **A bucket cache.** Maps are quantised into buckets by their reward values,
-   so near-identical maps in one tab share a single query and cost zero extra
-   requests. Entries expire after `cache_ttl_minutes` — live prices go stale, and
-   an hour-old answer presented as the current market is worse than no answer.
-3. **A request budget.** A hard ceiling per run, configurable and overridable in
+2. **The shared pool**, above: flat in the number of maps, so the cost of a tab
+   stops growing with its size.
+3. **A bucket cache**, for the maps that do fall back to their own search. Maps
+   are quantised into buckets by their reward values, so near-identical maps
+   share a single query. Entries expire after `cache_ttl_minutes` — live prices
+   go stale, and an hour-old answer presented as the current market is worse
+   than no answer.
+4. **A request budget.** A hard ceiling per run, configurable and overridable in
    the UI. Hitting it stops cleanly rather than half-way through a fetch.
-4. **Resumability.** Stopping — the budget, an interruption, a 429 — leaves every
+5. **Resumability.** Stopping — the budget, an interruption, a 429 — leaves every
    already-priced map priced. Press the button again and it continues; the bucket
    cache is on disk, so it continues across restarts too.
 
@@ -1033,7 +1057,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     508 tests, including live-render checks of every page
+tests/                     531 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.

@@ -7,7 +7,7 @@ calibration saved at a different resolution.
 """
 from __future__ import annotations
 
-from src.config import Config, load_config
+from src.config import ROOT, Config, load_config
 from src.overlay.calibration import (
     MIN_CELL_PX,
     Calibration,
@@ -133,7 +133,14 @@ def test_saving_writes_the_overlay_block_to_the_config_file(tmp_path):
 
 
 def test_the_shipped_defaults_parse_and_are_marked_uncalibrated():
-    cal = Calibration.from_config(load_config())
+    """config.example.yaml by name, not whatever config.yaml happens to exist.
+
+    A bare `load_config()` reads the developer's own config.yaml when there is
+    one, so this passed on a fresh clone and failed the moment anybody actually
+    calibrated -- asserting about the machine it ran on rather than about what
+    ships.
+    """
+    cal = Calibration.from_config(load_config(ROOT / "config.example.yaml"))
     assert cal.grid == (12, 12)
     assert not cal.calibrated
 

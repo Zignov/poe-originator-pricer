@@ -54,7 +54,12 @@ from typing import Any, Callable, Iterable, Protocol, Sequence
 
 import numpy as np
 
-from src.market.collectors.official_trade_api import FETCH_BATCH, REWARD_STATS, TradeApiError
+from src.market.collectors.official_trade_api import (
+    FETCH_BATCH,
+    REWARD_STATS,
+    TradeApiError,
+    default_slices,
+)
 from src.market.comparables import scaled_distance
 from src.market.outliers import DEFAULT_PLAUSIBLE_CHAOS, PEER_FACTOR
 from src.parsing.item_parser import classify, parse_api_item
@@ -770,6 +775,109 @@ def to_live_comparable(
     )
 
 
+# ---------------------------------------------------------------------------
+# The shared pool
+# ---------------------------------------------------------------------------
+
+#: How many listing ids to read from each pool slice. Every ten cost one fetch
+#: request, and the fetch policy allows fifty per five minutes, so this is the
+#: knob that decides most of a pooled run's wall-clock. Fifty ids across the
+#: sixteen slices is around eight hundred live listings for eighty fetches.
+DEFAULT_POOL_PER_SLICE = 50
+
+
+@dataclass(frozen=True)
+class LivePool:
+    """Every listing read for one run, to be shared by every map in the tab.
+
+    The mode's original shape was one search per map, and on a full tab that is
+    where all the time went: seventy maps quantise to about sixty-five distinct
+    buckets, so the bucket cache saves almost nothing, and each bucket pays a
+    search and up to three fetches.
+
+    What makes a pool possible is that the search window was never what decided
+    the price. `derive_market_estimate` picks a map's comparables out of
+    whatever it is handed, by scaled distance, and weights them by it. The
+    per-map query was only ever a way to *fetch* a relevant set. So the same
+    listings can be fetched once for the whole tab and filtered per map in
+    memory, and every map's price is derived from exactly the same evidence it
+    would have had -- provided the pool reaches far enough to contain it, which
+    is what `select_from_pool` returning nothing is the signal for.
+    """
+
+    comparables: tuple[LiveComparable, ...] = ()
+    requests: int = 0
+    slices_used: int = 0
+    fetched_at: datetime | None = None
+    error: str = ""
+
+    def __len__(self) -> int:
+        return len(self.comparables)
+
+
+def matches_window(
+    comparable: LiveComparable, window: dict[str, tuple[int, int] | None]
+) -> bool:
+    """Does this listing satisfy the window a search would have been given?
+
+    The local half of `comparable_query`, and deliberately the same rule rather
+    than a looser "near enough": a `None` window means the map has no such
+    reward at all, which the query expresses as a `not` group, so a listing that
+    *does* carry that reward is not a comparable and must not be pooled in with
+    ones that do. Getting this wrong is invisible -- the price still comes out,
+    just derived from maps that are not like yours.
+    """
+    for name in FEATURE_NAMES:
+        bounds = window[name]
+        value = int(comparable.features.get(name, 0) or 0)
+        if bounds is None:
+            if value > 0:
+                return False
+            continue
+        if not (bounds[0] <= value <= bounds[1]):
+            return False
+    return True
+
+
+def select_from_pool(
+    item: NormalizedMap,
+    pool: Sequence[LiveComparable],
+    *,
+    tolerance_schedule: Sequence[float] = DEFAULT_TOLERANCE_SCHEDULE,
+    min_comparables: int = DEFAULT_MIN_COMPARABLES,
+    max_comparables: int = DEFAULT_MAX_COMPARABLES,
+) -> tuple[list[LiveComparable], float]:
+    """The pool members that answer for one map, and the tolerance that found them.
+
+    Walks the same widening schedule the network path walks, for the same
+    reason and with the same stopping rule -- so a map priced from the pool
+    carries a tolerance meaning exactly what it means on the other path, and
+    the confidence score built from it stays comparable between the two.
+
+    Returns an empty list when even the widest step cannot find
+    `min_comparables`, which is the caller's cue to spend a real search.
+    """
+    best: list[LiveComparable] = []
+    best_tolerance = 0.0
+    for tolerance in tolerance_schedule:
+        window = reward_window(item, tolerance)
+        found = [comp for comp in pool if matches_window(comp, window)]
+        if len(found) > len(best):
+            best, best_tolerance = found, tolerance
+        if len(found) >= min_comparables:
+            break
+    if len(best) < min_comparables:
+        return [], best_tolerance
+    if len(best) > max_comparables:
+        # Nearest first, so a cap keeps the closest evidence rather than
+        # whichever listings happened to be indexed most recently.
+        vector = np.array(item.feature_vector(), dtype=float)
+        matrix = np.array([c.vector() for c in best], dtype=float)
+        order = np.argsort(scaled_distance(matrix, vector))
+        best = [best[i] for i in order[:max_comparables]]
+    return best, best_tolerance
+
+
 @dataclass
 class FetchOutcome:
     """What one bucket's worth of searching produced, budget included."""
@@ -819,6 +927,109 @@ class LiveComparableFinder:
             league=self.league,
             map_tier=self.client.map_tier,
             require_uncorrupted=self.client.require_uncorrupted,
+        )
+
+    def build_pool(
+        self,
+        *,
+        slices: Sequence[dict[str, Any]] | None = None,
+        per_slice: int = DEFAULT_POOL_PER_SLICE,
+        on_slice: Callable[[int, int, int], None] | None = None,
+    ) -> LivePool:
+        """Read one shared set of live listings for the whole tab.
+
+        The slices are the collector's own -- the same stratification the
+        training path uses, and for the same reason: a trade search returns at
+        most a hundred ids however many match, so one query cannot see the
+        market and sixteen spread across the reward range can.
+
+        Cost is flat in the number of maps. Sixteen searches and eighty fetches
+        price a three-map tab and a seventy-map tab alike, where the per-map
+        path pays a search and up to three fetches for each distinct bucket.
+        """
+        slices = list(slices if slices is not None else default_slices())
+        found: list[LiveComparable] = []
+        seen: set[str] = set()
+        requests_used = 0
+        used_slices = 0
+        error = ""
+
+        for index, spec in enumerate(slices):
+            if not self.budget.can_spend(1):
+                error = "request budget ran out while building the pool"
+                break
+            query = self.client.build_query(
+                sort_by=spec.get("sort_by", "indexed"),
+                sort=spec.get("sort", "desc"),
+                status=self.status,
+                collapse=True,
+                extra_stats=spec.get("extra_stats"),
+            )
+            self.budget.spend(1)
+            requests_used += 1
+            try:
+                query_id, ids, _total = self.client.search(query)
+            except TradeApiError as exc:
+                # One slice failing is not the run failing: the pool is a union,
+                # and fifteen slices still price most of a tab.
+                error = str(exc)
+                break
+            used_slices += 1
+            ids = [i for i in ids[:per_slice] if i not in seen]
+            for start in range(0, len(ids), FETCH_BATCH):
+                if not self.budget.can_spend(1):
+                    error = "request budget ran out while building the pool"
+                    break
+                self.budget.spend(1)
+                requests_used += 1
+                try:
+                    results = self.client.fetch(ids[start : start + FETCH_BATCH], query_id)
+                except TradeApiError as exc:
+                    error = str(exc)
+                    break
+                for result in results:
+                    comp = to_live_comparable(
+                        result,
+                        self.client.converter,
+                        self.client.map_tier,
+                        self.client.require_uncorrupted,
+                    )
+                    if comp is None:
+                        continue
+                    # Listings repeat across slices -- a map with both a currency
+                    # and a scarab bonus is in two of them -- and a duplicate
+                    # would count twice in the weighted quantile.
+                    key = comp.listing_id or f"{comp.seller}|{comp.price_chaos}|{comp.vector()}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    found.append(comp)
+            if on_slice is not None:
+                on_slice(index + 1, len(slices), len(found))
+
+        return LivePool(
+            comparables=tuple(found),
+            requests=requests_used,
+            slices_used=used_slices,
+            fetched_at=datetime.now(timezone.utc),
+            error=error,
+        )
+
+    def find_in_pool(self, item: NormalizedMap, pool: LivePool) -> FetchOutcome:
+        """Answer for one map out of the shared pool, spending nothing."""
+        comparables, tolerance = select_from_pool(
+            item,
+            pool.comparables,
+            tolerance_schedule=self.tolerance_schedule,
+            min_comparables=self.min_comparables,
+            max_comparables=self.max_comparables,
+        )
+        return FetchOutcome(
+            comparables=comparables,
+            tolerance=tolerance,
+            total_matching=len(comparables),
+            requests=0,
+            from_cache=True,
         )
 
     def find(self, item: NormalizedMap) -> FetchOutcome:
@@ -924,6 +1135,12 @@ class MarketRunState:
     cache_hits: int = 0
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     stopped_reason: str = ""
+    #: Listings in the shared pool, and the requests it cost. Zero on a run that
+    #: did not pool.
+    pool_size: int = 0
+    pool_requests: int = 0
+    #: Maps the pool could not answer for, which fell back to their own search.
+    pool_fallbacks: int = 0
 
     def pending(self, items: Iterable[NormalizedMap]) -> list[NormalizedMap]:
         return [i for i in items if i.fingerprint() not in self.outcomes]

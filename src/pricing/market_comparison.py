@@ -13,6 +13,7 @@ ones, and collapsing that into a single number would throw the signal away.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,15 +23,22 @@ import pandas as pd
 
 from src.config import Config, ROOT, user_agent
 from src.database.repository import Repository
-from src.market.collectors.official_trade_api import OfficialTradeApiCollector
+from src.market.collectors.official_trade_api import (
+    FETCH_BATCH,
+    OfficialTradeApiCollector,
+    default_slices,
+)
 from src.market.ingest import converter_for
 from src.market.live_comparables import (
     DEFAULT_MAX_COMPARABLES,
     DEFAULT_MAX_LISTING_AGE_HOURS,
     DEFAULT_MIN_COMPARABLES,
+    DEFAULT_POOL_PER_SLICE,
     DEFAULT_TOLERANCE_SCHEDULE,
     BucketCache,
+    FetchOutcome,
     LiveComparableFinder,
+    LivePool,
     MapOutcome,
     MarketProgress,
     MarketRunState,
@@ -39,6 +47,7 @@ from src.market.live_comparables import (
     TradeSearchClient,
     derive_market_estimate,
     estimate_seconds,
+    format_duration,
 )
 from src.market.outliers import DEFAULT_PLAUSIBLE_CHAOS
 from src.pricing.fair_value import PricedMap, PricingService
@@ -59,6 +68,11 @@ class MarketComparisonSettings:
     min_comparables: int = DEFAULT_MIN_COMPARABLES
     max_comparables: int = DEFAULT_MAX_COMPARABLES
     request_budget: int = 200
+    #: Read one shared set of listings for the whole tab instead of one search
+    #: per map. On by default because the per-map path is flat-out slower for
+    #: anything but a handful of maps -- see `MarketComparisonPricer.plan`.
+    pool: bool = True
+    pool_per_slice: int = DEFAULT_POOL_PER_SLICE
     cache_ttl_minutes: float = 30.0
     max_listing_age_hours: float = DEFAULT_MAX_LISTING_AGE_HOURS
     status: str = "online"
@@ -75,6 +89,8 @@ class MarketComparisonSettings:
             min_comparables=int(block.get("min_comparables", DEFAULT_MIN_COMPARABLES)),
             max_comparables=int(block.get("max_comparables", DEFAULT_MAX_COMPARABLES)),
             request_budget=int(block.get("request_budget", 200)),
+            pool=bool(block.get("pool", True)),
+            pool_per_slice=int(block.get("pool_per_slice", DEFAULT_POOL_PER_SLICE)),
             cache_ttl_minutes=float(block.get("cache_ttl_minutes", 30.0)),
             max_listing_age_hours=float(
                 block.get("max_listing_age_hours", DEFAULT_MAX_LISTING_AGE_HOURS)
@@ -142,6 +158,26 @@ def comparables_frame(outcome: MapOutcome, now: datetime | None = None) -> pd.Da
     return pd.DataFrame.from_records(records, columns=columns)
 
 
+@dataclass(frozen=True)
+class RunPlan:
+    """What a run is about to cost, before a single request goes out."""
+
+    pooled: bool
+    maps: int
+    searches: int
+    fetches: int
+    seconds: float
+
+    def caption(self) -> str:
+        how = (
+            f"one shared read of the market ({self.searches} searches, "
+            f"{self.fetches} fetches) for all {self.maps} maps"
+            if self.pooled
+            else f"{self.searches} searches and {self.fetches} fetches, one map at a time"
+        )
+        return f"{how} -- about {format_duration(self.seconds)} under GGG's rate limits"
+
+
 class MarketComparisonPricer:
     """Prices a set of maps from live listings, resumably and within a budget."""
 
@@ -197,6 +233,69 @@ class MarketComparisonPricer:
             return 0.0
         return limiter.sustained_interval()
 
+    def plan(self, maps: int) -> "RunPlan":
+        """What this run will cost, in requests and in wall-clock.
+
+        Split by endpoint because the two have different policies and the
+        difference decides the design: GGG allows thirty searches per five
+        minutes but only fifty *fetches* in the same window, so on the per-map
+        path -- where every search is followed by up to three fetches -- the
+        fetches are the larger half of the bill, and counting requests as one
+        undifferentiated number hides that.
+
+        The old estimate multiplied a request count by the search limiter's
+        sustained interval. Two things were wrong with it: before the first
+        response that interval was a two-second placeholder rather than a
+        policy, and even afterwards it charged every request at the rate of the
+        six-hour rule, which does not bind until the six-hundredth. It promised
+        six minutes for runs that took an hour and a half.
+        """
+        return self._plan_for(maps, self.should_pool(maps))
+
+    def should_pool(self, maps: int) -> bool:
+        """Pool only when pooling is actually the cheaper way to price this tab.
+
+        A shared read costs the same sixteen searches whether there are three
+        maps or seventy, so on a small tab it is pure overhead -- three maps
+        answer in three searches and nine fetches, inside every burst allowance,
+        in no measurable time at all. Rather than pick a threshold and defend it,
+        both plans are costed against the published policy and the cheaper one
+        wins; the crossover then moves on its own if GGG changes the rules.
+        """
+        if not self.settings.pool or maps <= 0:
+            return False
+        return self._plan_for(maps, True).seconds < self._plan_for(maps, False).seconds
+
+    def _plan_for(self, maps: int, pooled: bool) -> "RunPlan":
+        search = getattr(self.client, "search_limiter", None)
+        fetch = getattr(self.client, "fetch_limiter", None)
+        per_fetch = max(1, FETCH_BATCH)
+
+        if pooled and maps > 0:
+            slices = len(default_slices())
+            searches = slices
+            fetches = slices * math.ceil(self.settings.pool_per_slice / per_fetch)
+        else:
+            # One search per distinct map is the floor, and the tolerance
+            # schedule is what it costs when the first window comes back short.
+            searches = maps
+            fetches = maps * math.ceil(self.settings.max_comparables / per_fetch)
+
+        searches = min(searches, self.budget.limit)
+        fetches = min(fetches, max(0, self.budget.limit - searches))
+        seconds = 0.0
+        if search is not None:
+            seconds += search.seconds_for(searches)
+        if fetch is not None:
+            seconds += fetch.seconds_for(fetches)
+        return RunPlan(
+            pooled=bool(pooled and maps > 0),
+            maps=maps,
+            searches=searches,
+            fetches=fetches,
+            seconds=seconds,
+        )
+
     def run(
         self,
         items: Sequence[NormalizedMap],
@@ -228,18 +327,46 @@ class MarketComparisonPricer:
             # assumption until the run has measured its own average.
             per_map = max(2.0, self.budget.used / paid_lookups) if paid_lookups else 2.0
             projected = min(self.budget.remaining, int(left * per_map))
+            # Costed as searches: the split between the two endpoints is not
+            # knowable mid-run, and searches are the dearer of the two, so this
+            # is the honest upper end rather than a number that drifts down.
+            limiter = getattr(self.client, "search_limiter", None)
+            eta = (
+                limiter.seconds_for(projected)
+                if limiter is not None
+                else estimate_seconds(projected, self.seconds_per_request())
+            )
             progress(
                 MarketProgress(
                     done=len(state.outcomes),
                     total=total,
                     requests_used=self.budget.used,
                     request_budget=self.budget.limit,
-                    eta_seconds=estimate_seconds(projected, self.seconds_per_request()),
+                    eta_seconds=eta,
                     message=message,
                 )
             )
 
         report("starting")
+
+        # One read of the market for the whole tab, before any map is priced.
+        # Everything below then asks the pool first and only pays for a search
+        # when the pool genuinely cannot answer -- which is the unusual map, not
+        # the common one.
+        pool = LivePool()
+        if self.should_pool(sum(1 for i in pending if i.supported)):
+            report(f"reading the market once for all {len(pending)} maps")
+            pool = self.finder.build_pool(
+                per_slice=self.settings.pool_per_slice,
+                on_slice=lambda done, total, found: report(
+                    f"market read {done}/{total}: {found} listings"
+                ),
+            )
+            state.pool_size = len(pool)
+            state.pool_requests = pool.requests
+            state.requests_used = self.budget.used
+            report(f"{len(pool)} live listings pooled in {pool.requests} requests")
+
         for item in pending:
             if stop is not None and stop():
                 state.stopped_reason = "stopped by the user"
@@ -259,7 +386,16 @@ class MarketComparisonPricer:
                 )
                 continue
 
-            outcome = self.finder.find(item)
+            outcome = FetchOutcome()
+            if pool.comparables:
+                outcome = self.finder.find_in_pool(item, pool)
+            if not outcome.comparables:
+                # The pool holds nothing like this map. That is a real answer
+                # about an unusual map rather than a failure, and it is worth a
+                # search of its own precisely because it is rare.
+                if pool.comparables:
+                    state.pool_fallbacks += 1
+                outcome = self.finder.find(item)
             state.requests_used = self.budget.used
             if outcome.from_cache:
                 state.cache_hits += 1
