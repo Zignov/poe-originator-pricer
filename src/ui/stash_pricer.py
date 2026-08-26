@@ -18,7 +18,7 @@ from src.overlay.state import state_from_priced, write_state
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.stash.base import StashSource
 from src.stash.clipboard_import import ClipboardStashSource
-from src.stash.highlight_regex import build_highlight_regex
+from src.stash.highlight_regex import build_highlight_batches
 from src.stash.json_import import JsonStashSource, parse_csv
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
@@ -951,8 +951,13 @@ def _cached_regex(
     second across a couple of quad tabs, and paying that again every time a
     checkbox moves is what would make the page feel slow. The arguments are the
     whole input, so the key is exact -- change a price and the entry misses.
+
+    Paging matters as much as the price here: stepping from search 1 to search 2
+    is a rerun like any other, and without the cache every arrow press would
+    rebuild the whole thing. The pages are worked out once, together, so the
+    arrows only pick which one to show.
     """
-    return build_highlight_regex(names, texts, known_names=known)
+    return build_highlight_batches(names, texts, known_names=known)
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
@@ -973,6 +978,70 @@ def _known_names(_repo, league) -> tuple[str, ...]:
         # A missing table or an older database is not a reason to refuse to
         # build a pattern; it only means falling back to the tab itself.
         return ()
+
+
+#: Which of the batched searches is on screen. Not a widget key -- the arrows
+#: write it from their callbacks, and a widget key cannot be assigned to after
+#: its widget has been drawn.
+_PAGE_KEY = "highlight_page"
+
+
+def _step_page(delta: int, count: int) -> None:
+    page = st.session_state.get(_PAGE_KEY, 0) + delta
+    st.session_state[_PAGE_KEY] = max(0, min(count - 1, page))
+
+
+def _reset_page() -> None:
+    """A new threshold is a new set of searches, so start at the first one."""
+    st.session_state[_PAGE_KEY] = 0
+
+
+def _pattern_pager(result, positions):
+    """Draw the arrows and hand back the search that should be on screen.
+
+    A quad tab of good maps does not fit in one 250-character search box, and
+    the old answer was to fill one box and list the overflow as "find these by
+    hand". Paging is the better trade: the same maps, a few paste-and-clear
+    rounds apart.
+
+    The index is clamped rather than trusted. Raising the threshold while on
+    search 4 of 5 can leave two searches behind it, and a stale index would
+    otherwise read off the end.
+    """
+    index = min(st.session_state.get(_PAGE_KEY, 0), result.count - 1)
+    st.session_state[_PAGE_KEY] = index
+    page = result.pages[index]
+
+    if result.count > 1:
+        row = st.container(horizontal=True, vertical_alignment="center")
+        row.button(
+            "Previous",
+            icon=":material/chevron_left:",
+            key="highlight_prev",
+            disabled=index == 0,
+            on_click=_step_page,
+            args=(-1, result.count),
+        )
+        row.markdown(
+            f"**Search {index + 1} of {result.count}** — {len(page.covered)} maps"
+        )
+        row.button(
+            "Next",
+            icon=":material/chevron_right:",
+            key="highlight_next",
+            disabled=index >= result.count - 1,
+            on_click=_step_page,
+            args=(1, result.count),
+        )
+
+    st.code(page.pattern, language="text")
+
+    if result.count > 1:
+        with st.expander(f"Maps in this search ({len(page.covered)})"):
+            st.caption(
+                ", ".join(f"{n} ({positions.get(n, '?')})" for n in page.covered)
+            )
+    return page
 
 
 def _highlight_tool(priced, fmt, repo=None, league=None):
@@ -1002,6 +1071,7 @@ def _highlight_tool(priced, fmt, repo=None, league=None):
         value=round(float(fmt.value(default)) or 0.0, 2),
         step=5.0 if fmt.unit == "chaos" else 0.5,
         key="highlight_threshold",
+        on_change=_reset_page,
     )
 
     selected, excluded = [], []
@@ -1020,19 +1090,26 @@ def _highlight_tool(priced, fmt, repo=None, league=None):
         _known_names(repo, league),
     )
 
+    positions = {e.item.name: e.item.position_label() for e in selected}
+
     with columns[1]:
         if result.ok:
-            st.code(result.pattern, language="text")
+            _pattern_pager(result, positions)
         if result.exact:
             st.success(result.explain())
         else:
             st.markdown(
                 f'<div class="warn">{result.explain()}</div>', unsafe_allow_html=True
             )
+        if result.count > 1:
+            st.caption(
+                "Paste one search at a time: the game's box holds "
+                f"{result.limit} characters and these maps need more. Clear it "
+                "and paste the next when you are done with this one."
+            )
 
     missed = [*result.ambiguous, *result.unmatchable, *result.dropped]
     if missed:
-        positions = {e.item.name: e.item.position_label() for e in selected}
         st.caption(
             "Not covered by the pattern: "
             + ", ".join(f"{n} ({positions.get(n, '?')})" for n in missed)
