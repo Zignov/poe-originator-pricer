@@ -12,7 +12,8 @@ from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.pricing.currency import CurrencyConverter
 from src.pricing.display import PriceFormatter
-from src.pricing.fair_value import PricingService
+from src.pricing.fair_value import PricingService, observed_multipliers
+from src.pricing.sell_strategy import multipliers_from_config
 
 # Re-exported: the palette itself lives in src/ui/palette.py so the desktop
 # overlay, which runs in a tkinter process with no Streamlit in it, can share
@@ -596,6 +597,87 @@ def invalidate_model_cache() -> None:
     _load_catalogue.clear()
 
 
+# ---------------------------------------------------------------------------
+# Cached reads.
+#
+# Streamlit reruns the whole script on every widget touch, so an uncached query
+# here is paid again on every checkbox, tab and button -- including the ones
+# that touch no data at all. The measured costs are not small: listing_rows()
+# is ~150ms over a 5k-row table and observed_multipliers() ~185ms, and the
+# Market Data page was paying both twice per rerun.
+#
+# The cache key is a version counter rather than a ttl, because the data only
+# changes when this app changes it. Anything that writes to the listings table
+# must call invalidate_data(); the alternative -- a short ttl -- would both
+# re-query when nothing had changed and serve stale counts right after a
+# collect, which is the one moment the number is being watched.
+# ---------------------------------------------------------------------------
+
+
+def data_version() -> int:
+    """Bumped by every write to the listings table. Part of each cache key."""
+    return st.session_state.get("data_version", 0)
+
+
+def invalidate_data() -> None:
+    """Call after collecting, importing, re-flagging or repricing."""
+    st.session_state["data_version"] = data_version() + 1
+
+
+#: As with _load_predictor, the version argument must NOT start with an
+#: underscore -- Streamlit reads that prefix as "leave this out of the cache
+#: key", which would pin every caller to the first snapshot ever read.
+@st.cache_data(show_spinner=False, max_entries=4)
+def listing_records(league: str | None, include_outliers: bool, version: int) -> list[dict]:
+    """listing_rows() as plain dicts.
+
+    sqlite3.Row cannot be pickled and therefore cannot be a cache_data return
+    value. dict() is also what makes the rows safe to hand to pandas and to
+    listing_rows_to_csv, both of which only ever subscript them by column name.
+    """
+    return [dict(row) for row in get_repo().listing_rows(
+        league=league, include_outliers=include_outliers
+    )]
+
+
+@st.cache_data(show_spinner=False, max_entries=4, ttl=60)
+def listing_counts(league: str | None, version: int) -> dict[str, int]:
+    """Counts for the sidebar and the stat rails.
+
+    Carries a ttl as well as the version, because "last 24h" is a moving
+    window: it goes stale on the clock, not on a write.
+    """
+    return get_repo().count_listings(league)
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def usable_price_list(league: str | None, version: int) -> list[float]:
+    return get_repo().usable_prices(league)
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def latest_capture(version: int):
+    return get_repo().latest_capture()
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _multipliers(data_ver: int, model_stamp: int, divine_to_chaos: float):
+    """The expensive half of PricingService.build, on its own cache key.
+
+    observed_multipliers() scores every recent in-scope listing with the model
+    to see where real asks sit around fair value. That depends on the listings
+    (data_ver), the model (model_stamp) and the chaos/divine rate that both are
+    expressed in -- and on nothing else the user can touch, so it does not need
+    recomputing when they open a tab.
+    """
+    cfg = get_config()
+    base = multipliers_from_config(cfg.get("pricing.strategies", {}))
+    predictor, _ = get_predictor()
+    if predictor is None:
+        return base
+    return observed_multipliers(cfg, get_repo(), predictor, base)
+
+
 def get_service(require_model: bool = False) -> tuple[PricingService | None, str]:
     cfg = get_config()
     repo = get_repo()
@@ -603,9 +685,21 @@ def get_service(require_model: bool = False) -> tuple[PricingService | None, str
     if predictor is None and require_model:
         return None, why
     converter = get_converter(cfg, repo)
-    service = PricingService.build(cfg, repo, predictor, converter)
-    # A unit chosen in this session overrides config without a restart.
-    service.formatter = get_formatter(cfg, converter)
+    # Constructed directly rather than through PricingService.build() so the
+    # multipliers can come from the cache; the rest of build() is field
+    # assignment and costs nothing.
+    service = PricingService(
+        cfg,
+        repo,
+        predictor,
+        converter,
+        _multipliers(
+            data_version(),
+            st.session_state.get("model_reload", 0),
+            converter.divine_to_chaos,
+        ),
+        get_formatter(cfg, converter),
+    )
     return service, why
 
 
@@ -724,7 +818,7 @@ def sidebar_context() -> None:
     repo = get_repo()
     converter = get_converter(cfg, repo)
     predictor, _ = get_predictor()
-    counts = repo.count_listings(cfg.get("league"))
+    counts = listing_counts(cfg.get("league"), data_version())
     scope = "uncorrupted" if cfg.get("scope.require_uncorrupted") else "any"
     model = (
         f'<span class="v ok">{predictor.version}</span>'

@@ -18,19 +18,26 @@ from src.market.ingest import collect_from_trade_api, converter_for, refresh_out
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
     CHART_SERIES,
+    data_version,
     flash,
     get_config,
     get_converter,
     get_exalt_cost,
     get_formatter,
     get_repo,
+    invalidate_data,
     invalidate_model_cache,
+    listing_counts,
+    listing_records,
     page_header,
     price_histogram,
     show_flash,
     stat_rail,
     typical_focus,
 )
+
+#: The four reward flags whose combination the Inspect tab counts.
+REWARD_COLUMNS = ("more_currency", "more_maps", "more_scarabs", "more_divination_cards")
 
 
 def render() -> None:
@@ -46,7 +53,7 @@ def render() -> None:
         "look at what is already stored.",
     )
     show_flash()
-    counts = repo.count_listings(cfg.get("league"))
+    counts = listing_counts(cfg.get("league"), data_version())
     stat_rail(
         [
             ("Stored", f"{counts['total']:,}", cfg.get("league")),
@@ -74,7 +81,7 @@ def _collect(cfg, repo) -> None:
         "and no access control is bypassed. See `docs/data-access.md`."
     )
     limit = st.number_input("How many listings to collect", 50, 5000, 500, step=50)
-    already = repo.count_listings(cfg.get("league"))["total"]
+    already = listing_counts(cfg.get("league"), data_version())["total"]
 
     buttons = st.columns(2)
     collect_only = buttons[0].button("Collect from trade API")
@@ -120,6 +127,9 @@ def _collect(cfg, repo) -> None:
             st.error(stats["error"])
             return
 
+        # Rows were just written, so the cached reads have to be dropped before
+        # anything reads a count again -- this one included.
+        invalidate_data()
         total = repo.count_listings(cfg.get("league"))["total"]
         bar.progress(1.0, text=f"{total} maps indexed")
         detail.empty()
@@ -221,6 +231,7 @@ def _orb_prices(cfg, repo) -> None:
                     cfg.get("league"), quote.chaos, source="poe_ninja_exchange"
                 )
                 repo.recompute_price_chaos(quote.chaos)
+                invalidate_data()  # every price_chaos in the table just moved
                 flash("success", f"{quote.summary()}. All stored prices recomputed.")
                 st.rerun()
         st.caption("Every stored price is recomputed through this rate.")
@@ -292,19 +303,30 @@ def _import(cfg, repo) -> None:
 
 
 def _report(stats: dict) -> None:
+    invalidate_data()  # an import is a write to the listings table
     st.success(
         f"Inserted {stats.get('inserted', 0)}, refreshed {stats.get('updated', 0)}, "
         f"flagged {stats.get('flagged', 0)} outliers."
     )
 
 
-def _inspect(cfg, repo, fmt) -> None:
-    show_outliers = st.checkbox("Include flagged outliers", value=False)
-    rows = repo.listing_rows(league=cfg.get("league"), include_outliers=show_outliers)
-    if not rows:
-        st.info("No listings yet.")
-        return
+@st.cache_data(show_spinner=False, max_entries=4)
+def _view_frame(league: str | None, unit: str, divine: float, version: int, include_outliers: bool):
+    """The display table, its reward-combination counts and its two exports.
 
+    All four are derived from one query and rebuilt only when the data, the
+    league or the display unit changes. Previously every one of them was
+    recomputed on each rerun of the page -- including both CSVs, which were
+    serialised in full to feed download buttons whether or not anybody clicked
+    them, and a Counter built with frame.iterrows() over 5,000 rows.
+    """
+    from src.pricing.display import PriceFormatter
+
+    fmt = PriceFormatter(unit=unit, divine_to_chaos=divine)
+    # One query for the superset; the unflagged view is a list filter on it,
+    # which is free next to a second trip through sqlite and pandas.
+    every = listing_records(league, True, version)
+    rows = every if include_outliers else [r for r in every if not r["is_outlier"]]
     frame = pd.DataFrame(
         [
             {
@@ -320,6 +342,41 @@ def _inspect(cfg, repo, fmt) -> None:
             for row in rows
         ]
     )
+    # Counted off the dicts rather than the frame: iterrows() builds a Series
+    # per row and was the single slowest statement on the page.
+    combos = Counter(
+        tuple(name for name in REWARD_COLUMNS if row[name] > 0) for row in rows
+    )
+    flagged = pd.DataFrame(
+        [
+            {
+                "price": fmt.value(row["price_chaos"]) or 0.0,
+                "currency": row["price_currency"],
+                "reason": row["outlier_reason"],
+            }
+            for row in every
+            if row["is_outlier"]
+        ]
+    )
+    return frame, combos, flagged, listing_rows_to_csv(rows), frame.to_csv(index=False)
+
+
+@st.fragment
+def _inspect(cfg, repo, fmt) -> None:
+    """A fragment because nothing above it depends on anything inside it.
+
+    The outlier checkbox and the export buttons used to rerun the entire page
+    -- header, stat rail, sidebar and the two sibling tabs -- to change one
+    table. As a fragment, only this block redraws, so the rest of the page
+    stops being greyed out on every touch.
+    """
+    show_outliers = st.checkbox("Include flagged outliers", value=False)
+    frame, combos, flagged_frame, dataset_csv, view_csv = _view_frame(
+        cfg.get("league"), fmt.unit, fmt.divine_to_chaos, data_version(), show_outliers
+    )
+    if frame.empty:
+        st.info("No listings yet.")
+        return
 
     left, right = st.columns(2)
     with left:
@@ -334,14 +391,6 @@ def _inspect(cfg, repo, fmt) -> None:
             st.caption(f"Buckets are upper edges, in {fmt.unit}.")
     with right:
         st.markdown("**Most common reward combinations**")
-        combos = Counter(
-            tuple(
-                name
-                for name in ("more_currency", "more_maps", "more_scarabs", "more_divination_cards")
-                if row[name] > 0
-            )
-            for _, row in frame.iterrows()
-        )
         st.dataframe(
             pd.DataFrame(
                 [
@@ -354,18 +403,6 @@ def _inspect(cfg, repo, fmt) -> None:
         )
 
     st.markdown("**Flagged outliers**")
-    flagged = repo.listing_rows(league=cfg.get("league"), include_outliers=True)
-    flagged_frame = pd.DataFrame(
-        [
-            {
-                "price": fmt.value(row["price_chaos"]) or 0.0,
-                "currency": row["price_currency"],
-                "reason": row["outlier_reason"],
-            }
-            for row in flagged
-            if row["is_outlier"]
-        ]
-    )
     if flagged_frame.empty:
         st.caption("Nothing flagged.")
     else:
@@ -375,10 +412,14 @@ def _inspect(cfg, repo, fmt) -> None:
         )
         if st.button("Re-run outlier detection"):
             result = refresh_outliers(cfg, repo)
-            st.success(
-                f"Flagged {result['flagged']} of {result['evaluated']} listings."
+            invalidate_data()
+            flash(
+                "success",
+                f"Flagged {result['flagged']} of {result['evaluated']} listings.",
             )
-            st.rerun()
+            # scope="app": re-flagging changes the counts in the stat rail and
+            # the sidebar, which live outside this fragment.
+            st.rerun(scope="app")
 
     st.markdown("**Latest captures**")
     st.dataframe(frame.tail(25), hide_index=True, use_container_width=True)
@@ -392,7 +433,7 @@ def _inspect(cfg, repo, fmt) -> None:
     with dataset_col:
         st.download_button(
             "Export dataset (re-importable)",
-            listing_rows_to_csv(rows),
+            dataset_csv,
             "originator_dataset.csv",
             "text/csv",
             use_container_width=True,
@@ -401,7 +442,7 @@ def _inspect(cfg, repo, fmt) -> None:
     with view_col:
         st.download_button(
             "Export view (for reading)",
-            frame.to_csv(index=False),
+            view_csv,
             "originator_view.csv",
             "text/csv",
             use_container_width=True,
