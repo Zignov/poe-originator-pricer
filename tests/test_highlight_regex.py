@@ -17,6 +17,7 @@ import pytest
 
 from src.stash.highlight_regex import (
     MIN_FRAGMENT,
+    MIN_UNANCHORED_FRAGMENT,
     POE1_SEARCH_LIMIT,
     build_highlight_regex,
 )
@@ -288,3 +289,242 @@ def test_a_cross_word_fragment_cannot_reach_onto_a_modifier_line():
     excluded = [_text("Hypnotic Vault"), _text("Warped Frontier")]
     pattern = build_highlight_regex(["Hypnotic Frontier"], excluded).pattern
     assert not _matches(pattern, "Hypnotic Vault\nItem Quantity: +107%\nfrontier")
+
+
+# ---------------------------------------------------------------------------
+# Text the game searches that this app never parsed
+# ---------------------------------------------------------------------------
+#: What a listed map actually carries in game beyond anything the parser keeps:
+#: the price note the user set, the stock description, and the property lines.
+#: None of these reach the exclusion corpus through the parsed modifiers, and
+#: all of them are matched by the stash search.
+LISTED_EXTRAS = (
+    "\nTravel to a Map of this tier or lower by using this in a personal Map "
+    "Device. Maps can only be used once.\nItem Level: 84\nRare\n~price 5 chaos"
+)
+
+
+def _listed_text(name: str) -> str:
+    return _text(name) + LISTED_EXTRAS
+
+
+def test_a_fragment_is_never_drawn_from_price_note_vocabulary():
+    """The reported bug, at its smallest.
+
+    "Chaos Bearings" yields `cha`, `hao` and `aos`, and every one of them sits
+    inside the `~price 5 chaos` note that the seller has put on every map in the
+    tab. The parser never sees that note, so nothing in the exclusion corpus
+    rules those fragments out -- and the pattern that looks exact here lights up
+    the whole tab in game.
+    """
+    result = build_highlight_regex(["Chaos Bearings"], [_text("Rune Path")])
+    assert result.pattern
+    assert not _matches(result.pattern, _listed_text("Rune Path")), (
+        f"{result.pattern!r} matches a map that is merely priced in chaos"
+    )
+
+
+def test_a_fragment_is_never_drawn_from_the_stock_map_description():
+    """"Travel to a Map ... personal Map Device" is printed on every map.
+
+    "Devious Travels" offers `dev`, `tra` and `vel`, all of which are in that
+    line. A tab where no *parsed* map happens to contain them would let one
+    through.
+    """
+    result = build_highlight_regex(["Devious Travels"], [_text("Rune Path")])
+    if result.pattern:
+        assert not _matches(result.pattern, _listed_text("Rune Path")), (
+            f"{result.pattern!r} matches the stock map description"
+        )
+
+
+def test_a_fragment_is_never_drawn_from_a_property_or_rarity_line():
+    """"Rarity", "Quantity", "Rare", "Item Level" are on every map too."""
+    for name in ("Rarity Gambit", "Level Course"):
+        result = build_highlight_regex([name], [_text("Rune Path")])
+        if result.pattern:
+            assert not _matches(result.pattern, _listed_text("Rune Path")), (
+                f"{result.pattern!r} (from {name!r}) matches a shared property line"
+            )
+
+
+def test_the_unseen_vocabulary_does_not_make_ordinary_names_unreachable():
+    """Blocking that vocabulary must cost coverage, not correctness.
+
+    "Chaos Bearings" loses its first word entirely and is still reachable
+    through its second -- which is the whole point of building the pattern out
+    of fragments rather than names.
+    """
+    result = build_highlight_regex(["Chaos Bearings"], [_text("Rune Path")])
+    assert result.exact, result.explain()
+    assert _matches(result.pattern, _listed_text("Chaos Bearings"))
+
+
+# ---------------------------------------------------------------------------
+# The real haystack: the Ctrl+C item text
+# ---------------------------------------------------------------------------
+#: What the stash search actually reads, line by line. The parser keeps the
+#: name, the base type and the modifier sentences -- everything else here is
+#: invisible to it, and the game matches all of it.
+#:
+#: The parenthetical tags are the dangerous part and the reason this is written
+#: out in full rather than summarised: "(implicit)" is printed on every map in
+#: the game and it contains "cit".
+CTRL_C_SKELETON = """\
+Item Class: Maps
+Rarity: Rare
+{name}
+Map (Tier 16)
+--------
+Map Tier: 16
+Item Quantity: +107% (augmented)
+Item Rarity: +159% (augmented)
+Monster Pack Size: +32% (augmented)
+--------
+Item Level: 84
+--------
+Area is Influenced by the Originator's Memories (implicit)
+--------
+Monsters have 100% increased Poison Duration
+Players have 25% less Defences
+--------
+Travel to a Map of this tier or lower by using this in a personal Map Device. \
+Maps can only be used once.
+--------
+Note: ~price 5 chaos"""
+
+
+def _ctrl_c(name: str) -> str:
+    return CTRL_C_SKELETON.format(name=name)
+
+
+def _lights_up(pattern: str, name: str) -> bool:
+    """Match the way the game does, against the whole item text."""
+    return bool(re.search(pattern, _ctrl_c(name), re.IGNORECASE | re.MULTILINE))
+
+
+def test_a_fragment_is_never_drawn_from_a_parenthetical_tag():
+    """The one that survived the first fix.
+
+    "Cosmic Incitement" offers `cit`, nothing the parser can see contains it,
+    and every map in the game prints "(implicit)". The pattern called itself
+    exact and highlighted the entire tab.
+    """
+    result = build_highlight_regex(["Cosmic Incitement"], [_text("Rune Path")])
+    assert result.pattern
+    assert not _lights_up(result.pattern, "Rune Path"), (
+        f"{result.pattern!r} matches the (implicit) tag every map carries"
+    )
+
+
+def test_no_fragment_survives_against_a_whole_untouched_item():
+    """The general form, over every name in the sample.
+
+    Each name is asked for on its own against one excluded map, and the pattern
+    is then matched against a *different* map's full Ctrl+C text. Nothing in
+    that text belongs to the selected map, so nothing should match.
+    """
+    unrelated = "Rune Path"
+    for name in NAMES + ["Cosmic Incitement", "Chaos Bearings", "Torment Reach"]:
+        if name == unrelated:
+            continue
+        result = build_highlight_regex([name], [_text(unrelated)])
+        if not result.pattern:
+            continue
+        assert not _lights_up(result.pattern, unrelated), (
+            f"{result.pattern!r} (from {name!r}) matches an unrelated item"
+        )
+
+
+def test_an_unanchored_fragment_is_never_only_three_characters():
+    """Anchored fragments may be short; bare ones may not.
+
+    `^cos` can only match a line that begins that way. A bare `cos` matches
+    those three letters anywhere in the item, and three ordinary letters turn up
+    inside ordinary English constantly -- which is how `hao`, `cit`, `dev` and
+    `lev` each shipped a pattern that lit up the whole tab.
+    """
+    for name in NAMES + ["Cosmic Incitement", "Chaos Bearings"]:
+        result = build_highlight_regex([name], [_text("Rune Path")])
+        if not result.pattern:
+            continue
+        for alternative in result.pattern.split("|"):
+            if alternative.startswith("^") or alternative.endswith("$"):
+                continue
+            if ".*" in alternative:  # cross-word pairs need both halves on a line
+                continue
+            assert len(alternative) >= MIN_UNANCHORED_FRAGMENT, (
+                f"{alternative!r} from {name!r} is an unanchored "
+                f"{len(alternative)}-character fragment"
+            )
+
+
+def test_the_selected_map_still_lights_up_against_its_whole_item_text():
+    """The other half of the contract: it must still find what it promised."""
+    selected = ["Cosmic Incitement", "Chaos Bearings", "Void Inscription"]
+    result = build_highlight_regex(selected, [_text(n) for n in NAMES])
+    for name in result.covered:
+        assert _lights_up(result.pattern, name), (
+            f"{result.pattern!r} promised {name!r} and does not match it"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Maps the app never imported
+# ---------------------------------------------------------------------------
+def test_a_map_the_app_never_saw_is_still_kept_dark():
+    """The failure the exclusion corpus cannot see by construction.
+
+    The tab the pattern is built from is not necessarily the tab being
+    searched. "Doom Trajectory" was imported and "Doom Vector" was not, so
+    `doom` looks unambiguous against everything the app knows -- and lights up
+    a map the app never mentioned.
+
+    Both names come from the same small pool, so the pool is the right thing to
+    steer around, not the import.
+    """
+    result = build_highlight_regex(
+        ["Doom Trajectory"],
+        [_text("Rune Path")],
+        known_names=["Doom Vector", "Rune Path", "Grim Gambit"],
+    )
+    assert result.pattern
+    assert not _lights_up(result.pattern, "Doom Vector"), (
+        f"{result.pattern!r} lights up a map that was never imported"
+    )
+    assert _lights_up(result.pattern, "Doom Trajectory"), result.explain()
+
+
+def test_the_pool_never_poisons_the_names_being_searched_for():
+    """A selected map is in the pool too, and must not rule out its own name."""
+    selected = ["Glyph Solace", "Bleak Lands"]
+    result = build_highlight_regex(
+        selected, [_text(n) for n in NAMES if n not in selected], known_names=NAMES
+    )
+    assert result.covered, result.explain()
+    for name in result.covered:
+        assert _lights_up(result.pattern, name), (
+            f"{result.pattern!r} promised {name!r} and does not match it"
+        )
+
+
+def test_a_name_shared_with_the_pool_is_reported_not_guessed():
+    """When the pool leaves no safe fragment, say so rather than emit a wrong one.
+
+    "Doom Vector" against a pool holding every other Doom and every other
+    Vector has no single-word fragment left. Either the cross-word pair reaches
+    it or it is reported unmatchable -- what it must never do is fall back on
+    `doom` and light up the rest.
+    """
+    pool = ["Doom Trajectory", "Doom Choice", "Grim Vector", "Fate Vector"]
+    result = build_highlight_regex(
+        ["Doom Vector"], [_text("Rune Path")], known_names=pool
+    )
+    for name in pool:
+        assert not _lights_up(result.pattern or "(?!)", name), (
+            f"{result.pattern!r} lights up {name!r}"
+        )
+    if result.covered:
+        assert _lights_up(result.pattern, "Doom Vector"), result.explain()
+    else:
+        assert result.unmatchable, result.explain()

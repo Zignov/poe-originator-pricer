@@ -197,7 +197,7 @@ def render() -> None:
         _mode_comparison(model_priced, priced, fmt)
     # The whole tab, not `visible`: the pattern must know about every map that
     # has to stay dark, and the table filters only change what is on screen.
-    _highlight_tool(priced, fmt)
+    _highlight_tool(priced, fmt, repo, cfg.get("league"))
     _copy_tools(visible, fmt)
     _overlay_panel(cfg, priced, fmt, strategy, verdicts)
     _snapshot_button(cfg, repo, items, priced)
@@ -804,14 +804,54 @@ def _item_text(item) -> str:
     inside one of those shared lines would highlight the whole tab. Handing the
     whole text to the exclusion check rules that out without special-casing any
     particular line.
+
+    The raw payload is mined for the rest of it -- and the **price note** is the
+    one that actually bit. A selling tab has `~price 5 chaos` on every map, the
+    parser keeps none of it, and a map named "Chaos Bearings" then yields `hao`
+    as an apparently unambiguous fragment that highlights the whole tab. The
+    generator carries a static list of this vocabulary as a floor, but the note
+    is the seller's own text and can say things no list predicts, so it is read
+    off the item wherever the source provided one.
     """
     parts = [item.name or "", item.base_type or ""]
     parts.extend(item.raw_modifiers or [])
+    parts.extend(_unparsed_lines(item))
     return "\n".join(p for p in parts if p)
 
 
+def _unparsed_lines(item) -> list[str]:
+    """Searchable text sitting in the raw payload that the parser drops.
+
+    Best-effort by design: the raw data is whatever the source handed over --
+    an API object, a clipboard blob, or nothing at all for a CSV row -- so a
+    missing field is normal and never a reason to fail the pattern.
+    """
+    raw = getattr(item, "raw_item_data", None)
+    if not isinstance(raw, dict):
+        return []
+    if "text" in raw:  # clipboard import keeps the whole tooltip
+        return str(raw["text"]).splitlines()
+
+    out = [
+        str(raw.get(key) or "")
+        for key in ("note", "typeLine", "descrText", "secDescrText", "rarity")
+    ]
+    for prop in raw.get("properties") or []:
+        values = " ".join(str(v[0]) for v in (prop.get("values") or []) if v)
+        out.append(f"{prop.get('name') or ''}: {values}".strip())
+    if raw.get("ilvl"):
+        out.append(f"Item Level: {raw['ilvl']}")
+    if raw.get("corrupted"):
+        out.append("Corrupted")
+    if raw.get("identified") is False:
+        out.append("Unidentified")
+    return [line for line in out if line.strip()]
+
+
 @st.cache_data(show_spinner=False, max_entries=32)
-def _cached_regex(names: tuple[str, ...], texts: tuple[str, ...]):
+def _cached_regex(
+    names: tuple[str, ...], texts: tuple[str, ...], known: tuple[str, ...] = ()
+):
     """Memoised because this page reruns on every widget touch.
 
     Building the pattern costs about 20ms for a 60-map tab but a third of a
@@ -819,10 +859,30 @@ def _cached_regex(names: tuple[str, ...], texts: tuple[str, ...]):
     checkbox moves is what would make the page feel slow. The arguments are the
     whole input, so the key is exact -- change a price and the entry misses.
     """
-    return build_highlight_regex(names, texts)
+    return build_highlight_regex(names, texts, known_names=known)
 
 
-def _highlight_tool(priced, fmt):
+@st.cache_data(show_spinner=False, max_entries=4)
+def _known_names(_repo, league) -> tuple[str, ...]:
+    """Every rare map name the app has seen, for the pattern to steer around.
+
+    The tab the pattern is built from is not necessarily the tab being
+    searched -- the import can be an old snapshot, or simply miss whatever was
+    dropped in since -- and a map the app never saw is a map the pattern was
+    never checked against. Leading underscore on `_repo` so Streamlit hashes the
+    league and not the database handle.
+    """
+    if _repo is None:
+        return ()
+    try:
+        return tuple(_repo.known_map_names(league))
+    except Exception:
+        # A missing table or an older database is not a reason to refuse to
+        # build a pattern; it only means falling back to the tab itself.
+        return ()
+
+
+def _highlight_tool(priced, fmt, repo=None, league=None):
     """Turn a price threshold into a pattern for the in-game stash search.
 
     Deliberately fed the *whole* tab rather than the filtered table above: the
@@ -864,6 +924,7 @@ def _highlight_tool(priced, fmt):
     result = _cached_regex(
         tuple(e.item.name for e in selected),
         tuple(_item_text(e.item) for e in excluded),
+        _known_names(repo, league),
     )
 
     with columns[1]:
