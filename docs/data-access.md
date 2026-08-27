@@ -169,7 +169,7 @@ client id obtainable, the client name occupies that slot, and the contact addres
 is real and configurable:
 
 ```
-OAuth poe-originator-pricer/0.1.0 (contact: you@example.com)
+OAuth poe-originator-pricer/0.3.0 (contact: you@example.com)
 ```
 
 Set it in `config.yaml` (`http.user_agent_contact`) or `.env`

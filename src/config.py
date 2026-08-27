@@ -160,7 +160,38 @@ def load_config(path: str | Path | None = None) -> Config:
 #: applications -- so the client name takes that slot, which is what community
 #: tools do. The contact address is real and required.
 USER_AGENT_TEMPLATE = "OAuth poe-originator-pricer/{version} (contact: {contact})"
-VERSION = "0.1.0"
+
+
+def _version() -> str:
+    """The version, read from pyproject.toml -- the one place it is written.
+
+    It used to be a literal here as well, and the two drifted the first time
+    anybody cut a release: 0.2.0 shipped announcing itself to GGG as 0.1.0.
+    That is not cosmetic. The User-Agent is the only thing identifying this
+    client to a rate limiter, and a version that never changes is exactly what
+    a badly-behaved scraper looks like.
+
+    pyproject.toml is in the release zip as well as in a checkout, so this
+    resolves in both. The fallbacks are for neither -- an odd install with no
+    metadata -- and deliberately do not guess a number, because a wrong version
+    is worse than an honest "unknown".
+    """
+    try:
+        import tomllib
+
+        with (ROOT / "pyproject.toml").open("rb") as handle:
+            return str(tomllib.load(handle)["project"]["version"])
+    except Exception:
+        pass
+    try:
+        from importlib.metadata import version as installed_version
+
+        return installed_version("poe-originator-pricer")
+    except Exception:
+        return "unknown"
+
+
+VERSION = _version()
 
 
 def user_agent(cfg: Config) -> str:
