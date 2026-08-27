@@ -86,3 +86,31 @@ def test_migrating_forward_keeps_existing_data(tmp_path):
         second.set_setting("exalted_to_chaos", 4.0)
         assert second.get_divine_rate("Allflame")[0] == 222.5
         assert second.get_setting("exalted_to_chaos") == 4.0
+
+
+# ---------------------------------------------------------------------------
+# The version, and the one place it is written
+# ---------------------------------------------------------------------------
+def test_the_user_agent_version_is_the_one_in_pyproject():
+    """These were two literals once, and they drifted at the first release.
+
+    0.2.0 shipped announcing itself to GGG as 0.1.0. That is not cosmetic: the
+    User-Agent is the only thing identifying this client to a rate limiter, and
+    a version that never moves is what a badly-behaved scraper looks like.
+    """
+    import re
+
+    from src.config import ROOT, VERSION
+
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    declared = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE).group(1)
+    assert VERSION == declared
+
+
+def test_the_user_agent_carries_the_contact_and_the_version():
+    from src.config import Config, user_agent
+
+    agent = user_agent(Config({"http": {"user_agent_contact": "someone@example.com"}}))
+    assert agent.startswith("OAuth poe-originator-pricer/")
+    assert "someone@example.com" in agent
+    assert "unknown" not in agent, "the version did not resolve from pyproject.toml"
