@@ -45,6 +45,7 @@ MAX_OPACITY = 1.0
 #: src/overlay/profiles.py; the inventory's is a different chord so that both
 #: overlays can be toggled independently.
 DEFAULT_HOTKEY = DEFAULT_PROFILE.hotkey
+DEFAULT_ANALYZE_HOTKEY = DEFAULT_PROFILE.analyze_hotkey
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,10 @@ class Calibration:
     opacity: float = 0.55
     monitor: int = 0
     hotkey_toggle: str = DEFAULT_HOTKEY
+    #: Chord that re-fetches and re-prices this surface, rather than merely
+    #: showing it. Configurable for the same reason the toggle is: the chord may
+    #: already belong to something else on this machine.
+    hotkey_analyze: str = DEFAULT_ANALYZE_HOTKEY
     screen: tuple[int, int] | None = None
     #: Which surface this calibration is for -- see src/overlay/profiles.py.
     #: Carried on the object rather than passed alongside it because every
@@ -151,6 +156,7 @@ class Calibration:
             "opacity": round(float(self.opacity), 3),
             "monitor": int(self.monitor),
             "hotkey_toggle": self.hotkey_toggle,
+            "hotkey_analyze": self.hotkey_analyze,
         }
         if self.screen is not None:
             data["screen"] = [int(self.screen[0]), int(self.screen[1])]
@@ -186,6 +192,7 @@ class Calibration:
             opacity=min(MAX_OPACITY, max(MIN_OPACITY, _number(data.get("opacity"), default.opacity))),
             monitor=int(_number(data.get("monitor"), 0)),
             hotkey_toggle=str(data.get("hotkey_toggle") or spec.hotkey),
+            hotkey_analyze=str(data.get("hotkey_analyze") or spec.analyze_hotkey),
             screen=None if screen is None else (int(screen[0]), int(screen[1])),
             profile=spec.key,
         )

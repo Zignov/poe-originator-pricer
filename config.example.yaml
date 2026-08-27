@@ -167,6 +167,12 @@ overlay:
   # If another application already owns it the overlay says so and carries on;
   # the control strip's buttons keep working regardless.
   hotkey_toggle: "ctrl+alt+o"
+  # System-wide re-analyse chord: re-reads this tab from your account, re-prices
+  # it in whatever mode the export was made in, and redraws in place -- so you
+  # never have to alt-tab back to the browser between maps. Separate from the
+  # toggle above because the two cost different things: showing a window is
+  # free, and re-reading a tab spends a rate-limited API call.
+  hotkey_analyze: "ctrl+alt+a"
   # `screen: [width, height]` is written by the calibration screen and is not
   # set here on purpose: its absence is what tells the overlay it has never been
   # calibrated. If it no longer matches your resolution, the overlay warns
@@ -192,6 +198,9 @@ overlay_inventory:
   # A different chord from the stash overlay on purpose: with both running, one
   # key toggling both would defeat the point of having two.
   hotkey_toggle: "ctrl+alt+i"
+  # Likewise its own re-analyse chord, so analysing your inventory never also
+  # spends a stash read you did not ask for.
+  hotkey_analyze: "ctrl+alt+shift+a"
 
 http:
   # GGG publishes rate limits in response headers; the client obeys whatever the

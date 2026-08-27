@@ -27,7 +27,14 @@ from src.market.ingest import collect_from_trade_api, converter_for, store
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.ml.decision_bands import verdict
 from src.overlay.profiles import DEFAULT_PROFILE, PROFILE_KEYS, profile_for
-from src.overlay.state import DEFAULT_STATE_PATH, state_from_priced, write_state
+from src.overlay.state import (
+    DEFAULT_STATE_PATH,
+    SOURCE_MANUAL,
+    SOURCE_STASH,
+    OverlaySource,
+    state_from_priced,
+    write_state,
+)
 from src.pricing.display import PriceFormatter
 from src.pricing.fair_value import PricedMap, PricingService
 from src.pricing.sell_strategy import STRATEGIES
@@ -296,6 +303,19 @@ def cmd_price_tab(args) -> int:
                     strategy=args.strategy,
                     league=cfg.get("league"),
                     tab_names=[t.name for t in wanted],
+                    # Stamped so the overlay's Analyze can read this tab again
+                    # on its own. Only the live API source describes a place to
+                    # go back to; --json and --item-text describe a file.
+                    source=OverlaySource(
+                        kind=(
+                            SOURCE_STASH
+                            if source.name == "poesessid"
+                            else SOURCE_MANUAL
+                        ),
+                        league=cfg.get("league") or "",
+                        names=tuple(t.name for t in wanted),
+                        ids=tuple(t.id for t in wanted),
+                    ),
                 )
             )
             print(f"\noverlay state written to {path}")

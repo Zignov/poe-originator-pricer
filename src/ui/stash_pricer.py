@@ -15,7 +15,15 @@ from src.config import ROOT
 from src.market.comparables import format_age
 from src.overlay.calibration import Calibration, resolution_warning
 from src.overlay.profiles import INVENTORY_PROFILE, STASH_PROFILE
-from src.overlay.state import state_from_priced, state_path_for, write_state
+from src.overlay.state import (
+    SOURCE_INVENTORY,
+    SOURCE_MANUAL,
+    SOURCE_STASH,
+    OverlaySource,
+    state_from_priced,
+    state_path_for,
+    write_state,
+)
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.stash.base import StashSource
 from src.stash.clipboard_import import ClipboardStashSource
@@ -269,7 +277,7 @@ def render() -> None:
         _copy_tools(visible, fmt)
         _snapshot_button(cfg, repo, items, priced)
     with panes["Overlay"]:
-        _overlay_panel(cfg, priced, fmt, strategy, verdicts)
+        _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode)
 
 
 # ---------------------------------------------------------------------------
@@ -1205,7 +1213,37 @@ def _copy_tools(priced, fmt):
         )
 
 
-def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
+#: Which of the page's sources describe a live thing the overlay can go and
+#: read again. A clipboard paste, a CSV and a re-opened snapshot are all real
+#: sources and none of them is a *place*, so they are stamped "manual" and the
+#: overlay's Analyze says so rather than fetching something else.
+_SOURCE_KINDS = {
+    "session": SOURCE_STASH,
+    "inventory": SOURCE_INVENTORY,
+}
+
+
+def _overlay_source(cfg, positioned, mode) -> OverlaySource:
+    """The provenance stamped into the export, so Analyze can repeat it.
+
+    Tab ids come off the items rather than the picker: the picker's selection is
+    a Streamlit widget value that a rerun can lose, and the items are what was
+    actually priced. For an inventory read the "tab" is the character, which the
+    adapter already wrote onto every item.
+    """
+    kind = _SOURCE_KINDS.get(st.session_state.get("stash_source_key", ""), SOURCE_MANUAL)
+    names = sorted({p.item.stash_tab_name for p in positioned if p.item.stash_tab_name})
+    ids = sorted({p.item.stash_tab_id for p in positioned if p.item.stash_tab_id})
+    return OverlaySource(
+        kind=kind,
+        league=cfg.get("league") or "",
+        names=tuple(names),
+        ids=tuple(ids),
+        mode=mode,
+    )
+
+
+def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
     """Hand these priced maps to one of the two desktop overlays.
 
     The overlay is a second process -- tkinter cannot live inside a Streamlit
@@ -1256,6 +1294,14 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
     if warning:
         st.markdown(f'<div class="warn">{warning}</div>', unsafe_allow_html=True)
 
+    source = _overlay_source(cfg, positioned, mode)
+    if source.repeatable:
+        st.caption(
+            f"Once it is up, **{_analyze_chord(cfg, profile)}** re-reads "
+            f"{source.describe()} and re-prices it in place — you never have to "
+            "come back here between maps."
+        )
+
     columns = st.columns([1.1, 1, 2])
     if columns[0].button(f"Send to the {profile.label.lower()} overlay", type="primary"):
         tab_names = sorted({p.item.stash_tab_name for p in positioned if p.item.stash_tab_name})
@@ -1268,6 +1314,7 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
                 league=cfg.get("league"),
                 tab_names=tab_names,
                 verdicts=verdicts,
+                source=source,
             ),
             state_path_for(profile),
         )
@@ -1299,6 +1346,11 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts):
         f"once to line the grid up with your {profile.label.lower()}, then "
         f"`python -m src.cli overlay --profile {profile.key}`."
     )
+
+
+def _analyze_chord(cfg, profile) -> str:
+    """The re-analyse chord for this profile, as the user has it configured."""
+    return Calibration.from_config(cfg, profile).hotkey_analyze.replace("+", " + ").title()
 
 
 def _snapshot_button(cfg, repo, items, priced):

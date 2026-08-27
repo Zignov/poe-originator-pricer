@@ -31,6 +31,8 @@ Show the closest real listings as a cross-check
 Draw the prices onto a picture of your stash grid
         v
 ...or onto the real stash tab (or inventory), with a transparent desktop overlay
+        v
+...and re-priced from the overlay itself, with one chord, between maps
 ```
 
 You get a sortable table, a visual stash grid with the price written on each
@@ -508,11 +510,45 @@ so the controls live in two places:
   reservation of that one chord — not a keyboard hook, and nothing else about
   your typing is visible to the process. If another application already owns the
   chord, the overlay says so in its status line and carries on.
-- A small **control strip** sits above the grid with *show/hide*, *reload*,
-  *calibrate* and *quit* buttons (and the same as `o`, `r`, `c`, `q` when it has
-  focus). It is draggable. It exists because a click-through window can never
-  receive a keypress, so a second and third stolen global chord would be the
-  only alternative.
+- **Ctrl+Alt+A** (`overlay.hotkey_analyze`) re-reads the tab and re-prices it
+  where you stand — see below.
+- A small **control strip** sits above the grid with *show/hide*, *analyze*,
+  *reload*, *calibrate* and *quit* buttons (and the same as `o`, `a`, `r`, `c`,
+  `q` when it has focus). It is draggable, and it names the surface it draws
+  over, because with both overlays up there are otherwise two identical strips
+  on screen. It exists because a click-through window can never receive a
+  keypress, so a stolen global chord per action would be the only alternative.
+
+**Re-analysing without leaving the game.** *Reload* re-reads the file the app
+last wrote. **Analyze** re-reads the *tab*: press **Ctrl+Alt+A** and the overlay
+fetches the same tab (or the same character's inventory) from your account
+again, re-prices it in the same mode and at the same selling strategy, and
+redraws in place. That closes the loop the overlay was built for — run a map,
+glance at the drop, run another — without an alt-tab in the middle of it.
+
+It works because an export remembers where it came from. The state file carries
+a small `source` block — kind, league, tab ids and names, pricing mode — written
+by whichever thing produced it. That is also why some exports cannot be
+re-analysed: a clipboard paste, a CSV and a re-opened snapshot describe maps,
+not a place to go and read them again, so those are stamped `manual` and Analyze
+says so rather than fetching something else and drawing it over your tab.
+
+Details worth knowing:
+
+- **It runs on a background thread.** A fetch plus a model pass is seconds, and
+  a window sitting on top of a game is the worst possible place to freeze. The
+  model and the database are loaded on the first analysis and kept, so the
+  tenth press is fast.
+- **A failed analysis leaves the last good prices on screen.** The strip says
+  what went wrong. Stale prices whose age you can see beat no prices at all when
+  you are mid-map.
+- **Market mode stays market mode.** Analyze does not quietly substitute model
+  prices for live ones; it re-runs the same comparison, bounded by the same
+  `market_comparison.request_budget` the page uses, and reports what it spent.
+- **It needs `POESESSID` in your environment or `.env`**, since it is a separate
+  process from the app and does its own fetching.
+- **A renamed tab is still found**, by id. A tab that is genuinely gone is
+  reported rather than swapped for another one.
 
 **The second overlay: your inventory.** The inventory panel is on the other
 side of the screen from the stash and is 12x5 rather than 12x12, so it cannot
@@ -1173,7 +1209,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     606 tests, including live-render checks of every page
+tests/                     626 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.

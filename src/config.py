@@ -60,6 +60,7 @@ _DEFAULTS: dict[str, Any] = {
         "opacity": 0.55,
         "monitor": 0,
         "hotkey_toggle": "ctrl+alt+o",
+        "hotkey_analyze": "ctrl+alt+a",
     },
     # The same block again for the inventory panel, which sits on the other
     # side of the screen and is 12x5 rather than 12x12, so it cannot share a
@@ -72,6 +73,7 @@ _DEFAULTS: dict[str, Any] = {
         "opacity": 0.55,
         "monitor": 0,
         "hotkey_toggle": "ctrl+alt+i",
+        "hotkey_analyze": "ctrl+alt+shift+a",
     },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
 }

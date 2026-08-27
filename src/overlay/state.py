@@ -40,7 +40,13 @@ from src.pricing.fair_value import PricedMap
 
 #: Bumped whenever the meaning of a field changes. A reader that sees a version
 #: it was not written for stops; it does not guess.
-OVERLAY_STATE_VERSION = 1
+#:
+#: 2 added the `source` block -- the provenance of an export, which is what lets
+#: the overlay repeat the fetch that produced it rather than only re-reading the
+#: file. A version-1 file has no way to say what it came from, so it is refused
+#: with the usual "re-export the tab" rather than being drawn with a dead
+#: Analyze button on top of it.
+OVERLAY_STATE_VERSION = 2
 
 #: Where the state files live: under data/ because they are regenerated output,
 #: not configuration.
@@ -94,6 +100,83 @@ def exalt_state(verdict: ExaltVerdict | None) -> str:
     if verdict is None or not verdict.available:
         return EXALT_NONE
     return EXALT_WORTH if verdict.worth_it else EXALT_SKIP
+
+
+#: What an export came from, and therefore whether it can be repeated.
+#: "stash" and "inventory" name a fetch the overlay can perform again on its
+#: own; "manual" covers clipboard text, a CSV, a hand-picked JSON export and a
+#: re-opened snapshot -- real sources, none of which describe a *live* thing to
+#: go and read again.
+SOURCE_STASH = "stash"
+SOURCE_INVENTORY = "inventory"
+SOURCE_MANUAL = "manual"
+
+#: The two pricing modes, spelled the way the Stash Pricer page spells them.
+MODE_MODEL = "model"
+MODE_MARKET = "market"
+
+
+@dataclass(frozen=True)
+class OverlaySource:
+    """Where a priced export came from, in enough detail to fetch it again.
+
+    This exists so the overlay's Analyze can mean "read my tab again and
+    re-price it", not "re-read the file the browser last wrote". The difference
+    is the whole feature: without it you still have to alt-tab to press a button
+    in a browser, which is the step the overlay was built to remove.
+
+    It is deliberately a *description of a fetch*, not a serialized source
+    object. The overlay reconstructs the adapter from config and these few
+    fields, so nothing credential-shaped is ever written to a file on disk.
+    """
+
+    kind: str = SOURCE_MANUAL
+    league: str = ""
+    #: Tab names for a stash read, the character name for an inventory read.
+    #: Names rather than only ids because this is also what the strip shows, and
+    #: an id is not something anyone can recognise mid-map.
+    names: tuple[str, ...] = ()
+    #: Tab ids, when the source has them. The fetch prefers these -- a tab can
+    #: be renamed between two analyses and an id cannot.
+    ids: tuple[str, ...] = ()
+    #: "model" or "market": which pricing mode produced these numbers, so a
+    #: re-analysis produces the same *kind* of number rather than quietly
+    #: swapping the model in for the live market half way through a session.
+    mode: str = MODE_MODEL
+
+    @property
+    def repeatable(self) -> bool:
+        """Whether Analyze can do anything with this."""
+        return self.kind in (SOURCE_STASH, SOURCE_INVENTORY) and bool(self.names or self.ids)
+
+    def describe(self) -> str:
+        """One phrase for the strip: what pressing Analyze will go and read."""
+        what = ", ".join(self.names) or "?"
+        if self.kind == SOURCE_INVENTORY:
+            return f"{what}'s inventory"
+        if self.kind == SOURCE_STASH:
+            return what
+        return "a manual import"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "league": self.league,
+            "names": list(self.names),
+            "ids": list(self.ids),
+            "mode": self.mode,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> OverlaySource:
+        data = data or {}
+        return cls(
+            kind=str(data.get("kind") or SOURCE_MANUAL),
+            league=str(data.get("league") or ""),
+            names=tuple(str(n) for n in data.get("names") or ()),
+            ids=tuple(str(i) for i in data.get("ids") or ()),
+            mode=str(data.get("mode") or MODE_MODEL),
+        )
 
 
 @dataclass(frozen=True)
@@ -180,6 +263,7 @@ class OverlayState:
     unit: str = "chaos"
     divine_to_chaos: float = 0.0
     generated_at: str = ""
+    source: OverlaySource = field(default_factory=OverlaySource)
     version: int = OVERLAY_STATE_VERSION
 
     @property
@@ -190,7 +274,8 @@ class OverlayState:
         """One line for the control strip, so the user can see the file landed."""
         tabs = ", ".join(self.tab_names) or "no tab name"
         when = self.generated_at[11:16] if len(self.generated_at) >= 16 else "?"
-        return f"{len(self.tiles)} maps  |  {tabs}  |  {self.strategy}  |  {when}"
+        mode = "market" if self.source.mode == MODE_MARKET else "model"
+        return f"{len(self.tiles)} maps  |  {tabs}  |  {mode}/{self.strategy}  |  {when}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -201,6 +286,7 @@ class OverlayState:
             "strategy": self.strategy,
             "currency": {"unit": self.unit, "divine_to_chaos": self.divine_to_chaos},
             "grid": list(self.grid),
+            "source": self.source.to_dict(),
             "tiles": [t.to_dict() for t in self.tiles],
         }
 
@@ -225,6 +311,7 @@ class OverlayState:
             unit=str(currency.get("unit", "chaos")),
             divine_to_chaos=float(currency.get("divine_to_chaos", 0.0) or 0.0),
             generated_at=str(data.get("generated_at", "")),
+            source=OverlaySource.from_dict(data.get("source")),
             version=int(version),
         )
 
@@ -238,6 +325,7 @@ def state_from_priced(
     league: str = "",
     tab_names: Iterable[str] = (),
     verdicts: dict[int, ExaltVerdict] | None = None,
+    source: OverlaySource | None = None,
 ) -> OverlayState:
     """Project a priced tab onto the overlay contract.
 
@@ -295,6 +383,7 @@ def state_from_priced(
         unit=fmt.unit,
         divine_to_chaos=fmt.divine_to_chaos,
         generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        source=source or OverlaySource(),
     )
 
 

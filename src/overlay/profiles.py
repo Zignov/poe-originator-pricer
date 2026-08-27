@@ -29,6 +29,13 @@ from dataclasses import dataclass
 STASH_HOTKEY = "ctrl+alt+o"
 INVENTORY_HOTKEY = "ctrl+alt+i"
 
+#: The re-analyse chords, likewise one per surface. Separate from the toggle
+#: because they do different-sized things: showing a window costs nothing and
+#: re-reading a tab spends a rate-limited API call, so one press must never be
+#: mistakable for the other.
+STASH_ANALYZE_HOTKEY = "ctrl+alt+a"
+INVENTORY_ANALYZE_HOTKEY = "ctrl+alt+shift+a"
+
 
 @dataclass(frozen=True)
 class OverlayProfile:
@@ -42,6 +49,10 @@ class OverlayProfile:
     #: never anything else -- there is no quad inventory.
     grid: tuple[int, int]
     hotkey: str
+    #: Chord that re-fetches and re-prices this surface. One per profile, so
+    #: analysing the inventory never also spends a stash read you did not ask
+    #: for.
+    analyze_hotkey: str
     #: File under data/ that the app writes and this profile's window watches.
     state_filename: str
     #: What the calibration screen tells the user to line up with.
@@ -54,6 +65,7 @@ STASH_PROFILE = OverlayProfile(
     label="Stash tab",
     grid=(12, 12),
     hotkey=STASH_HOTKEY,
+    analyze_hotkey=STASH_ANALYZE_HOTKEY,
     state_filename="overlay_state.json",
     calibration_hint="Line this up with the stash tab's own cell borders, then press Enter.",
 )
@@ -64,6 +76,7 @@ INVENTORY_PROFILE = OverlayProfile(
     label="Inventory",
     grid=(12, 5),
     hotkey=INVENTORY_HOTKEY,
+    analyze_hotkey=INVENTORY_ANALYZE_HOTKEY,
     state_filename="overlay_inventory_state.json",
     calibration_hint=(
         "Line this up with your inventory's own cell borders, then press Enter."
