@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
+from typing import Callable
 
 import pandas as pd
 import streamlit as st
@@ -18,7 +20,7 @@ from src.overlay.state import state_from_priced, write_state
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.stash.base import StashSource
 from src.stash.clipboard_import import ClipboardStashSource
-from src.stash.highlight_regex import build_highlight_regex
+from src.stash.highlight_regex import build_highlight_batches
 from src.stash.json_import import JsonStashSource, parse_csv
 from src.stash.official_api import SessionStashSource, StashAccessError
 from src.pricing.fair_value import PricedMap
@@ -47,6 +49,24 @@ SOURCE_LABELS = {
     "clipboard": "Paste copied item text",
     "snapshot": "Re-open a saved scan",
 }
+
+
+@dataclass
+class SourcePlan:
+    """What the picker gathered: whether Analyze can run, and what it would run.
+
+    The loaders below collect input; they no longer perform the load. That split
+    is the whole point -- it is what lets the single button that performs it be
+    drawn outside the expander the loaders are drawn inside, so that Analyze is
+    on the page whether the picker is folded or open.
+
+    `blocked` is the sentence explaining what is still missing, shown on the
+    disabled button. A disabled control with no reason attached is the same
+    dead end as a missing one.
+    """
+
+    run: Callable[[], list | None] | None = None
+    blocked: str = ""
 
 
 def render() -> None:
@@ -79,17 +99,23 @@ def render() -> None:
             horizontal=True,
         )
 
-        items = None
         if source_key == "session":
-            items = _from_session(cfg)
+            plan = _from_session(cfg)
         elif source_key == "json":
-            items = _from_json(cfg)
+            plan = _from_json(cfg)
         elif source_key == "csv":
-            items = _from_csv(cfg)
+            plan = _from_csv(cfg)
         elif source_key == "snapshot":
-            items = _from_snapshot(cfg, repo)
+            plan = _from_snapshot(cfg, repo)
         else:
-            items = _from_clipboard(cfg)
+            plan = _from_clipboard(cfg)
+
+    # Deliberately outside the expander above. Analyze is the one thing this
+    # page is for, and when it lived inside the picker it went away the moment
+    # the picker folded -- which is to say the moment it had been used once, and
+    # every time afterwards. It is drawn on every run now, disabled and carrying
+    # the reason when the chosen source is not ready.
+    items = _analyze_button(plan)
 
     if items is not None:
         st.session_state["stash_items"] = items
@@ -276,6 +302,33 @@ def _source_summary(items) -> str:
     return f"{len(items)} maps loaded from {where}  --  click to load something else"
 
 
+def _analyze_button(plan: SourcePlan):
+    """The page's primary action, drawn on every run whatever the source.
+
+    Always rendered rather than conditionally: a button that appears only once
+    its preconditions are met teaches nothing about what those preconditions
+    are, and this one used to disappear entirely once a tab was loaded. Disabled
+    with the reason on it is a state the user can read and act on; absent is not.
+
+    Returns the freshly loaded maps, or None when it was not pressed -- or was
+    pressed and the load failed, which the callable reports itself.
+    """
+    ready = plan.run is not None
+    clicked = st.button(
+        "Analyze",
+        type="primary",
+        disabled=not ready,
+        help=plan.blocked or "Read the chosen tab and price every map in it.",
+        key="analyze_tab",
+    )
+    if not ready:
+        # The help bubble needs a hover to find, and the reason is the only
+        # thing standing between the user and the one button they came for.
+        st.caption(plan.blocked)
+        return None
+    return plan.run() if clicked else None
+
+
 def _from_session(cfg):
     st.caption(
         "Uses the POESESSID cookie from your own browser session, against GGG's own "
@@ -291,30 +344,38 @@ def _from_session(cfg):
     ok, why = source.available()
     if not ok:
         st.warning(f"{why}. {source.setup_hint}")
-        return None
+        return SourcePlan(blocked=f"{why}. {source.setup_hint}")
 
-    if st.button("Load stash tab list", type="primary"):
+    # Still its own button: fetching the tab list is a separate round trip to
+    # GGG, and it is a prerequisite of choosing a tab rather than a way of
+    # pricing one. Analyze stays the thing that reads the maps.
+    if st.button("Load stash tab list"):
         try:
             st.session_state["tabs"] = source.list_tabs(cfg.get("league"))
         except StashAccessError as exc:
             st.error(str(exc))
-            return None
+            return SourcePlan(blocked=str(exc))
 
     tabs = st.session_state.get("tabs")
     if not tabs:
-        return None
+        return SourcePlan(blocked="Load the stash tab list first.")
 
     chosen_names = st.multiselect(
         "Tabs to analyze", [t.name for t in tabs], default=[tabs[0].name] if tabs else []
     )
     chosen = [t for t in tabs if t.name in chosen_names]
-    if chosen and st.button("Analyze", type="primary"):
+    if not chosen:
+        return SourcePlan(blocked="Choose at least one tab to analyze.")
+
+    def run():
         with st.spinner("Fetching tab contents..."):
             try:
                 return source.fetch_tabs(cfg.get("league"), chosen)
             except StashAccessError as exc:
                 st.error(str(exc))
-    return None
+                return None
+
+    return SourcePlan(run=run)
 
 
 def _from_json(cfg):
@@ -324,7 +385,7 @@ def _from_json(cfg):
     )
     upload = st.file_uploader("Stash JSON export", type=["json"])
     if upload is None:
-        return None
+        return SourcePlan(blocked="Upload a stash JSON export first.")
     try:
         payload = json.load(upload)
         source: StashSource = JsonStashSource(
@@ -334,16 +395,16 @@ def _from_json(cfg):
         )
     except Exception as exc:
         st.error(f"Could not read that file: {exc}")
-        return None
+        return SourcePlan(blocked=f"Could not read that file: {exc}")
 
     tabs = source.list_tabs(cfg.get("league"))
     chosen_names = st.multiselect(
         "Tabs in the file", [t.name for t in tabs], default=[t.name for t in tabs]
     )
     chosen = [t for t in tabs if t.name in chosen_names]
-    if chosen and st.button("Analyze", type="primary"):
-        return source.fetch_tabs(cfg.get("league"), chosen)
-    return None
+    if not chosen:
+        return SourcePlan(blocked="Choose at least one tab from the file.")
+    return SourcePlan(run=lambda: source.fetch_tabs(cfg.get("league"), chosen))
 
 
 def _from_csv(cfg):
@@ -354,16 +415,23 @@ def _from_csv(cfg):
     )
     upload = st.file_uploader("CSV", type=["csv"])
     if upload is None:
-        return None
-    try:
-        return parse_csv(
-            upload.getvalue().decode("utf-8"),
-            map_tier=cfg.get("scope.map_tier"),
-            require_uncorrupted=cfg.get("scope.require_uncorrupted"),
-        )
-    except Exception as exc:
-        st.error(f"Could not read that CSV: {exc}")
-        return None
+        return SourcePlan(blocked="Upload a CSV first.")
+
+    # Parsed on Analyze rather than on upload, as every other source now is.
+    # It used to load the moment the file appeared, which meant this was the one
+    # source where the page's primary button had nothing to do with loading.
+    def run():
+        try:
+            return parse_csv(
+                upload.getvalue().decode("utf-8"),
+                map_tier=cfg.get("scope.map_tier"),
+                require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+            )
+        except Exception as exc:
+            st.error(f"Could not read that CSV: {exc}")
+            return None
+
+    return SourcePlan(run=run)
 
 
 def _from_snapshot(cfg, repo):
@@ -371,7 +439,7 @@ def _from_snapshot(cfg, repo):
     snapshots = repo.list_snapshots(limit=100)
     if not snapshots:
         st.info("No saved scans yet. Analyze a tab and click *Save this scan as a snapshot*.")
-        return None
+        return SourcePlan(blocked="No saved scans yet.")
 
     labels = {
         f"#{s['id']}  {s['created_at'][:16]}  {s['item_count']} items  "
@@ -393,9 +461,10 @@ def _from_snapshot(cfg, repo):
     else:
         st.session_state.pop("snapshot_previous", None)
 
-    if st.button("Re-price this scan", type="primary"):
-        return repo.load_snapshot_items(snapshot_id)
-    return None
+    # Was "Re-price this scan", which was the same act under a second name. One
+    # source having its own primary button was most of what made the page's
+    # primary button hard to find.
+    return SourcePlan(run=lambda: repo.load_snapshot_items(snapshot_id))
 
 
 def _from_clipboard(cfg):
@@ -405,15 +474,17 @@ def _from_clipboard(cfg):
     )
     text = st.text_area("Copied item text", height=220, key="clipboard_text")
     if not text.strip():
-        return None
-    if st.button("Analyze", type="primary"):
+        return SourcePlan(blocked="Paste the text of at least one map first.")
+
+    def run():
         source = ClipboardStashSource(
             text,
             map_tier=cfg.get("scope.map_tier"),
             require_uncorrupted=cfg.get("scope.require_uncorrupted"),
         )
         return source.fetch_tab(cfg.get("league"), source.list_tabs(cfg.get("league"))[0])
-    return None
+
+    return SourcePlan(run=run)
 
 
 # ---------------------------------------------------------------------------
@@ -1083,8 +1154,13 @@ def _cached_regex(
     second across a couple of quad tabs, and paying that again every time a
     checkbox moves is what would make the page feel slow. The arguments are the
     whole input, so the key is exact -- change a price and the entry misses.
+
+    Paging matters as much as the price here: stepping from search 1 to search 2
+    is a rerun like any other, and without the cache every arrow press would
+    rebuild the whole thing. The pages are worked out once, together, so the
+    arrows only pick which one to show.
     """
-    return build_highlight_regex(names, texts, known_names=known)
+    return build_highlight_batches(names, texts, known_names=known)
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
@@ -1105,6 +1181,70 @@ def _known_names(_repo, league) -> tuple[str, ...]:
         # A missing table or an older database is not a reason to refuse to
         # build a pattern; it only means falling back to the tab itself.
         return ()
+
+
+#: Which of the batched searches is on screen. Not a widget key -- the arrows
+#: write it from their callbacks, and a widget key cannot be assigned to after
+#: its widget has been drawn.
+_PAGE_KEY = "highlight_page"
+
+
+def _step_page(delta: int, count: int) -> None:
+    page = st.session_state.get(_PAGE_KEY, 0) + delta
+    st.session_state[_PAGE_KEY] = max(0, min(count - 1, page))
+
+
+def _reset_page() -> None:
+    """A new threshold is a new set of searches, so start at the first one."""
+    st.session_state[_PAGE_KEY] = 0
+
+
+def _pattern_pager(result, positions):
+    """Draw the arrows and hand back the search that should be on screen.
+
+    A quad tab of good maps does not fit in one 250-character search box, and
+    the old answer was to fill one box and list the overflow as "find these by
+    hand". Paging is the better trade: the same maps, a few paste-and-clear
+    rounds apart.
+
+    The index is clamped rather than trusted. Raising the threshold while on
+    search 4 of 5 can leave two searches behind it, and a stale index would
+    otherwise read off the end.
+    """
+    index = min(st.session_state.get(_PAGE_KEY, 0), result.count - 1)
+    st.session_state[_PAGE_KEY] = index
+    page = result.pages[index]
+
+    if result.count > 1:
+        row = st.container(horizontal=True, vertical_alignment="center")
+        row.button(
+            "Previous",
+            icon=":material/chevron_left:",
+            key="highlight_prev",
+            disabled=index == 0,
+            on_click=_step_page,
+            args=(-1, result.count),
+        )
+        row.markdown(
+            f"**Search {index + 1} of {result.count}** — {len(page.covered)} maps"
+        )
+        row.button(
+            "Next",
+            icon=":material/chevron_right:",
+            key="highlight_next",
+            disabled=index >= result.count - 1,
+            on_click=_step_page,
+            args=(1, result.count),
+        )
+
+    st.code(page.pattern, language="text")
+
+    if result.count > 1:
+        with st.expander(f"Maps in this search ({len(page.covered)})"):
+            st.caption(
+                ", ".join(f"{n} ({positions.get(n, '?')})" for n in page.covered)
+            )
+    return page
 
 
 def _highlight_tool(priced, fmt, repo=None, league=None):
@@ -1134,6 +1274,7 @@ def _highlight_tool(priced, fmt, repo=None, league=None):
         value=round(float(fmt.value(default)) or 0.0, 2),
         step=5.0 if fmt.unit == "chaos" else 0.5,
         key="highlight_threshold",
+        on_change=_reset_page,
     )
 
     selected, excluded = [], []
@@ -1152,19 +1293,26 @@ def _highlight_tool(priced, fmt, repo=None, league=None):
         _known_names(repo, league),
     )
 
+    positions = {e.item.name: e.item.position_label() for e in selected}
+
     with columns[1]:
         if result.ok:
-            st.code(result.pattern, language="text")
+            _pattern_pager(result, positions)
         if result.exact:
             st.success(result.explain())
         else:
             st.markdown(
                 f'<div class="warn">{result.explain()}</div>', unsafe_allow_html=True
             )
+        if result.count > 1:
+            st.caption(
+                "Paste one search at a time: the game's box holds "
+                f"{result.limit} characters and these maps need more. Clear it "
+                "and paste the next when you are done with this one."
+            )
 
     missed = [*result.ambiguous, *result.unmatchable, *result.dropped]
     if missed:
-        positions = {e.item.name: e.item.position_label() for e in selected}
         st.caption(
             "Not covered by the pattern: "
             + ", ".join(f"{n} ({positions.get(n, '?')})" for n in missed)

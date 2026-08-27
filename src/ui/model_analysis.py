@@ -12,6 +12,7 @@ from src.ml.features import rows_to_frame, target_inverse
 from src.ml.validation import metrics as compute_metrics
 from src.ui.common import (
     CHART_SERIES,
+    data_version,
     get_config,
     get_converter,
     get_formatter,
@@ -174,30 +175,72 @@ def _importance(predictor) -> None:
     )
 
 
-def _residuals(cfg, repo, predictor, fmt, rate) -> None:
+@st.cache_data(show_spinner=False, max_entries=4)
+def _scored(league, tier, uncorrupted, rate, version, model_stamp):
+    """Score every in-scope listing with the model.
+
+    A query, a frame build and a full inference pass -- previously repeated on
+    every rerun of the page, including the ones caused by switching tab. It
+    depends only on the data, the scope, the rate and the model, all of which
+    are in the key.
+
+    Returns (actual, predicted, error) so the caller keeps its own st.warning
+    and st.info calls, which must not run inside a cached function.
+    """
+    repo = get_repo()
     rows = repo.listing_rows(
-        league=cfg.get("league"),
+        league=league,
         include_outliers=False,
-        map_tier=cfg.get("scope.map_tier"),
-        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+        map_tier=tier,
+        require_uncorrupted=uncorrupted,
     )
+    predictor, _ = get_predictor()
     frame = rows_to_frame(rows, divine_to_chaos=rate)
+    # The emptiness check has to come before the price filter, not after it:
+    # with no listings at all rows_to_frame returns a frame with no columns
+    # either, and asking it for price_chaos is a KeyError rather than an empty
+    # result. That is the state a fresh install is in -- the release ships a
+    # trained model but no database -- so this page reached it on first run.
+    #
+    # It reports the empty case the same way the filter below does, by
+    # returning "empty" for the caller to render. Calling st.info() from in
+    # here would both break the caller's tuple unpack and put a widget inside
+    # a cached function, which is what this one's docstring warns against.
+    if frame.empty:
+        return None, None, "empty"
+
     frame = frame[frame["price_chaos"].notna() & (frame["price_chaos"] > 0)]
     if frame.empty:
+        return None, None, "empty"
+    missing = [c for c in predictor.columns if c not in frame.columns]
+    if missing:
+        return None, None, f"Dataset is missing columns the model needs: {missing}"
+    predicted = target_inverse(
+        np.asarray(predictor.model.predict(frame[predictor.columns]), dtype=float),
+        predictor.target_mode,
+    )
+    return (
+        frame["price_chaos"].to_numpy(dtype=float),
+        np.clip(predicted, 0.0, None),
+        "",
+    )
+
+
+def _residuals(cfg, repo, predictor, fmt, rate) -> None:
+    actual, predicted, error = _scored(
+        cfg.get("league"),
+        cfg.get("scope.map_tier"),
+        cfg.get("scope.require_uncorrupted"),
+        rate,
+        data_version(),
+        st.session_state.get("model_reload", 0),
+    )
+    if error == "empty":
         st.info("No listings to score against.")
         return
-
-    columns = predictor.columns
-    missing = [c for c in columns if c not in frame.columns]
-    if missing:
-        st.warning(f"Dataset is missing columns the model needs: {missing}")
+    if error:
+        st.warning(error)
         return
-
-    predicted = target_inverse(
-        np.asarray(predictor.model.predict(frame[columns]), dtype=float), predictor.target_mode
-    )
-    predicted = np.clip(predicted, 0.0, None)
-    actual = frame["price_chaos"].to_numpy(dtype=float)
 
     st.caption(
         "In-sample for the rows the model trained on, so read this as a shape check, "

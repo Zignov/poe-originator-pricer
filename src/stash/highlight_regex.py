@@ -228,26 +228,129 @@ class HighlightRegex:
                 "names also appears on a map below the threshold."
             )
 
-        # Said even when there is no pattern at all: a duplicate name is the
-        # reason, and reporting only "no pattern" hides the one fact that tells
-        # the user why and which maps to go and look at by hand.
-        if self.ambiguous:
-            parts.append(
-                f"{len(self.ambiguous)} of them share a name with a map below the "
-                f"threshold ({', '.join(self.ambiguous)}), so no search text can "
-                "tell them apart -- find those by position instead."
+        parts.extend(
+            _shortfall(
+                self.ambiguous,
+                self.unmatchable,
+                self.dropped,
+                f"did not fit in the {self.limit}-character box. Raise the price "
+                "to fit the rest in.",
             )
-        if self.unmatchable:
+        )
+        return " ".join(parts)
+
+
+def _shortfall(
+    ambiguous: Sequence[str],
+    unmatchable: Sequence[str],
+    dropped: Sequence[str],
+    dropped_advice: str,
+) -> list[str]:
+    """The maps that will not light up, and why -- shared by both reports.
+
+    Said even when there is no pattern at all: a duplicate name is the reason,
+    and reporting only "no pattern" hides the one fact that tells the user why
+    and which maps to go and look at by hand.
+    """
+    parts: list[str] = []
+    if ambiguous:
+        parts.append(
+            f"{len(ambiguous)} of them share a name with a map below the "
+            f"threshold ({', '.join(ambiguous)}), so no search text can "
+            "tell them apart -- find those by position instead."
+        )
+    if unmatchable:
+        parts.append(
+            f"{len(unmatchable)} could not be separated from the maps "
+            "below the threshold -- every part of their names is shared "
+            f"({', '.join(unmatchable)}). Find those by position."
+        )
+    if dropped:
+        parts.append(f"{len(dropped)} {dropped_advice}")
+    return parts
+
+
+@dataclass(frozen=True)
+class HighlightBatches:
+    """One tab's maps split across as many search boxes as they need.
+
+    A quad tab of high-value maps does not fit in 250 characters, and the honest
+    single-pattern answer -- cover what fits, report the rest as dropped -- puts
+    the user in front of a list of maps they were told to find by hand for no
+    better reason than the box being short. Splitting is the better answer: the
+    same fragments, dealt into consecutive searches, so every reachable map is
+    reached by *some* page.
+
+    The pages are built against one corpus and one candidate set, so a later
+    page is no less safe than the first; only the budget resets.
+
+    Pages may overlap in what they light up. A fragment kept for page two can
+    also match a map already covered by page one, and that is not a fault --
+    both are maps the user wants lit. Each page's `covered` says what it really
+    highlights, so the counts stay true even where they overlap.
+    """
+
+    pages: tuple[HighlightRegex, ...] = ()
+    ambiguous: tuple[str, ...] = ()
+    dropped: tuple[str, ...] = ()
+    unmatchable: tuple[str, ...] = ()
+    selected: int = 0
+    limit: int = POE1_SEARCH_LIMIT
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.pages)
+
+    @property
+    def count(self) -> int:
+        return len(self.pages)
+
+    @property
+    def covered(self) -> tuple[str, ...]:
+        """Every map some page highlights, once each, in the order first seen."""
+        seen: dict[str, None] = {}
+        for page in self.pages:
+            for name in page.covered:
+                seen.setdefault(name, None)
+        return tuple(seen)
+
+    @property
+    def exact(self) -> bool:
+        """True when the pages between them catch every map and nothing else."""
+        return self.ok and not (self.ambiguous or self.dropped or self.unmatchable)
+
+    def explain(self) -> str:
+        if not self.selected:
+            return "No maps are above that price, so there is nothing to highlight."
+
+        parts: list[str] = []
+        if self.count == 1:
+            page = self.pages[0]
             parts.append(
-                f"{len(self.unmatchable)} could not be separated from the maps "
-                "below the threshold -- every part of their names is shared "
-                f"({', '.join(self.unmatchable)}). Find those by position."
+                f"Highlights {len(page.covered)} of {self.selected} maps "
+                f"({page.length}/{self.limit} characters)."
             )
-        if self.dropped:
+        elif self.count > 1:
             parts.append(
-                f"{len(self.dropped)} did not fit in the {self.limit}-character "
-                "box. Raise the price to fit the rest in."
+                f"Highlights {len(self.covered)} of {self.selected} maps, across "
+                f"{self.count} searches -- more than the {self.limit}-character "
+                "box holds at once."
             )
+        elif not self.ambiguous:
+            parts.append(
+                "No pattern can single out those maps: every fragment of their "
+                "names also appears on a map below the threshold."
+            )
+
+        parts.extend(
+            _shortfall(
+                self.ambiguous,
+                self.unmatchable,
+                self.dropped,
+                f"need a fragment longer than the {self.limit}-character box "
+                "allows. Find those by position.",
+            )
+        )
         return " ".join(parts)
 
 
@@ -408,9 +511,118 @@ def build_highlight_regex(
     whole pool costs about seventy characters of the budget and removes the
     entire failure.
     """
+    plan = _plan(selected_names, excluded_text, known_names)
+    if not plan.targets:
+        return HighlightRegex(
+            ambiguous=plan.ambiguous, selected=plan.wanted, limit=limit
+        )
+
+    chosen, covered_indices = _cover(plan.candidates, set(plan.reachable), limit)
+    return HighlightRegex(
+        pattern="|".join(c.rendered for c in chosen),
+        covered=tuple(plan.targets[i][0] for i in sorted(covered_indices)),
+        ambiguous=plan.ambiguous,
+        dropped=tuple(
+            name
+            for i, (name, _) in enumerate(plan.targets)
+            if i in plan.reachable and i not in covered_indices
+        ),
+        unmatchable=plan.unmatchable,
+        selected=plan.wanted,
+        limit=limit,
+    )
+
+
+def build_highlight_batches(
+    selected_names: Sequence[str],
+    excluded_text: Iterable[str],
+    limit: int = POE1_SEARCH_LIMIT,
+    known_names: Iterable[str] = (),
+) -> HighlightBatches:
+    """The same pattern, split across as many searches as the maps need.
+
+    `build_highlight_regex` fills one box and reports the rest as dropped, which
+    is the right answer when the caller has one box to fill. When the caller can
+    page through several -- and the stash search is pasted into, cleared, and
+    pasted into again -- there is no reason to make the user hunt by hand for
+    maps a second search would have found.
+
+    Each page is a fresh budget over the fragments the first page did not need,
+    so a map is dealt to a later page rather than dropped. The corpus, the
+    candidate set and every safety check are shared, so page five is exactly as
+    careful about maps below the threshold as page one.
+
+    The loop stops when a page covers nothing new: at that point the shortest
+    fragment for what remains is longer than the whole box, and no number of
+    further pages would help. Those names are reported as `dropped`.
+    """
+    plan = _plan(selected_names, excluded_text, known_names)
+    if not plan.targets:
+        return HighlightBatches(
+            ambiguous=plan.ambiguous, selected=plan.wanted, limit=limit
+        )
+
+    remaining = set(plan.reachable)
+    pages: list[HighlightRegex] = []
+    while remaining:
+        chosen, _ = _cover(plan.candidates, remaining, limit)
+        if not chosen:
+            break
+        # What the page really lights up, not merely what was still owed. A
+        # fragment kept back for this page can also match a map an earlier page
+        # already caught, and reporting the smaller number would understate the
+        # page while double-listing the map further on.
+        lit = set().union(*(c.covers for c in chosen))
+        pages.append(
+            HighlightRegex(
+                pattern="|".join(c.rendered for c in chosen),
+                covered=tuple(plan.targets[i][0] for i in sorted(lit)),
+                selected=plan.wanted,
+                limit=limit,
+            )
+        )
+        remaining -= lit
+
+    return HighlightBatches(
+        pages=tuple(pages),
+        ambiguous=plan.ambiguous,
+        dropped=tuple(plan.targets[i][0] for i in sorted(remaining)),
+        unmatchable=plan.unmatchable,
+        selected=plan.wanted,
+        limit=limit,
+    )
+
+
+@dataclass
+class _Plan:
+    """Everything both builders need, worked out once from the tab.
+
+    The corpus scan and the fragment search are the expensive half of this
+    module and neither depends on the character budget, so they happen here and
+    the budget is spent separately -- once for a single pattern, once per page
+    for a batch.
+    """
+
+    #: `(name, normalised name)` for the maps a pattern could actually reach.
+    targets: list[tuple[str, str]] = field(default_factory=list)
+    candidates: list[_Candidate] = field(default_factory=list)
+    #: Indices into `targets` that at least one safe fragment matches.
+    reachable: set[int] = field(default_factory=set)
+    unmatchable: tuple[str, ...] = ()
+    ambiguous: tuple[str, ...] = ()
+    #: How many maps were asked for, including the ones no pattern can reach.
+    wanted: int = 0
+
+
+def _plan(
+    selected_names: Sequence[str],
+    excluded_text: Iterable[str],
+    known_names: Iterable[str] = (),
+) -> _Plan:
+    """Work out which maps are reachable, and by which fragments."""
     wanted = [n for n in (s.strip() for s in selected_names) if n]
     if not wanted:
-        return HighlightRegex(selected=0, limit=limit)
+        return _Plan()
 
     corpus = [_normalise_text(t) for t in excluded_text if t and t.strip()]
     lowered = [_normalise(n) for n in wanted]
@@ -448,9 +660,7 @@ def build_highlight_regex(
         if original not in ambiguous
     ]
     if not targets:
-        return HighlightRegex(
-            ambiguous=tuple(ambiguous), selected=len(wanted), limit=limit
-        )
+        return _Plan(ambiguous=tuple(ambiguous), wanted=len(wanted))
 
     candidates = _safe_candidates(targets, safety_corpus)
     reachable = set().union(*(c.covers for c in candidates)) if candidates else set()
@@ -470,21 +680,13 @@ def build_highlight_regex(
     # is advice that cannot work. Separate them before the cover runs.
     unmatchable = [name for i, (name, _) in enumerate(targets) if i not in reachable]
 
-    chosen, covered_indices = _cover(candidates, len(targets), limit)
-    covered = [targets[i][0] for i in sorted(covered_indices)]
-    dropped = [
-        name
-        for i, (name, _) in enumerate(targets)
-        if i in reachable and i not in covered_indices
-    ]
-    return HighlightRegex(
-        pattern="|".join(chosen),
-        covered=tuple(covered),
-        ambiguous=tuple(ambiguous),
-        dropped=tuple(dropped),
+    return _Plan(
+        targets=targets,
+        candidates=list(candidates),
+        reachable=reachable,
         unmatchable=tuple(unmatchable),
-        selected=len(wanted),
-        limit=limit,
+        ambiguous=tuple(ambiguous),
+        wanted=len(wanted),
     )
 
 
@@ -520,17 +722,21 @@ def _safe_candidates(
 
 
 def _cover(
-    candidates: Sequence[_Candidate], target_count: int, limit: int
-) -> tuple[list[str], set[int]]:
+    candidates: Sequence[_Candidate], wanted: set[int], limit: int
+) -> tuple[list[_Candidate], set[int]]:
     """Greedy set cover, spending characters where they buy the most maps.
 
     Exact minimum-length cover is NP-hard and the greedy choice is the standard
     answer; what matters more here is the *tie-break*. Ranking purely by how
     many maps a fragment covers spends 8 characters to catch two maps where two
     fragments of 3 would catch three, so the score is maps-per-character.
+
+    `wanted` is the set of target indices still owed, so a caller building a
+    second page can ask for the maps the first page missed and get the budget
+    spent on those. It is copied, not consumed.
     """
-    remaining = set(range(target_count))
-    chosen: list[str] = []
+    remaining = set(wanted)
+    chosen: list[_Candidate] = []
     covered: set[int] = set()
     budget = limit
 
@@ -551,9 +757,8 @@ def _cover(
                 best, best_score = candidate, score
         if best is None:
             break
-        rendered = best.rendered
-        budget -= len(rendered) + (1 if chosen else 0)
-        chosen.append(rendered)
+        budget -= len(best.rendered) + (1 if chosen else 0)
+        chosen.append(best)
         newly = best.covers & remaining
         covered |= newly
         remaining -= newly

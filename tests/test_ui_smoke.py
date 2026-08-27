@@ -41,6 +41,26 @@ def test_page_renders(page):
     assert not app.exception, f"{page} raised: {[str(e) for e in app.exception]}"
 
 
+@pytest.mark.parametrize("page", PAGES)
+def test_page_renders_on_a_fresh_install(page, monkeypatch, tmp_path):
+    """Trained model present, listings database empty.
+
+    That combination is not hypothetical: it is exactly what a downloaded
+    release is on its first run, because the zip ships the model but not the
+    33 MB database. It is also the one configuration the plain smoke test above
+    never sees on a developer machine, where data/originator.db always exists --
+    which is how Model Analysis shipped a KeyError on `price_chaos` that only
+    the empty case could reach.
+    """
+    from src.config import Config
+
+    empty = tmp_path / "empty.db"
+    monkeypatch.setattr(Config, "db_path", property(lambda self: empty))
+
+    app = _run(page)
+    assert not app.exception, f"{page} raised on a fresh install: {[str(e) for e in app.exception]}"
+
+
 def test_single_map_prices_a_manually_entered_map():
     app = _run("Single Map")
     if not app.number_input:
@@ -238,6 +258,70 @@ def test_the_market_comparison_mode_renders_without_calling_the_api():
 
     assert calls == [], "the market mode called the trade API without being asked to"
 
+
+def _blocks_of_type(node, kind, found=None):
+    """Every block of `kind` in the rendered tree, depth-first."""
+    found = [] if found is None else found
+    children = getattr(node, "children", None)
+    if isinstance(children, dict):
+        children = list(children.values())
+    for child in children or []:
+        if getattr(child, "type", "") == kind:
+            found.append(child)
+        _blocks_of_type(child, kind, found)
+    return found
+
+
+def _button_labels(node):
+    """Labels of every button at or below `node`."""
+    out = []
+    children = getattr(node, "children", None)
+    if isinstance(children, dict):
+        children = list(children.values())
+    for child in children or []:
+        if type(child).__name__ == "Button":
+            out.append(str(getattr(child, "label", "")))
+        out.extend(_button_labels(child))
+    return out
+
+
+def _stash_pricer_with_a_tab():
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"Stash Pricer raised: {[str(e) for e in app.exception]}"
+    return app
+
+
+def test_analyze_is_on_the_page_once_a_tab_is_loaded():
+    """The button the page exists for must not vanish the moment it is used.
+
+    With a tab loaded the source picker folds away and Analyze used to fold with
+    it -- or, when the default source could not reach the stash API, never
+    render at all. Either way the most important control on the page was gone
+    exactly when re-reading the tab was the obvious next thing to do.
+    """
+    app = _stash_pricer_with_a_tab()
+    labels = _button_labels(app.main)
+    assert any("Analyze" in label for label in labels), labels
+
+
+def test_analyze_does_not_live_inside_the_folding_picker():
+    """Rendered outside the expander, or "always visible" lasts exactly one click.
+
+    Streamlit runs an expander's body whether or not it is open, so a button
+    inside one is present to this harness and invisible to the user. The
+    assertion has to be about where it sits, not merely that it exists.
+    """
+    app = _stash_pricer_with_a_tab()
+    hidden = [
+        label
+        for expander in _blocks_of_type(app.main, "expander")
+        for label in _button_labels(expander)
+        if "Analyze" in label
+    ]
+    assert not hidden, f"Analyze rendered inside the collapsed picker: {hidden}"
 
 # ---------------------------------------------------------------------------
 # The market run's escape hatch, on the page rather than in the pricer
