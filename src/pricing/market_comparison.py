@@ -361,6 +361,7 @@ class MarketComparisonPricer:
                 on_slice=lambda done, total, found: report(
                     f"market read {done}/{total}: {found} listings"
                 ),
+                stop=stop,
             )
             state.pool_size = len(pool)
             state.pool_requests = pool.requests
@@ -369,7 +370,7 @@ class MarketComparisonPricer:
 
         for item in pending:
             if stop is not None and stop():
-                state.stopped_reason = "stopped by the user"
+                state.stopped_reason = self._cancelled_reason(state, items)
                 break
             if self.budget.exhausted:
                 state.stopped_reason = (
@@ -443,10 +444,32 @@ class MarketComparisonPricer:
                 f"at {derivation.tolerance:g}x"
             )
 
+        if stop is not None and stop() and not state.stopped_reason:
+            state.stopped_reason = self._cancelled_reason(state, items)
+
+        # Saved on every exit, cancelled or not. The requests already spent are
+        # the expensive part of this mode, and the cache is what stops a resumed
+        # run paying for them twice.
         self.cache.save()
         state.requests_used = self.budget.used
         report(state.stopped_reason or "finished")
         return state
+
+    @staticmethod
+    def _cancelled_reason(state: MarketRunState, items: Sequence[NormalizedMap]) -> str:
+        """What a cancelled run says for itself.
+
+        "Stopped by the user" told them what they already knew. What they need
+        to know is that the requests they waited for bought something: how many
+        maps came back priced, how many are left, and that pressing the button
+        again picks up from here rather than starting over.
+        """
+        left = len(state.pending(items))
+        return (
+            f"Cancelled with {state.priced_count} of {len(items)} maps priced and "
+            f"{left} left. Nothing already found was thrown away -- press "
+            f"Continue pricing to carry on from here."
+        )
 
     # ------------------------------------------------------------------
     def priced(

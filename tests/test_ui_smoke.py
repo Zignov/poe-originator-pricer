@@ -294,3 +294,136 @@ def test_the_market_comparison_mode_renders_without_calling_the_api():
         trade_api.OfficialTradeApiCollector.search = original
 
     assert calls == [], "the market mode called the trade API without being asked to"
+
+
+def _blocks_of_type(node, kind, found=None):
+    """Every block of `kind` in the rendered tree, depth-first."""
+    found = [] if found is None else found
+    children = getattr(node, "children", None)
+    if isinstance(children, dict):
+        children = list(children.values())
+    for child in children or []:
+        if getattr(child, "type", "") == kind:
+            found.append(child)
+        _blocks_of_type(child, kind, found)
+    return found
+
+
+def _button_labels(node):
+    """Labels of every button at or below `node`."""
+    out = []
+    children = getattr(node, "children", None)
+    if isinstance(children, dict):
+        children = list(children.values())
+    for child in children or []:
+        if type(child).__name__ == "Button":
+            out.append(str(getattr(child, "label", "")))
+        out.extend(_button_labels(child))
+    return out
+
+
+def _stash_pricer_with_a_tab():
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"Stash Pricer raised: {[str(e) for e in app.exception]}"
+    return app
+
+
+def test_analyze_is_on_the_page_once_a_tab_is_loaded():
+    """The button the page exists for must not vanish the moment it is used.
+
+    With a tab loaded the source picker folds away and Analyze used to fold with
+    it -- or, when the default source could not reach the stash API, never
+    render at all. Either way the most important control on the page was gone
+    exactly when re-reading the tab was the obvious next thing to do.
+    """
+    app = _stash_pricer_with_a_tab()
+    labels = _button_labels(app.main)
+    assert any("Analyze" in label for label in labels), labels
+
+
+def test_analyze_does_not_live_inside_the_folding_picker():
+    """Rendered outside the expander, or "always visible" lasts exactly one click.
+
+    Streamlit runs an expander's body whether or not it is open, so a button
+    inside one is present to this harness and invisible to the user. The
+    assertion has to be about where it sits, not merely that it exists.
+    """
+    app = _stash_pricer_with_a_tab()
+    hidden = [
+        label
+        for expander in _blocks_of_type(app.main, "expander")
+        for label in _button_labels(expander)
+        if "Analyze" in label
+    ]
+    assert not hidden, f"Analyze rendered inside the collapsed picker: {hidden}"
+
+# ---------------------------------------------------------------------------
+# The market run's escape hatch, on the page rather than in the pricer
+# ---------------------------------------------------------------------------
+def _held_open_job(items):
+    """A real `MarketRunJob` parked on a thread that will not finish on its own.
+
+    Faked at the thread rather than at the handle so the page sees exactly the
+    object it sees in production -- `running`, `cancelling` and `state` all
+    answering for real. The caller must set the returned event.
+    """
+    import threading
+
+    from src.market.live_comparables import MapOutcome, MarketProgress, MarketRunState
+    from src.market.run_job import MarketRunJob
+
+    release = threading.Event()
+    state = MarketRunState()
+    state.record(MapOutcome(fingerprint=items[0].fingerprint(), reason="unsupported"))
+    job = MarketRunJob(state=state, items=list(items))
+    job.progress = MarketProgress(
+        done=1,
+        total=len(items),
+        requests_used=4,
+        request_budget=200,
+        eta_seconds=90.0,
+        message="pricing",
+    )
+    job._thread = threading.Thread(target=release.wait, daemon=True)
+    job._thread.start()
+    return job, release
+
+
+def test_a_run_in_flight_offers_a_cancel_button_on_the_page():
+    """The whole point: a run you can stop, from a page that is still drawing."""
+    app = AppTest.from_file(APP, default_timeout=240)
+    items = _demo_items()
+    app.session_state["stash_items"] = items
+    job, release = _held_open_job(items)
+    app.session_state["market_run_job"] = job
+    app.session_state["pricing_mode"] = "market"
+    try:
+        app.run()
+        app.sidebar.radio[0].set_value("Stash Pricer").run()
+        assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+        labels = [str(b.label) for b in app.button]
+        assert "Cancel run" in labels, labels
+        assert "Show results so far" in labels, labels
+        # And the run has not been started over or restarted by the redraw.
+        assert app.session_state["market_run_job"] is job
+        assert not job.cancelled
+    finally:
+        release.set()
+        job.join(timeout=5)
+
+
+def test_the_page_never_offers_cancel_when_nothing_is_running():
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.session_state["pricing_mode"] = "market"
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    labels = [str(b.label) for b in app.button]
+    assert "Cancel run" not in labels, labels
+    assert "Price from live listings" in labels, labels

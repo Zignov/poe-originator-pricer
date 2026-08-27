@@ -228,8 +228,18 @@ What works today:
 | **Clipboard** | none | Ctrl+C on maps in game, paste them in |
 
 To use POESESSID: log in to pathofexile.com, open developer tools → Application →
-Cookies, copy `POESESSID` into `.env` or the Settings page. Treat it like a
-password. `.env` is gitignored and the Settings page does not write it to disk.
+Cookies, and copy `POESESSID` into **Settings → Account**, along with your
+account name including its `#1234` discriminator.
+
+**Save to .env** keeps it for next time; without it the value lasts only as long
+as the app is open. **Forget** clears it again. Saving edits `.env` in place, so
+your contact address and anything else in that file survives untouched, and the
+value is picked up immediately rather than at the next restart.
+
+Treat it like a password. `.env` is gitignored, never goes into a release zip,
+and never leaves your machine — but it is plain text, so saving makes the cookie
+*persist*, not become secret. It expires on its own; when GGG starts answering
+403, paste a fresh one.
 
 ---
 
@@ -288,14 +298,21 @@ cp config.example.yaml config.yaml   # set your league and contact address
 cp .env.example .env                 # optional: POESESSID for stash access
 ```
 
-Then get some data and a model:
+A trained model is already in the checkout — `models/originator_model.pkl` is
+tracked (§11) — so `streamlit run app.py` prices maps right now. What is *not*
+in the checkout is the listings database, so the Market Data and Model Analysis
+pages stay empty until you give them one:
 
 ```bash
 python -m src.cli update-rate                 # live divine/chaos rate
 python -m src.cli collect-market --limit 2000 # ~15-20 min, rate-limit obedient
-python -m src.cli train --tune-weights
+python -m src.cli train --tune-weights        # only once you have your own data
 python -m src.cli status
 ```
+
+Retraining is worth doing when the shipped model is from a league or a week
+that no longer matches the market you are selling into — §11 on why a snapshot
+ages. Until then the shipped one is the better of the two.
 
 And run the app:
 
@@ -322,11 +339,13 @@ In the browser:
 
 Two things do not survive the trip, both by design:
 
-* **The database and the trained model are not in the repo** (`data/*.db`,
-  `models/*.pkl`). A cloud instance therefore starts with no listings and no
-  model, and Community Cloud's disk does not persist across restarts. Collect
-  from the Market Data page to fill it, or import a CSV export. Treat a cloud
-  instance as a demo; the real dataset lives on the machine that collected it.
+* **The database is not in the repo** (`data/*.db`). A cloud instance therefore
+  starts with no listings, and Community Cloud's disk does not persist across
+  restarts. Collect from the Market Data page to fill it, or import a CSV
+  export. Treat a cloud instance as a demo; the real dataset lives on the
+  machine that collected it. The *model* does travel — `models/originator_model.pkl`
+  is tracked (§11), so a cloud instance prices maps from the first request even
+  though it can show you nothing about the market they were trained on.
 * **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
   goes out as `you@example.com`, and GGG asks automated clients to identify
   themselves with a real address (see §13). `POE_LEAGUE` can be set the same way
@@ -1013,6 +1032,35 @@ Because that is easy to lose track of, the **Dashboard** compares the two and
 says which state you are in — either *"Model is current: trained on 4,102 of
 4,102 usable listings"* or a warning naming the gap and pointing at Retrain.
 Check there after a collection run.
+
+### The trained model ships with the repo
+
+Since 0.2.0 the model itself is tracked, not just the data it was fitted on:
+
+```
+models/originator_model.pkl      the model            1.2 MB
+models/originator_model.json     metrics and schema
+models/affix_catalogue.json      affix contributions
+```
+
+Every clone and every download therefore prices a map on its first run, instead
+of showing an empty app that first asks for a 20-minute collection. It also
+means anyone can rebuild an identical release zip, where before only the machine
+that had trained could build a useful one.
+
+Three things to know about a model you did not fit yourself:
+
+- **It is a snapshot of one league, at one moment.** The same caveat the CSV
+  export carries below, and the reason to retrain rather than trust it forever.
+  `models/originator_model.json` records the data window it saw; the Model
+  Analysis page shows it.
+- **Retraining rewrites all three files**, so they turn up in `git status` and
+  in diffs. That is a real change to what the next release ships, worth a commit
+  message, not noise to suppress.
+- **It is a pickle**, so loading it executes code from it. That is fine for a
+  file you or this repo produced and would not be fine for one a stranger sent
+  you. A model whose feature schema does not match the current parser is refused
+  at load time regardless.
 
 ### Sharing the dataset instead of everyone collecting it
 
