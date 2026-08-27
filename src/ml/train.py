@@ -530,7 +530,21 @@ def _fit_affix_catalogue(cfg: Config, repo: Repository, log=print) -> None:
         return
 
     if catalogue is None:
-        log("affix catalogue: not enough listings with affix data; exalt advice disabled")
+        # Nothing is written, so whatever catalogue is already on disk stays and
+        # keeps answering. Worth saying plainly: the message here used to read
+        # "exalt advice disabled", which is what a downloader saw after every
+        # retrain over the bundled sample -- it carries no affix data -- while
+        # the shipped catalogue went on working perfectly.
+        existing = (cfg.model_dir / CATALOGUE_NAME).exists()
+        log(
+            "affix catalogue: not enough listings with affix data to refit"
+            + (
+                "; keeping the one already saved (collected listings carry affixes, "
+                "imported CSV rows do not)"
+                if existing
+                else "; exalt advice stays off until some collected listings arrive"
+            )
+        )
         return
 
     catalogue.save(cfg.model_dir / CATALOGUE_NAME)
