@@ -387,8 +387,14 @@ You get:
 ### Pricing what is in your inventory
 
 The same page reads a character's backpack as well as a stash tab: pick
-**Character inventory** as the source, load the character list, choose a
-character, and press **Read inventory**.
+**Character inventory** in the source row at the top of the page, load the
+character list, choose a character, and press **Read inventory**.
+
+That source row is always on screen, including once a tab is already loaded.
+It used to fold away with the source-specific settings, which meant the only
+source you could see was the one you were already using -- and the inventory
+looked like a feature with no button, because nothing on the page said it
+existed. Only the settings for the chosen source fold now.
 
 It exists because of when you actually want the number. Maps come out of the map
 device into your inventory, and that — before they are dumped into a tab and
@@ -1257,7 +1263,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     668 tests, including live-render checks of every page
+tests/                     671 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.

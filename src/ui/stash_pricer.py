@@ -52,6 +52,10 @@ MODE_LABELS = {
     "market": "Market comparison",
 }
 
+#: What the primary button says when the inventory is the chosen source. Named
+#: once because it appears on every return path out of that loader.
+READ_INVENTORY = "Read inventory"
+
 SOURCE_LABELS = {
     "session": "Connect account (POESESSID)",
     "inventory": "Character inventory",
@@ -78,6 +82,12 @@ class SourcePlan:
 
     run: Callable[[], list | None] | None = None
     blocked: str = ""
+    #: What the primary button says for this source. "Analyze" is right for a
+    #: stash tab and wrong for everything that is not one -- a button labelled
+    #: "Analyze" is not something you go looking for when what you want is to
+    #: read your inventory, which is exactly how the inventory source came to
+    #: look like it had no button at all.
+    label: str = "Analyze"
 
 
 def render() -> None:
@@ -96,20 +106,29 @@ def render() -> None:
     if model_error:
         st.markdown(f'<div class="warn">{model_error}</div>', unsafe_allow_html=True)
 
-    # The source picker is the first thing on the page and the last thing you
-    # need once a tab is loaded, so it folds itself away. Left open it pushed
-    # every price below the fold and made re-pricing look like a five-step form.
+    # The row of sources is always on the page. It used to live inside the
+    # folding picker with everything else, which meant that once a tab was
+    # loaded the fold closed over it and every source other than the one in use
+    # became invisible -- you could not see that reading your character's
+    # inventory was even an option, let alone reach it. Only the *inputs* for
+    # the chosen source fold away now, because those are what made the page
+    # long; six radio buttons never did.
     loaded = st.session_state.get("stash_items")
-    with st.expander(
-        _source_summary(loaded), expanded=not loaded
-    ):
-        source_key = st.radio(
-            "Where should the maps come from?",
-            list(SOURCE_LABELS),
-            format_func=SOURCE_LABELS.get,
-            horizontal=True,
-        )
+    source_key = st.radio(
+        "Where should the maps come from?",
+        list(SOURCE_LABELS),
+        format_func=SOURCE_LABELS.get,
+        horizontal=True,
+        key="stash_source_pick",
+    )
 
+    # Switching source opens the details again even with a tab already loaded:
+    # the switch is a statement that you want to load something else, and
+    # leaving it folded would answer that by hiding the controls it needs.
+    switched = st.session_state.get("stash_source_shown") != source_key
+    st.session_state["stash_source_shown"] = source_key
+
+    with st.expander(_source_summary(loaded, source_key), expanded=switched or not loaded):
         if source_key == "session":
             plan = _from_session(cfg)
         elif source_key == "inventory":
@@ -307,16 +326,20 @@ def render() -> None:
 
 
 # ---------------------------------------------------------------------------
-def _source_summary(items) -> str:
-    """The one line the collapsed source picker shows.
+def _source_summary(items, source_key: str = "") -> str:
+    """The one line the collapsed details panel shows.
 
-    Says what is loaded rather than what the control does, because once a tab is
-    in hand that is the only question left about it -- and it keeps the way back
-    visible without keeping five radio options and a file picker on screen.
+    Names the chosen source rather than only the loaded one. With the radio
+    above it, the fold's job is no longer "here is where you pick a source" --
+    it is "here are the settings for the one you picked", and saying which one
+    is what makes a closed panel legible.
     """
+    chosen = SOURCE_LABELS.get(source_key, "")
     if not items:
-        return "Choose where the maps come from"
+        return f"Set up: {chosen}" if chosen else "Choose where the maps come from"
     where = st.session_state.get("stash_source", "a saved source")
+    if chosen and chosen != where:
+        return f"{len(items)} maps loaded from {where}  --  set up {chosen}"
     return f"{len(items)} maps loaded from {where}  --  click to load something else"
 
 
@@ -333,10 +356,10 @@ def _analyze_button(plan: SourcePlan):
     """
     ready = plan.run is not None
     clicked = st.button(
-        "Analyze",
+        plan.label,
         type="primary",
         disabled=not ready,
-        help=plan.blocked or "Read the chosen tab and price every map in it.",
+        help=plan.blocked or "Read the chosen source and price every map in it.",
         key="analyze_tab",
     )
     if not ready:
@@ -422,7 +445,7 @@ def _from_inventory(cfg):
     ok, why = source.available()
     if not ok:
         st.warning(f"{why}. {source.setup_hint}")
-        return SourcePlan(blocked=f"{why}. {source.setup_hint}")
+        return SourcePlan(blocked=f"{why}. {source.setup_hint}", label=READ_INVENTORY)
 
     # Its own button, like the stash tab list: listing characters is a separate
     # round trip to GGG and a prerequisite of choosing one, not a way of reading
@@ -432,23 +455,24 @@ def _from_inventory(cfg):
             st.session_state["characters"] = source.list_tabs(cfg.get("league"))
         except StashAccessError as exc:
             st.error(str(exc))
-            return SourcePlan(blocked=str(exc))
+            return SourcePlan(blocked=str(exc), label=READ_INVENTORY)
 
     characters = st.session_state.get("characters")
     if characters is None:
-        return SourcePlan(blocked="Load the character list first.")
+        return SourcePlan(blocked="Load the character list first.", label=READ_INVENTORY)
     if not characters:
         return SourcePlan(
+            label=READ_INVENTORY,
             blocked=(
                 f"No characters found in {cfg.get('league')}. Check the league in "
                 "Settings, and that your characters are not hidden on your profile."
-            )
+            ),
         )
 
     chosen_name = st.selectbox("Character", [c.name for c in characters])
     chosen = next((c for c in characters if c.name == chosen_name), None)
     if chosen is None:
-        return SourcePlan(blocked="Choose a character to read.")
+        return SourcePlan(blocked="Choose a character to read.", label=READ_INVENTORY)
 
     def run():
         with st.spinner(f"Reading {chosen.name}'s inventory..."):
@@ -464,7 +488,7 @@ def _from_inventory(cfg):
             return None
         return items
 
-    return SourcePlan(run=run)
+    return SourcePlan(run=run, label=READ_INVENTORY)
 
 
 def _from_json(cfg):

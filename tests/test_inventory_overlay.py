@@ -206,7 +206,18 @@ def test_an_unexpected_character_payload_is_refused_rather_than_guessed_at():
         source.list_tabs("Allflame")
 
 
-def test_the_inventory_reader_needs_the_same_credentials_as_the_stash_reader():
+def test_the_inventory_reader_needs_the_same_credentials_as_the_stash_reader(monkeypatch):
+    """No credentials means unavailable -- on a machine that has some, too.
+
+    The adapter falls back to POESESSID in the environment when it is passed
+    none, which is the behaviour that makes a .env work. It also meant this
+    test passed or failed depending on whether the developer running it had
+    ever configured the app: load_config() calls load_dotenv(), so one earlier
+    test in the same session was enough to put a real cookie in os.environ and
+    make "no credentials" quietly available.
+    """
+    monkeypatch.delenv("POESESSID", raising=False)
+    monkeypatch.delenv("POE_ACCOUNT_NAME", raising=False)
     source = CharacterInventorySource(poesessid="", account_name="", session=FakeSession({}))
     ok, why = source.available()
     assert not ok and why
