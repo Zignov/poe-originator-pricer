@@ -8,6 +8,7 @@ import streamlit as st
 from src.config import Config, load_config
 from src.database.repository import Repository
 from src.market.ingest import converter_for
+from src.market.seed import seed_if_empty
 from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.pricing.currency import CurrencyConverter
@@ -503,7 +504,14 @@ def get_config() -> Config:
 def get_repo() -> Repository:
     """One repository per Streamlit session. SQLite connections are not thread-safe."""
     if "repo" not in st.session_state:
-        st.session_state["repo"] = Repository(get_config().db_path)
+        cfg = get_config()
+        repo = Repository(cfg.db_path)
+        # First run of a download: fill the empty table with the sample the
+        # bundled model was trained on, so collecting adds to a dataset rather
+        # than starting one. Declines instantly once anything is stored, so the
+        # cost is one COUNT per session. See src/market/seed.py.
+        seed_if_empty(cfg, repo)
+        st.session_state["repo"] = repo
     return st.session_state["repo"]
 
 

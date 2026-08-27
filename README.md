@@ -272,10 +272,19 @@ gradient-boosting backends, which freezes to roughly 800 MB and breaks on every
 dependency bump, so a venv that `pip` can repair is the more honest package.
 
 The download ships with a **trained model already in it**, so prices work on the
-first stash tab you paste — no collection run needed to see something. What it
-does not ship is the listings database (33 MB, and one league's snapshot), so
-the Market Data and Model Analysis pages start empty until you either collect
-or import `data/originator_listings_allflame.csv` (§11).
+first stash tab you paste — no collection run needed to see something. The 33 MB
+listings database is not in the zip, but the rows that model was fitted on are:
+the first run imports `data/originator_listings_allflame.csv` into a fresh
+database, prints a line saying so, and never does it again. That is what makes
+your first **Collect and retrain** add ~4,100 listings' worth of history rather
+than start from the few hundred it just pulled — which used to mean trading the
+bundled model for a much thinner one without being told.
+
+Two consequences worth knowing. The sample is one league's snapshot
+(`Allflame`), so if you set a different league in `config.yaml` before the first
+run the seed is skipped rather than filed under the wrong league's name — you
+start empty and collect. And if you ever do retrain on far less data than the
+current model saw, the training log now says so before it overwrites it.
 
 Everything the launcher creates — `.venv`, `config.yaml`, `.env`, the database —
 stays inside that one folder. Deleting the folder uninstalls it completely.
@@ -339,13 +348,15 @@ In the browser:
 
 Two things do not survive the trip, both by design:
 
-* **The database is not in the repo** (`data/*.db`). A cloud instance therefore
-  starts with no listings, and Community Cloud's disk does not persist across
-  restarts. Collect from the Market Data page to fill it, or import a CSV
-  export. Treat a cloud instance as a demo; the real dataset lives on the
-  machine that collected it. The *model* does travel — `models/originator_model.pkl`
-  is tracked (§11), so a cloud instance prices maps from the first request even
-  though it can show you nothing about the market they were trained on.
+* **The database is not in the repo** (`data/*.db`), and Community Cloud's disk
+  does not persist across restarts. What travels instead is the pair that
+  rebuilds a usable one: `models/originator_model.pkl` is tracked (§11), so a
+  cloud instance prices maps from the first request, and
+  `data/originator_listings_allflame.csv` is seeded into the empty database on
+  each cold start, so the Market Data and Model Analysis pages have the market
+  that model was fitted on to show. Anything *you* collect there still dies with
+  the container: treat a cloud instance as a demo, and keep the real dataset on
+  the machine that collected it.
 * **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
   goes out as `you@example.com`, and GGG asks automated clients to identify
   themselves with a real address (see §13). `POE_LEAGUE` can be set the same way

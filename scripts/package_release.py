@@ -30,6 +30,13 @@ What stays out
 `data/originator.db` (33 MB of collected listings, and one league's snapshot),
 `config.yaml` and `.env` -- the last two because they are yours. The launcher
 seeds fresh ones from the committed examples on first run.
+
+The database stays out, but its contents do not have to: the tracked
+`data/originator_listings_allflame.csv` is the anonymised export of the rows
+the shipped model was trained on, and the launcher imports it into the empty
+database on a first run. Without that the download had a model over an empty
+table, so a downloader's first "Collect and retrain" replaced a model fitted on
+thousands of listings with one fitted on the few hundred just collected.
 """
 from __future__ import annotations
 
@@ -58,6 +65,12 @@ REQUIRED_ARTIFACTS = (
     "models/originator_model.pkl",
     "models/originator_model.json",
     "models/affix_catalogue.json",
+    # The anonymised export of what that model was trained on. The launcher
+    # imports it into the empty database on a first run, which is what makes a
+    # downloader's first collection *add* to a dataset instead of being the
+    # whole of one -- see src/market/seed.py. A zip without it ships a model
+    # over an empty table, and the first retrain throws the model away.
+    "data/originator_listings_allflame.csv",
 )
 
 
