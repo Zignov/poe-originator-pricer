@@ -226,8 +226,18 @@ What works today:
 | **Clipboard** | none | Ctrl+C on maps in game, paste them in |
 
 To use POESESSID: log in to pathofexile.com, open developer tools → Application →
-Cookies, copy `POESESSID` into `.env` or the Settings page. Treat it like a
-password. `.env` is gitignored and the Settings page does not write it to disk.
+Cookies, and copy `POESESSID` into **Settings → Account**, along with your
+account name including its `#1234` discriminator.
+
+**Save to .env** keeps it for next time; without it the value lasts only as long
+as the app is open. **Forget** clears it again. Saving edits `.env` in place, so
+your contact address and anything else in that file survives untouched, and the
+value is picked up immediately rather than at the next restart.
+
+Treat it like a password. `.env` is gitignored, never goes into a release zip,
+and never leaves your machine — but it is plain text, so saving makes the cookie
+*persist*, not become secret. It expires on its own; when GGG starts answering
+403, paste a fresh one.
 
 ---
 

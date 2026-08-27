@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.config import user_agent
+from src.config import ROOT, user_agent
+from src.env_file import UnwritableValue, read_values, write_values
 from src.market.currency_source import ExchangeRateError, fetch_leagues
 from src.ml import models as backends
 from src.ml.train import NotEnoughData, train
@@ -57,6 +58,65 @@ def _league_picker(cfg) -> str:
         "collection, the orb prices, the stash reader — follows this setting."
     )
     return chosen
+
+
+ENV_PATH = ROOT / ".env"
+
+#: Session-state key -> the name it is stored under in .env.
+CREDENTIAL_KEYS = {"poesessid": "POESESSID", "account_name": "POE_ACCOUNT_NAME"}
+
+
+def _stored_credential(session_key: str, env_key: str) -> str:
+    """What the field should show: this session's value, else what was saved.
+
+    Only the *first* render of the page falls through to .env. After that the
+    widget has written session state on every rerun, and preferring that is
+    what lets a field be edited -- or deliberately emptied -- without the saved
+    value reappearing underneath the cursor.
+    """
+    if session_key in st.session_state:
+        return st.session_state[session_key]
+    return read_values(ENV_PATH).get(env_key, "")
+
+
+def _credential_buttons() -> None:
+    """Save the credentials to .env, or clear them from it.
+
+    Saving writes the file *and* re-loads it with override, so the adapters
+    that read os.getenv() at construction see the new value in this same
+    session rather than only after a restart.
+    """
+    from dotenv import load_dotenv
+
+    save, forget = st.columns(2)
+
+    if save.button("Save to .env", use_container_width=True):
+        try:
+            path = write_values(
+                ENV_PATH,
+                {env: st.session_state.get(key, "") for key, env in CREDENTIAL_KEYS.items()},
+            )
+        except UnwritableValue as exc:
+            st.error(str(exc))
+        else:
+            load_dotenv(path, override=True)
+            flash("success", f"Saved to {path.name}. It will be there next time you start.")
+            st.rerun()
+
+    if forget.button("Forget", use_container_width=True):
+        path = write_values(ENV_PATH, {env: "" for env in CREDENTIAL_KEYS.values()})
+        load_dotenv(path, override=True)
+        for key in CREDENTIAL_KEYS:
+            st.session_state.pop(key, None)
+        flash("success", f"Cleared from {path.name}.")
+        st.rerun()
+
+    st.caption(
+        f"Saved in `{ENV_PATH.name}` beside the app, which is gitignored and never "
+        "leaves this machine. It is a plain text file, so this makes the cookie "
+        "persist -- it does not encrypt it. POESESSID expires on its own; when GGG "
+        "starts answering 403, paste a fresh one."
+    )
 
 
 def render() -> None:
@@ -265,19 +325,16 @@ def render() -> None:
         st.markdown(
             "**POESESSID** is your own browser session cookie for pathofexile.com. It is "
             "sent only to GGG's own site, to read your own stash. Treat it like a "
-            "password: never share it, and it is not written to disk by this page."
+            "password: never share it."
         )
         st.session_state["poesessid"] = st.text_input(
-            "POESESSID", value=st.session_state.get("poesessid", ""), type="password"
+            "POESESSID", value=_stored_credential("poesessid", "POESESSID"), type="password"
         )
         st.session_state["account_name"] = st.text_input(
             "Account name (including the #1234 discriminator)",
-            value=st.session_state.get("account_name", ""),
+            value=_stored_credential("account_name", "POE_ACCOUNT_NAME"),
         )
-        st.caption(
-            "To persist these, put POESESSID and POE_ACCOUNT_NAME in a .env file "
-            "(see .env.example). .env is gitignored."
-        )
+        _credential_buttons()
         st.markdown("---")
         st.markdown(
             "**Official OAuth** is the supported route, but GGG registers OAuth clients "
