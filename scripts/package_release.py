@@ -9,17 +9,21 @@ clicking "Start Originator Pricer.bat" is the whole install.
 What goes in
 ------------
 Everything git tracks, minus the things that only matter to someone working on
-the code (`EXCLUDED_PREFIXES`), plus a short list of files that are gitignored
-but that make the download useful on its own:
+the code (`EXCLUDED_PREFIXES`).
+
+That now includes the trained model, because as of 0.2.0 these three are in the
+repo rather than gitignored:
 
     models/originator_model.pkl     the trained model
     models/originator_model.json    its metrics and feature schema
     models/affix_catalogue.json     the affix contribution table
 
-Those three are why a downloader gets working prices instead of an empty app
-that first wants a 20-minute market collection. They are optional: build on a
-machine that has never trained and the zip is still valid, just modelless, and
-this script says so rather than failing.
+They are why a downloader gets working prices instead of an empty app that
+first wants a 20-minute market collection, and tracking them means any
+checkout builds an identical zip -- before, only the machine that had trained
+could build a useful one. `REQUIRED_ARTIFACTS` re-checks they are really there,
+because a zip that is quietly modelless is the failure worth catching here
+rather than in someone's download.
 
 What stays out
 --------------
@@ -48,8 +52,9 @@ EXCLUDED_PREFIXES = (
     "Claude Code Prompt",
 )
 
-#: Gitignored, included when present. See the module docstring.
-OPTIONAL_EXTRAS = (
+#: Tracked, and the zip is not worth publishing without them. See the module
+#: docstring.
+REQUIRED_ARTIFACTS = (
     "models/originator_model.pkl",
     "models/originator_model.json",
     "models/affix_catalogue.json",
@@ -84,21 +89,35 @@ def main() -> int:
     target = DIST / f"{tag}.zip"
 
     members = tracked_files()
-    extras = [name for name in OPTIONAL_EXTRAS if (ROOT / name).exists()]
-    missing = [name for name in OPTIONAL_EXTRAS if name not in extras]
+
+    # Tracked but deleted from the working tree is a state git will happily
+    # report, and archive.write() would only discover it as a FileNotFoundError
+    # halfway through writing the zip.
+    absent = [name for name in members if not (ROOT / name).exists()]
+    if absent:
+        raise SystemExit(
+            "Tracked files are missing from the working tree:\n  "
+            + "\n  ".join(absent)
+            + "\nRestore them (git checkout -- <path>) before building."
+        )
+
+    modelless = [name for name in REQUIRED_ARTIFACTS if name not in members]
+    if modelless:
+        raise SystemExit(
+            "These are meant to be tracked and are not:\n  "
+            + "\n  ".join(modelless)
+            + "\nWithout them the download prices nothing until the user spends "
+              "20 minutes collecting a market. Train (python -m src.cli train), "
+              "commit the artifacts, then build."
+        )
 
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for name in members + extras:
+        for name in members:
             archive.write(ROOT / name, f"{tag}/{name}")
 
     size_mb = target.stat().st_size / 1_048_576
-    print(f"{target.relative_to(ROOT)}  ({size_mb:.1f} MB, {len(members) + len(extras)} files)")
-    if extras:
-        print("  bundled a trained model: " + ", ".join(extras))
-    if missing:
-        print("  NOT bundled (train first if you want prices out of the box):")
-        for name in missing:
-            print(f"    {name}")
+    print(f"{target.relative_to(ROOT)}  ({size_mb:.1f} MB, {len(members)} files)")
+    print("  trained model bundled: " + ", ".join(REQUIRED_ARTIFACTS))
     return 0
 
 
