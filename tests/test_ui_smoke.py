@@ -363,6 +363,74 @@ def test_analyze_does_not_live_inside_the_folding_picker():
 # ---------------------------------------------------------------------------
 # The market run's escape hatch, on the page rather than in the pricer
 # ---------------------------------------------------------------------------
+
+
+def _radio_labels(node):
+    """Labels of every radio at or below `node`."""
+    out = []
+    children = getattr(node, "children", None)
+    if isinstance(children, dict):
+        children = list(children.values())
+    for child in children or []:
+        if type(child).__name__ == "Radio":
+            out.append(str(getattr(child, "label", "")))
+        out.extend(_radio_labels(child))
+    return out
+
+
+def test_the_source_picker_is_not_hidden_once_a_tab_is_loaded():
+    """You cannot choose a source you cannot see.
+
+    The picker used to sit inside the fold with the source-specific inputs, so
+    the moment a tab was loaded the fold closed over all six options. The one
+    that suffered was the newest -- reading a character's inventory looked like
+    a feature with no button, because nothing on the page said it existed.
+    """
+    app = _stash_pricer_with_a_tab()
+    hidden = [
+        label
+        for expander in _blocks_of_type(app.main, "expander")
+        for label in _radio_labels(expander)
+        if "come from" in label
+    ]
+    assert not hidden, f"the source picker folded away: {hidden}"
+    assert any("come from" in label for label in _radio_labels(app.main))
+
+
+def test_choosing_the_inventory_renames_the_primary_button():
+    """"Analyze" is not what you look for when you want to read your backpack."""
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["poesessid"] = "x" * 32
+    app.session_state["account_name"] = "Exile#1234"
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    app.radio[0].set_value("inventory").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    labels = _button_labels(app.main)
+    assert "Read inventory" in labels, labels
+    # And the way in is on the page, not behind the fold.
+    assert "Load character list" in labels, labels
+
+
+def test_the_inventory_option_survives_a_loaded_tab():
+    """The whole complaint: a loaded tab must not hide the inventory source."""
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.session_state["poesessid"] = "x" * 32
+    app.session_state["account_name"] = "Exile#1234"
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+
+    source = [r for r in app.radio if "come from" in str(r.label)]
+    assert source, "no source picker on a page with a tab loaded"
+    offered = [str(o) for o in source[0].options]
+    assert any("inventory" in o.lower() for o in offered), offered
+
+    source[0].set_value("inventory").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+    assert "Read inventory" in _button_labels(app.main)
+
 def _held_open_job(items):
     """A real `MarketRunJob` parked on a thread that will not finish on its own.
 
