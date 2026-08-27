@@ -1,8 +1,8 @@
 {
  "league": "Allflame",
  "map_tier": 16,
- "fitted_at": "2026-08-26T06:30:18+00:00",
- "sample_size": 4988,
+ "fitted_at": "2026-08-27T03:36:52+00:00",
+ "sample_size": 6531,
  "modelled_features": [
   "quantity",
   "rarity",
@@ -258,14 +258,17 @@
   "#% chance for Rare Monsters to Fracture on death": [
    "of Splinters"
   ],
+  "Monsters deal #% extra Physical Damage as Fire": [
+   "Burning"
+  ],
+  "Rare monsters in area Temporarily Revive on death": [
+   "of Persistence"
+  ],
   "Unique Monsters have a random Shrine Buff": [
    "of Domination"
   ],
   "Monsters have +#% chance to Suppress Spell Damage": [
    "Oppressive"
-  ],
-  "Rare monsters in area Temporarily Revive on death": [
-   "of Persistence"
   ],
   "Unique Boss has #% increased Life": [
    "Titan's"
@@ -318,9 +321,6 @@
   "Monsters' Projectiles can Chain when colliding with Terrain": [
    "Chaining"
   ],
-  "Monsters deal #% extra Physical Damage as Fire": [
-   "Burning"
-  ],
   "Players have #% less Armour": [
    "of Rust"
   ],
@@ -362,6 +362,12 @@
   ],
   "Area is inhabited by Sea Witches and their Spawn": [
    "Slithering"
+  ],
+  "Area is inhabited by Humanoids": [
+   "Bipedal"
+  ],
+  "Players cannot inflict Exposure": [
+   "of Balance"
   ]
  },
  "affix_templates": {
@@ -579,14 +585,17 @@
    "+#% Monster Chaos Resistance",
    "+#% Monster Elemental Resistances"
   ],
+  "Burning": [
+   "Monsters deal #% extra Physical Damage as Fire"
+  ],
+  "of Persistence": [
+   "Rare monsters in area Temporarily Revive on death"
+  ],
   "of Domination": [
    "Unique Monsters have a random Shrine Buff"
   ],
   "Oppressive": [
    "Monsters have +#% chance to Suppress Spell Damage"
-  ],
-  "of Persistence": [
-   "Rare monsters in area Temporarily Revive on death"
   ],
   "Titan's": [
    "Unique Boss has #% increased Area of Effect",
@@ -628,9 +637,6 @@
   "Chaining": [
    "Monsters' Projectiles can Chain when colliding with Terrain",
    "Monsters' skills Chain # additional times"
-  ],
-  "Burning": [
-   "Monsters deal #% extra Physical Damage as Fire"
   ],
   "Mirrored": [
    "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage"
@@ -677,27 +683,33 @@
   ],
   "Slithering": [
    "Area is inhabited by Sea Witches and their Spawn"
+  ],
+  "Bipedal": [
+   "Area is inhabited by Humanoids"
+  ],
+  "of Balance": [
+   "Players cannot inflict Exposure"
   ]
  },
  "fit_quality": {
   "quantity": {
-   "r2": 0.9994,
-   "mae": 0.01,
+   "r2": 0.9996,
+   "mae": 0.008,
    "modelled": true
   },
   "rarity": {
-   "r2": 0.9999,
-   "mae": 0.31,
+   "r2": 0.9987,
+   "mae": 0.324,
    "modelled": true
   },
   "pack_size": {
-   "r2": 0.9908,
-   "mae": 0.253,
+   "r2": 0.9938,
+   "mae": 0.176,
    "modelled": true
   },
   "more_currency": {
-   "r2": 0.9663,
-   "mae": 4.434,
+   "r2": 0.9646,
+   "mae": 4.712,
    "modelled": true
   },
   "more_maps": {
@@ -706,13 +718,13 @@
    "modelled": true
   },
   "more_scarabs": {
-   "r2": 0.9656,
-   "mae": 2.549,
+   "r2": 0.971,
+   "mae": 2.263,
    "modelled": true
   },
   "more_divination_cards": {
-   "r2": 0.074,
-   "mae": 5.216,
+   "r2": 0.0265,
+   "mae": 4.855,
    "modelled": false
   }
  },
@@ -721,25 +733,25 @@
    "name": "Afflicting",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 665,
+   "frequency": 859,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9818,
-    "pack_size": 4.9512,
+    "rarity": 7.9919,
+    "pack_size": 4.9729,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 62.3825
+    "more_scarabs": 62.1194
    }
   },
   {
    "name": "Antagonist's",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 2,
+   "frequency": 3,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8483,
-    "pack_size": 4.9844,
+    "rarity": 7.9094,
+    "pack_size": 4.9345,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -749,11 +761,11 @@
    "name": "Antagonist's",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 84,
+   "frequency": 113,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8521,
-    "pack_size": 5.1351,
+    "rarity": 7.8874,
+    "pack_size": 5.1042,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -763,26 +775,40 @@
    "name": "Armoured",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 159,
+   "frequency": 200,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8952,
-    "pack_size": 5.1102,
-    "more_currency": 1.2537,
+    "rarity": 7.9217,
+    "pack_size": 5.0934,
+    "more_currency": 0.8057,
     "more_maps": 0.0,
-    "more_scarabs": 0.2506
+    "more_scarabs": 0.3052
+   }
+  },
+  {
+   "name": "Bipedal",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 1,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.1496,
+    "pack_size": 4.898,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Buffered",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 169,
+   "frequency": 206,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8999,
-    "pack_size": 4.9259,
-    "more_currency": 0.442,
+    "rarity": 7.9068,
+    "pack_size": 4.9403,
+    "more_currency": 1.0927,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -791,11 +817,11 @@
    "name": "Buffered",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 669,
+   "frequency": 874,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9808,
-    "pack_size": 4.9832,
+    "rarity": 7.9662,
+    "pack_size": 5.0012,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -805,12 +831,12 @@
    "name": "Burning",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 230,
+   "frequency": 309,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8804,
-    "pack_size": 6.1105,
-    "more_currency": 0.5276,
+    "rarity": 8.9056,
+    "pack_size": 6.0801,
+    "more_currency": 0.795,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -819,11 +845,11 @@
    "name": "Capricious",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 2,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0113,
-    "pack_size": 4.8645,
+    "rarity": 7.8139,
+    "pack_size": 4.9837,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -833,11 +859,11 @@
    "name": "Ceremonial",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 3,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9925,
-    "pack_size": 3.751,
+    "rarity": 6.055,
+    "pack_size": 3.8742,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -847,11 +873,11 @@
    "name": "Chaining",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 7,
+   "frequency": 10,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9661,
-    "pack_size": 6.0615,
+    "rarity": 8.9798,
+    "pack_size": 6.0076,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -861,40 +887,40 @@
    "name": "Chaining",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 183,
+   "frequency": 234,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 56.0825,
-    "pack_size": 5.914,
+    "rarity": 56.0651,
+    "pack_size": 5.936,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.6216
+    "more_scarabs": 0.5183
    }
   },
   {
    "name": "Conflagrating",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 179,
+   "frequency": 218,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.936,
-    "pack_size": 4.0974,
+    "rarity": 5.9434,
+    "pack_size": 4.0839,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.7801
+    "more_scarabs": 1.0163
    }
   },
   {
    "name": "Diluted",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 506,
+   "frequency": 692,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 7.9585,
-    "pack_size": 5.0389,
-    "more_currency": 47.8183,
+    "rarity": 8.0375,
+    "pack_size": 5.0276,
+    "more_currency": 48.0511,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -903,11 +929,11 @@
    "name": "Emanant",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 2,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1568,
-    "pack_size": 4.8453,
+    "rarity": 8.1098,
+    "pack_size": 4.9461,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -917,25 +943,25 @@
    "name": "Empowered",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 174,
+   "frequency": 229,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.937,
-    "pack_size": 5.1034,
+    "rarity": 7.9349,
+    "pack_size": 5.0727,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.1341
+    "more_scarabs": 0.2307
    }
   },
   {
    "name": "Enthralled",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 4,
+   "frequency": 5,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.0752,
-    "pack_size": 5.9873,
+    "rarity": 9.0981,
+    "pack_size": 5.9803,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -945,11 +971,11 @@
    "name": "Enthralled",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 210,
+   "frequency": 281,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 56.0699,
-    "pack_size": 6.0278,
+    "rarity": 56.0544,
+    "pack_size": 6.0166,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -959,26 +985,26 @@
    "name": "Fecund",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 179,
+   "frequency": 241,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1524,
-    "pack_size": 5.0306,
-    "more_currency": 1.1409,
+    "rarity": 8.0976,
+    "pack_size": 5.0217,
+    "more_currency": 1.0089,
     "more_maps": 0.0,
-    "more_scarabs": 0.8572
+    "more_scarabs": 0.6984
    }
   },
   {
    "name": "Fecund",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 918,
+   "frequency": 1201,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0081,
-    "pack_size": 4.9917,
-    "more_currency": 49.6498,
+    "rarity": 8.0042,
+    "pack_size": 4.9932,
+    "more_currency": 50.0856,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -990,8 +1016,8 @@
    "frequency": 6,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 11.2436,
-    "pack_size": 6.9218,
+    "rarity": 11.1927,
+    "pack_size": 6.9467,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1001,12 +1027,12 @@
    "name": "Fleet",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 357,
+   "frequency": 457,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 56.0007,
-    "pack_size": 6.9312,
-    "more_currency": 0.1016,
+    "rarity": 55.9981,
+    "pack_size": 6.9417,
+    "more_currency": 0.2632,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1015,25 +1041,25 @@
    "name": "Freezing",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 200,
+   "frequency": 263,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8586,
-    "pack_size": 5.9654,
-    "more_currency": 0.1381,
+    "rarity": 8.8973,
+    "pack_size": 5.9743,
+    "more_currency": 0.454,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.6237
    }
   },
   {
    "name": "Grasping",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 386,
+   "frequency": 469,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9239,
-    "pack_size": 4.9136,
+    "rarity": 7.9393,
+    "pack_size": 4.9297,
     "more_currency": 0.0,
     "more_maps": 40.0,
     "more_scarabs": 0.0
@@ -1046,8 +1072,8 @@
    "frequency": 1,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8314,
-    "pack_size": 4.9475,
+    "rarity": 7.9425,
+    "pack_size": 4.9815,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1057,25 +1083,25 @@
    "name": "Hexproof",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 173,
+   "frequency": 229,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.11,
-    "pack_size": 6.0629,
-    "more_currency": 0.4117,
+    "rarity": 9.0769,
+    "pack_size": 6.0425,
+    "more_currency": 0.88,
     "more_maps": 0.0,
-    "more_scarabs": 0.0539
+    "more_scarabs": 0.2067
    }
   },
   {
    "name": "Hexwarded",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 182,
+   "frequency": 231,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1427,
-    "pack_size": 4.9225,
+    "rarity": 8.1053,
+    "pack_size": 4.9363,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1085,11 +1111,11 @@
    "name": "Hungering",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 356,
+   "frequency": 437,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.0274,
-    "pack_size": 20.1341,
+    "rarity": 8.024,
+    "pack_size": 20.1141,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1099,11 +1125,11 @@
    "name": "Impaling",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 167,
+   "frequency": 216,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.143,
-    "pack_size": 6.0438,
+    "rarity": 9.104,
+    "pack_size": 6.0301,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1113,11 +1139,11 @@
    "name": "Impervious",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 173,
+   "frequency": 226,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.1355,
-    "pack_size": 4.1618,
+    "rarity": 6.1002,
+    "pack_size": 4.1234,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1127,12 +1153,12 @@
    "name": "Labyrinth's",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 199,
+   "frequency": 258,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 54.112,
-    "pack_size": 5.0223,
-    "more_currency": 0.1692,
+    "rarity": 54.1036,
+    "pack_size": 5.0216,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1141,39 +1167,39 @@
    "name": "Magnifying",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 369,
+   "frequency": 484,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 56.1301,
-    "pack_size": 7.0058,
+    "rarity": 56.1947,
+    "pack_size": 7.0064,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.1415
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Mirrored",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 126,
+   "frequency": 177,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.2376,
-    "pack_size": 4.0926,
-    "more_currency": 0.1893,
+    "rarity": 6.1532,
+    "pack_size": 4.055,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 1.2663
+    "more_scarabs": 0.7715
    }
   },
   {
    "name": "Multifarious",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 4,
+   "frequency": 6,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.0453,
-    "pack_size": 3.8925,
+    "rarity": 6.008,
+    "pack_size": 3.92,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1183,11 +1209,11 @@
    "name": "Oppressive",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 172,
+   "frequency": 226,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1557,
-    "pack_size": 4.9965,
+    "rarity": 8.1063,
+    "pack_size": 4.9935,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1197,11 +1223,11 @@
    "name": "Oppressive",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 379,
+   "frequency": 497,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9313,
-    "pack_size": 4.9437,
+    "rarity": 7.9417,
+    "pack_size": 4.9581,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1211,11 +1237,11 @@
    "name": "Overlord's",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 202,
+   "frequency": 285,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9388,
-    "pack_size": 5.9417,
+    "rarity": 8.9359,
+    "pack_size": 5.9501,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1225,12 +1251,12 @@
    "name": "Prismatic",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 386,
+   "frequency": 510,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 71.2251,
-    "pack_size": 6.0255,
-    "more_currency": 0.039,
+    "rarity": 71.2418,
+    "pack_size": 6.0199,
+    "more_currency": 0.1377,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1239,25 +1265,25 @@
    "name": "Profane",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 102,
+   "frequency": 141,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8629,
-    "pack_size": 6.2274,
+    "rarity": 8.8901,
+    "pack_size": 6.166,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.6793
+    "more_scarabs": 0.532
    }
   },
   {
    "name": "Profane",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 150,
+   "frequency": 209,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 45.9255,
-    "pack_size": 6.0005,
+    "rarity": 45.9315,
+    "pack_size": 5.9943,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1267,12 +1293,12 @@
    "name": "Protected",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 627,
+   "frequency": 827,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9546,
-    "pack_size": 4.9947,
-    "more_currency": 0.0735,
+    "rarity": 7.9672,
+    "pack_size": 4.9922,
+    "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
    }
@@ -1281,26 +1307,26 @@
    "name": "Punishing",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 121,
+   "frequency": 165,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9443,
-    "pack_size": 3.9366,
+    "rarity": 5.9394,
+    "pack_size": 3.9481,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.7135
+    "more_scarabs": 0.754
    }
   },
   {
    "name": "Punishing",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 416,
+   "frequency": 544,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 8.1868,
-    "pack_size": 5.0658,
-    "more_currency": 51.0709,
+    "rarity": 8.1387,
+    "pack_size": 5.0484,
+    "more_currency": 50.9166,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1309,26 +1335,26 @@
    "name": "Resistant",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 163,
+   "frequency": 215,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8473,
-    "pack_size": 4.9798,
+    "rarity": 7.8777,
+    "pack_size": 4.9882,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.3468
+    "more_scarabs": 0.1179
    }
   },
   {
    "name": "Savage",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 203,
+   "frequency": 276,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.9343,
-    "pack_size": 7.0265,
-    "more_currency": 0.2026,
+    "rarity": 10.9581,
+    "pack_size": 7.0239,
+    "more_currency": 0.0318,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1337,25 +1363,25 @@
    "name": "Savage",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 370,
+   "frequency": 496,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 56.5654,
-    "pack_size": 7.0008,
+    "rarity": 56.4165,
+    "pack_size": 6.9985,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.6596
+    "more_scarabs": 0.4431
    }
   },
   {
    "name": "Searing",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 362,
+   "frequency": 478,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.002,
-    "pack_size": 20.036,
+    "rarity": 8.0146,
+    "pack_size": 20.0261,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1365,12 +1391,12 @@
    "name": "Shocking",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 209,
+   "frequency": 295,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9274,
-    "pack_size": 6.0262,
-    "more_currency": 0.1295,
+    "rarity": 8.9288,
+    "pack_size": 6.0138,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1379,11 +1405,11 @@
    "name": "Slithering",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 2,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1776,
-    "pack_size": 4.8316,
+    "rarity": 8.132,
+    "pack_size": 4.9124,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1396,8 +1422,8 @@
    "frequency": 1,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8007,
-    "pack_size": 4.8216,
+    "rarity": 7.8845,
+    "pack_size": 4.917,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1410,8 +1436,8 @@
    "frequency": 7,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.7955,
-    "pack_size": 7.0136,
+    "rarity": 10.8617,
+    "pack_size": 7.0131,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1421,12 +1447,12 @@
    "name": "Stalwart",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 631,
+   "frequency": 816,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0935,
-    "pack_size": 5.0217,
-    "more_currency": 49.6152,
+    "rarity": 8.0695,
+    "pack_size": 5.0203,
+    "more_currency": 49.4226,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1435,12 +1461,12 @@
    "name": "Titan's",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 199,
+   "frequency": 272,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0917,
-    "pack_size": 5.0909,
-    "more_currency": 0.2367,
+    "rarity": 8.054,
+    "pack_size": 5.0657,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1449,11 +1475,11 @@
    "name": "Twinned",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 2,
+   "frequency": 3,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.7708,
-    "pack_size": 6.94,
+    "rarity": 10.8297,
+    "pack_size": 6.9613,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1463,12 +1489,12 @@
    "name": "Ultimate",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 498,
+   "frequency": 660,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9794,
-    "pack_size": 4.9139,
-    "more_currency": 49.1022,
+    "rarity": 7.9834,
+    "pack_size": 4.9341,
+    "more_currency": 49.3714,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1477,39 +1503,39 @@
    "name": "Unstoppable",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 125,
+   "frequency": 170,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.947,
-    "pack_size": 4.1517,
-    "more_currency": 0.0271,
+    "rarity": 5.9454,
+    "pack_size": 4.1073,
+    "more_currency": 0.9247,
     "more_maps": 0.0,
-    "more_scarabs": 0.7149
+    "more_scarabs": 0.2016
    }
   },
   {
    "name": "Unwavering",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 244,
+   "frequency": 323,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8722,
-    "pack_size": 5.021,
+    "rarity": 7.8992,
+    "pack_size": 5.0151,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.4151
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Valdo's",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 314,
+   "frequency": 394,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 10.9089,
-    "pack_size": 20.1175,
+    "rarity": 10.936,
+    "pack_size": 20.1015,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1519,39 +1545,53 @@
    "name": "Volatile",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 601,
+   "frequency": 798,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 10.9067,
-    "pack_size": 4.9992,
+    "rarity": 10.9348,
+    "pack_size": 5.011,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 55.1725
+    "more_scarabs": 55.6471
+   }
+  },
+  {
+   "name": "of Balance",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 1,
+   "contributions": {
+    "quantity": 10.0,
+    "rarity": 6.0267,
+    "pack_size": 3.9015,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Blinding",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 123,
+   "frequency": 163,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9414,
-    "pack_size": 3.9908,
-    "more_currency": 0.1054,
+    "rarity": 5.9336,
+    "pack_size": 3.9933,
+    "more_currency": 0.1223,
     "more_maps": 0.0,
-    "more_scarabs": 1.1996
+    "more_scarabs": 1.2103
    }
   },
   {
    "name": "of Bloodlines",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 4,
+   "frequency": 7,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.0853,
-    "pack_size": 4.1094,
+    "rarity": 6.0421,
+    "pack_size": 4.081,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1561,11 +1601,11 @@
    "name": "of Carnage",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 105,
+   "frequency": 148,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9197,
-    "pack_size": 4.0485,
+    "rarity": 5.9327,
+    "pack_size": 4.0269,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1575,11 +1615,11 @@
    "name": "of Collection",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 272,
+   "frequency": 359,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8833,
-    "pack_size": 20.0283,
+    "rarity": 7.9018,
+    "pack_size": 20.0179,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1592,8 +1632,8 @@
    "frequency": 3,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8754,
-    "pack_size": 6.0187,
+    "rarity": 8.8786,
+    "pack_size": 6.0326,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1603,11 +1643,11 @@
    "name": "of Congealment",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 133,
+   "frequency": 169,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 48.9199,
-    "pack_size": 6.0657,
+    "rarity": 48.9306,
+    "pack_size": 6.053,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1617,11 +1657,11 @@
    "name": "of Consecration",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 45,
+   "frequency": 57,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.8828,
-    "pack_size": 3.9611,
+    "rarity": 5.888,
+    "pack_size": 3.9728,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1631,25 +1671,25 @@
    "name": "of Curses",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 435,
+   "frequency": 561,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 10.9854,
-    "pack_size": 6.0325,
+    "rarity": 11.0697,
+    "pack_size": 6.0233,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 35.8855
+    "more_scarabs": 36.0006
    }
   },
   {
    "name": "of Deadliness",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 165,
+   "frequency": 228,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.1736,
-    "pack_size": 6.1197,
+    "rarity": 9.0958,
+    "pack_size": 6.0817,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1659,11 +1699,11 @@
    "name": "of Deadliness",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 418,
+   "frequency": 541,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 55.9733,
-    "pack_size": 6.0248,
+    "rarity": 55.9747,
+    "pack_size": 6.0213,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1673,11 +1713,11 @@
    "name": "of Decaying",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 365,
+   "frequency": 492,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 10.9364,
-    "pack_size": 20.0098,
+    "rarity": 10.9382,
+    "pack_size": 19.9996,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1687,12 +1727,12 @@
    "name": "of Defiance",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 1047,
+   "frequency": 1368,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 12.1547,
-    "pack_size": 6.0329,
-    "more_currency": 65.991,
+    "rarity": 12.1402,
+    "pack_size": 6.0251,
+    "more_currency": 65.7206,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1701,25 +1741,25 @@
    "name": "of Desecration",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 41,
+   "frequency": 61,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.823,
-    "pack_size": 4.1496,
-    "more_currency": 0.2958,
+    "rarity": 5.8679,
+    "pack_size": 4.0925,
+    "more_currency": 1.2132,
     "more_maps": 0.0,
-    "more_scarabs": 2.2187
+    "more_scarabs": 1.0698
    }
   },
   {
    "name": "of Domination",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 312,
+   "frequency": 405,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8813,
-    "pack_size": 4.9229,
+    "rarity": 8.0133,
+    "pack_size": 4.938,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1729,12 +1769,12 @@
    "name": "of Doubt",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 210,
+   "frequency": 269,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.3103,
-    "pack_size": 4.9818,
-    "more_currency": 0.199,
+    "rarity": 8.2247,
+    "pack_size": 4.9819,
+    "more_currency": 0.4875,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1743,11 +1783,11 @@
    "name": "of Drought",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 155,
+   "frequency": 207,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1496,
-    "pack_size": 5.0459,
+    "rarity": 8.1036,
+    "pack_size": 5.0464,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1757,39 +1797,39 @@
    "name": "of Elemental Weakness",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 174,
+   "frequency": 231,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9153,
-    "pack_size": 5.101,
-    "more_currency": 0.6344,
+    "rarity": 7.9224,
+    "pack_size": 5.0734,
+    "more_currency": 0.2573,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.1102
    }
   },
   {
    "name": "of Endurance",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 138,
+   "frequency": 184,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.2281,
-    "pack_size": 5.0138,
+    "rarity": 8.1684,
+    "pack_size": 5.0087,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.521
+    "more_scarabs": 0.0393
    }
   },
   {
    "name": "of Endurance",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 605,
+   "frequency": 783,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.231,
-    "pack_size": 5.0032,
+    "rarity": 8.1685,
+    "pack_size": 4.9973,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1799,26 +1839,26 @@
    "name": "of Enervation",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 165,
+   "frequency": 217,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.1672,
-    "pack_size": 4.0661,
-    "more_currency": 0.4641,
+    "rarity": 6.1057,
+    "pack_size": 4.0387,
+    "more_currency": 0.5006,
     "more_maps": 0.0,
-    "more_scarabs": 1.4502
+    "more_scarabs": 0.9607
    }
   },
   {
    "name": "of Enfeeblement",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 188,
+   "frequency": 254,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9276,
-    "pack_size": 5.1018,
-    "more_currency": 0.5306,
+    "rarity": 7.9385,
+    "pack_size": 5.0699,
+    "more_currency": 0.4326,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1827,25 +1867,25 @@
    "name": "of Exposure",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 276,
+   "frequency": 360,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.859,
-    "pack_size": 7.1117,
+    "rarity": 10.8863,
+    "pack_size": 7.0807,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0285
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Exposure",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 462,
+   "frequency": 586,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.8767,
-    "pack_size": 19.9863,
+    "rarity": 10.8966,
+    "pack_size": 19.989,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1855,53 +1895,53 @@
    "name": "of Fatigue",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 115,
+   "frequency": 164,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9789,
-    "pack_size": 5.2033,
+    "rarity": 7.9423,
+    "pack_size": 5.1957,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.3903
+    "more_scarabs": 0.5204
    }
   },
   {
    "name": "of Flames",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 49,
+   "frequency": 77,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9516,
-    "pack_size": 4.1604,
-    "more_currency": 0.7252,
-    "more_maps": 0.0,
-    "more_scarabs": 0.1577
-   }
-  },
-  {
-   "name": "of Frenzy",
-   "tier": "S0",
-   "slot": "suffix",
-   "frequency": 138,
-   "contributions": {
-    "quantity": 13.0,
-    "rarity": 8.1885,
-    "pack_size": 4.948,
-    "more_currency": 1.973,
+    "rarity": 5.9171,
+    "pack_size": 4.0943,
+    "more_currency": 0.0717,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
   },
   {
    "name": "of Frenzy",
-   "tier": "S1",
+   "tier": "S0",
    "slot": "suffix",
-   "frequency": 617,
+   "frequency": 188,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9761,
-    "pack_size": 5.0808,
+    "rarity": 8.1142,
+    "pack_size": 4.9476,
+    "more_currency": 1.3046,
+    "more_maps": 0.0,
+    "more_scarabs": 0.3711
+   }
+  },
+  {
+   "name": "of Frenzy",
+   "tier": "S1",
+   "slot": "suffix",
+   "frequency": 800,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9811,
+    "pack_size": 5.0724,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1911,25 +1951,25 @@
    "name": "of Giants",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 161,
+   "frequency": 218,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.4029,
-    "pack_size": 4.9813,
-    "more_currency": 0.2818,
+    "rarity": 8.291,
+    "pack_size": 4.9877,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.2946
    }
   },
   {
    "name": "of Ice",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 61,
+   "frequency": 74,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.552,
-    "pack_size": 4.2365,
+    "rarity": 6.4182,
+    "pack_size": 4.2033,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1939,12 +1979,12 @@
    "name": "of Imbibing",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 582,
+   "frequency": 758,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.877,
-    "pack_size": 5.005,
-    "more_currency": 46.8818,
+    "rarity": 7.8985,
+    "pack_size": 5.0065,
+    "more_currency": 47.0078,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1953,11 +1993,11 @@
    "name": "of Impedance",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 2,
+   "frequency": 3,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.8585,
-    "pack_size": 3.9547,
+    "rarity": 5.9049,
+    "pack_size": 3.9553,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1967,12 +2007,12 @@
    "name": "of Impotence",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 176,
+   "frequency": 239,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8904,
-    "pack_size": 5.0576,
-    "more_currency": 0.306,
+    "rarity": 7.8948,
+    "pack_size": 5.033,
+    "more_currency": 0.0077,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1981,12 +2021,12 @@
    "name": "of Impotence",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 406,
+   "frequency": 535,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 69.5052,
-    "pack_size": 5.0803,
-    "more_currency": 0.0,
+    "rarity": 69.3704,
+    "pack_size": 5.0592,
+    "more_currency": 0.0527,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1995,26 +2035,26 @@
    "name": "of Imprecision",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 162,
+   "frequency": 204,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1916,
-    "pack_size": 4.9899,
-    "more_currency": 0.3254,
+    "rarity": 8.1489,
+    "pack_size": 4.9905,
+    "more_currency": 0.0306,
     "more_maps": 0.0,
-    "more_scarabs": 0.9064
+    "more_scarabs": 0.7123
    }
   },
   {
    "name": "of Insulation",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 177,
+   "frequency": 242,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9255,
-    "pack_size": 4.165,
-    "more_currency": 0.5681,
+    "rarity": 5.9346,
+    "pack_size": 4.1167,
+    "more_currency": 0.2043,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2023,11 +2063,11 @@
    "name": "of Lightning",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 53,
+   "frequency": 72,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.0268,
-    "pack_size": 3.9468,
+    "rarity": 5.9767,
+    "pack_size": 3.9563,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2037,54 +2077,54 @@
    "name": "of Marking",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 358,
+   "frequency": 472,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 7.9014,
-    "pack_size": 5.0477,
-    "more_currency": 0.0,
+    "rarity": 7.9187,
+    "pack_size": 5.0319,
+    "more_currency": 0.045,
     "more_maps": 0.0,
-    "more_scarabs": 37.3582
+    "more_scarabs": 37.6552
    }
   },
   {
    "name": "of Miring",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 143,
+   "frequency": 209,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9604,
-    "pack_size": 4.9431,
+    "rarity": 7.951,
+    "pack_size": 5.0051,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0666
+    "more_scarabs": 0.0793
    }
   },
   {
    "name": "of Miring",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 461,
+   "frequency": 597,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9162,
-    "pack_size": 4.9519,
+    "rarity": 7.9197,
+    "pack_size": 4.9607,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 36.2352
+    "more_scarabs": 36.2532
    }
   },
   {
    "name": "of Penetration",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 209,
+   "frequency": 282,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 71.84,
-    "pack_size": 5.972,
-    "more_currency": 0.0379,
+    "rarity": 71.8622,
+    "pack_size": 5.9733,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2093,11 +2133,11 @@
    "name": "of Persistence",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 265,
+   "frequency": 356,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 7.9146,
-    "pack_size": 16.9967,
+    "rarity": 7.9458,
+    "pack_size": 16.9923,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2107,12 +2147,12 @@
    "name": "of Power",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 150,
+   "frequency": 208,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.176,
-    "pack_size": 4.9142,
-    "more_currency": 1.8649,
+    "rarity": 8.1226,
+    "pack_size": 4.9341,
+    "more_currency": 1.6021,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2121,12 +2161,12 @@
    "name": "of Power",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 633,
+   "frequency": 799,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9811,
-    "pack_size": 5.0348,
-    "more_currency": 0.2156,
+    "rarity": 7.9925,
+    "pack_size": 5.0251,
+    "more_currency": 0.1484,
     "more_maps": 35.0,
     "more_scarabs": 0.0
    }
@@ -2135,25 +2175,25 @@
    "name": "of Rust",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 200,
+   "frequency": 268,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.104,
-    "pack_size": 4.9863,
-    "more_currency": 0.6227,
+    "rarity": 8.064,
+    "pack_size": 4.9794,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.3498
+    "more_scarabs": 0.1682
    }
   },
   {
    "name": "of Smothering",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 252,
+   "frequency": 332,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8975,
-    "pack_size": 5.9712,
+    "rarity": 8.9116,
+    "pack_size": 5.9778,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2163,12 +2203,12 @@
    "name": "of Splinters",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 102,
+   "frequency": 129,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 7.9402,
-    "pack_size": 4.9243,
-    "more_currency": 0.0601,
+    "rarity": 7.9451,
+    "pack_size": 4.9439,
+    "more_currency": 0.2174,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2177,11 +2217,11 @@
    "name": "of Stasis",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 105,
+   "frequency": 131,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8837,
-    "pack_size": 5.9438,
+    "rarity": 8.8964,
+    "pack_size": 5.9424,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2191,11 +2231,11 @@
    "name": "of Temporal Chains",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 198,
+   "frequency": 265,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8939,
-    "pack_size": 5.0271,
+    "rarity": 7.9034,
+    "pack_size": 5.0206,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2205,25 +2245,25 @@
    "name": "of Toughness",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 197,
+   "frequency": 251,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9258,
-    "pack_size": 3.9475,
+    "rarity": 5.9286,
+    "pack_size": 3.953,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.5717
+    "more_scarabs": 0.777
    }
   },
   {
    "name": "of Toughness",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 133,
+   "frequency": 175,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 56.1399,
-    "pack_size": 5.0679,
+    "rarity": 56.0981,
+    "pack_size": 5.051,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2233,11 +2273,11 @@
    "name": "of Transience",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 121,
+   "frequency": 167,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.8779,
-    "pack_size": 4.0234,
+    "rarity": 5.9017,
+    "pack_size": 4.0129,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2247,25 +2287,25 @@
    "name": "of Transience",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 406,
+   "frequency": 524,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.0457,
-    "pack_size": 3.9734,
+    "rarity": 6.0271,
+    "pack_size": 3.9825,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 36.8096
+    "more_scarabs": 36.9283
    }
   },
   {
    "name": "of Treachery",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 171,
+   "frequency": 243,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 53.8911,
-    "pack_size": 4.9239,
+    "rarity": 53.9032,
+    "pack_size": 4.9363,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2275,11 +2315,11 @@
    "name": "of Venom",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 10,
+   "frequency": 11,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8484,
-    "pack_size": 5.8804,
+    "rarity": 8.9368,
+    "pack_size": 5.9023,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2289,12 +2329,12 @@
    "name": "of Venom",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 198,
+   "frequency": 247,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 49.0918,
-    "pack_size": 6.0237,
-    "more_currency": 0.2332,
+    "rarity": 49.064,
+    "pack_size": 6.0245,
+    "more_currency": 0.2364,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2303,26 +2343,26 @@
    "name": "of Vulnerability",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 183,
+   "frequency": 237,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9295,
-    "pack_size": 4.9814,
-    "more_currency": 0.0159,
+    "rarity": 7.9423,
+    "pack_size": 4.9847,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0633
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of the Juggernaut",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 391,
+   "frequency": 516,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1002,
-    "pack_size": 5.0069,
-    "more_currency": 49.6363,
+    "rarity": 8.0694,
+    "pack_size": 5.0066,
+    "more_currency": 49.2233,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
