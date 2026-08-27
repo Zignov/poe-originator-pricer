@@ -322,3 +322,71 @@ def test_analyze_does_not_live_inside_the_folding_picker():
         if "Analyze" in label
     ]
     assert not hidden, f"Analyze rendered inside the collapsed picker: {hidden}"
+
+# ---------------------------------------------------------------------------
+# The market run's escape hatch, on the page rather than in the pricer
+# ---------------------------------------------------------------------------
+def _held_open_job(items):
+    """A real `MarketRunJob` parked on a thread that will not finish on its own.
+
+    Faked at the thread rather than at the handle so the page sees exactly the
+    object it sees in production -- `running`, `cancelling` and `state` all
+    answering for real. The caller must set the returned event.
+    """
+    import threading
+
+    from src.market.live_comparables import MapOutcome, MarketProgress, MarketRunState
+    from src.market.run_job import MarketRunJob
+
+    release = threading.Event()
+    state = MarketRunState()
+    state.record(MapOutcome(fingerprint=items[0].fingerprint(), reason="unsupported"))
+    job = MarketRunJob(state=state, items=list(items))
+    job.progress = MarketProgress(
+        done=1,
+        total=len(items),
+        requests_used=4,
+        request_budget=200,
+        eta_seconds=90.0,
+        message="pricing",
+    )
+    job._thread = threading.Thread(target=release.wait, daemon=True)
+    job._thread.start()
+    return job, release
+
+
+def test_a_run_in_flight_offers_a_cancel_button_on_the_page():
+    """The whole point: a run you can stop, from a page that is still drawing."""
+    app = AppTest.from_file(APP, default_timeout=240)
+    items = _demo_items()
+    app.session_state["stash_items"] = items
+    job, release = _held_open_job(items)
+    app.session_state["market_run_job"] = job
+    app.session_state["pricing_mode"] = "market"
+    try:
+        app.run()
+        app.sidebar.radio[0].set_value("Stash Pricer").run()
+        assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+        labels = [str(b.label) for b in app.button]
+        assert "Cancel run" in labels, labels
+        assert "Show results so far" in labels, labels
+        # And the run has not been started over or restarted by the redraw.
+        assert app.session_state["market_run_job"] is job
+        assert not job.cancelled
+    finally:
+        release.set()
+        job.join(timeout=5)
+
+
+def test_the_page_never_offers_cancel_when_nothing_is_running():
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.session_state["pricing_mode"] = "market"
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    labels = [str(b.label) for b in app.button]
+    assert "Cancel run" not in labels, labels
+    assert "Price from live listings" in labels, labels

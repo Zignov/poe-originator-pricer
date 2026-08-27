@@ -491,16 +491,26 @@ def _from_clipboard(cfg):
 # Market comparison mode
 # ---------------------------------------------------------------------------
 def _market_mode(cfg, repo, service, items, strategy):
-    """The live-listings mode: warn, run on a button, then show the evidence.
+    """The live-listings mode: warn, run on a worker thread, watch it land.
 
-    Nothing happens until the button is pressed. This is the one page in the app
-    that can spend a few hundred API requests and ten minutes of a rate-limited
-    connection, so it says what it will cost before it costs it, and the run is
-    resumable rather than all-or-nothing -- Streamlit reruns the whole script on
-    every widget touch, and a mode that started over each time would never
-    finish.
+    This is the one page in the app that can spend a few hundred API requests
+    and ten minutes of a rate-limited connection, so it says what it will cost
+    before it costs it. Two consequences of that cost shape the mode:
+
+    * The run is **resumable** rather than all-or-nothing. Streamlit reruns the
+      whole script on every widget touch, and a mode that started over each time
+      would never finish, so results are held by fingerprint in a `MarketRunState`
+      that survives reruns and is picked up by the next press of the button.
+    * The run is **interruptible, and readable while it runs**. It happens on a
+      worker thread (see `src/market/run_job.py`) instead of on the script
+      thread, which is what makes a Cancel button possible at all -- an inline
+      run holds the only thread the session has, so nothing can notice a click
+      until the run it was meant to stop is over. The same move makes the maps
+      priced so far visible and exportable mid-run, which is what you want when
+      the trade API backs up forty maps into a seventy-map tab.
     """
     from src.market.live_comparables import MarketRunState, format_duration
+    from src.market.run_job import MarketRunJob
     from src.pricing.market_comparison import (
         MarketComparisonPricer,
         MarketComparisonSettings,
@@ -508,7 +518,31 @@ def _market_mode(cfg, repo, service, items, strategy):
 
     settings = MarketComparisonSettings.from_config(cfg)
     supported = [i for i in items if i.supported]
-    state: MarketRunState = st.session_state.get("market_run_state") or MarketRunState()
+
+    job: MarketRunJob | None = st.session_state.get("market_run_job")
+    # One state object, whoever is holding it. The job mutates the same instance
+    # the page renders from -- that sharing is the whole reason partial results
+    # appear without the run having to finish first.
+    state: MarketRunState = (
+        job.state if job is not None else st.session_state.get("market_run_state")
+    ) or MarketRunState()
+    st.session_state["market_run_state"] = state
+
+    if job is not None and job.running:
+        _live_run_panel(service, items, strategy)
+        pricer = st.session_state.get("market_run_pricer")
+        if pricer is None:  # a resumed session that lost the handle; harmless
+            pricer = MarketComparisonPricer.build(cfg, repo, service)
+        return pricer.priced(items, state, strategy=strategy)
+
+    if job is not None:
+        # The run ended -- finished, cancelled or thrown. Retire the handle so
+        # the buttons below go back to being Start/Continue, but keep the error
+        # if there was one: a run that died silently is worse than one that says
+        # so and leaves the partial prices on screen.
+        if job.error:
+            st.session_state["market_run_error"] = job.error
+        st.session_state.pop("market_run_job", None)
 
     left, right = st.columns([1, 2])
     budget = int(
@@ -549,6 +583,7 @@ def _market_mode(cfg, repo, service, items, strategy):
             f'<div class="warn"><b>This mode calls the official trade API.</b> '
             f"{how} For {remaining} maps that is about "
             f"<b>{format_duration(plan.seconds)}</b> under GGG's rate limits. "
+            f"You can stop it at any point and keep what it has already found. "
             f"Results are cached for {settings.cache_ttl_minutes:g} minutes.</div>",
             unsafe_allow_html=True,
         )
@@ -558,20 +593,25 @@ def _market_mode(cfg, repo, service, items, strategy):
         "Price from live listings" if not state.outcomes else "Continue pricing",
         type="primary",
     ):
-        bar = st.progress(0.0)
-        caption = st.empty()
-
-        def report(update):
-            bar.progress(min(1.0, update.done / max(update.total, 1)))
-            caption.caption(f"{update.caption()}  |  {update.message}")
-
-        state = pricer.run(items, state=state, progress=report)
-        st.session_state["market_run_state"] = state
-        bar.empty()
+        st.session_state.pop("market_run_error", None)
+        st.session_state["market_run_pricer"] = pricer
+        st.session_state["market_run_job"] = MarketRunJob.start(pricer, items, state=state)
+        # Straight back into the branch above, so the cancel button is on screen
+        # before the first request goes out rather than after the run ends.
+        st.rerun()
 
     if columns[1].button("Clear market prices"):
-        st.session_state.pop("market_run_state", None)
+        for key in ("market_run_state", "market_run_pricer", "market_run_error"):
+            st.session_state.pop(key, None)
         state = MarketRunState()
+        st.session_state["market_run_state"] = state
+
+    if error := st.session_state.get("market_run_error"):
+        st.markdown(
+            f'<div class="warn"><b>The run stopped on an error.</b> {error} '
+            f"Anything priced before it is still below.</div>",
+            unsafe_allow_html=True,
+        )
 
     if state.outcomes:
         st.caption(
@@ -589,6 +629,98 @@ def _market_mode(cfg, repo, service, items, strategy):
             "mode — the model's numbers are one radio button away and cost nothing."
         )
 
+    return pricer.priced(items, state, strategy=strategy)
+
+
+#: How often the live panel redraws itself while a run is in flight. Fast enough
+#: that Cancel feels like a button rather than a form submission, slow enough
+#: that a seventy-map tab is not re-rendering a dataframe on every frame.
+LIVE_REFRESH_SECONDS = 1.5
+
+
+@st.fragment(run_every=LIVE_REFRESH_SECONDS)
+def _live_run_panel(service, items, strategy) -> None:
+    """Progress, a Cancel button, and the prices found so far -- all live.
+
+    A fragment rather than the page, because the page is expensive: it redraws a
+    stash grid, a comparables table and six tool panes. This redraws a progress
+    bar and the rows that have landed, once every second and a half, and only
+    asks for a full-page rerun at the two moments the rest of the page has
+    something new to say -- when the run ends, and when you ask to see it.
+
+    The download button beside Cancel is the answer to the case this whole
+    design is for: the API backs up half way through a big tab, and you want the
+    thirty-nine prices you have already paid for without waiting on, or losing,
+    the rest.
+    """
+    job = st.session_state.get("market_run_job")
+    if job is None:
+        return
+    state = job.state
+    progress = job.progress
+
+    if job.finished:
+        # Ends the auto-refresh and hands the page back to the full script, which
+        # redraws the grid, the table and the evidence pane with the final state.
+        st.rerun()
+
+    done = progress.done if progress else 0
+    total = progress.total if progress else len(items)
+    st.progress(min(1.0, done / max(total, 1)))
+    if progress:
+        st.caption(f"{progress.caption()}  |  {progress.message}")
+    else:
+        st.caption("starting -- waiting on the first response from the trade API")
+
+    priced_rows = [p for p in _live_priced(items, state, strategy) if p.estimate]
+
+    columns = st.columns([1, 1, 1.4])
+    if job.cancelling:
+        columns[0].button(
+            "Stopping…",
+            disabled=True,
+            key="market_cancel",
+            help="The request already in flight, and any rate-limit wait behind "
+            "it, has to finish before the run can put itself down.",
+        )
+    elif columns[0].button(
+        "Cancel run",
+        key="market_cancel",
+        help="Stops after the current request. Every map already priced is kept, "
+        "and Continue pricing picks up from there.",
+    ):
+        job.cancel()
+        st.rerun(scope="fragment")
+
+    if columns[1].button(
+        "Show results so far",
+        key="market_peek",
+        help="Redraws the grid and the table below with everything priced up to "
+        "now. The run keeps going.",
+    ):
+        st.rerun()
+
+    if priced_rows:
+        frame = service.to_frame(priced_rows).drop(columns=["_fingerprint"])
+        columns[2].download_button(
+            f"Download {len(priced_rows)} prices (CSV)",
+            frame.to_csv(index=False).encode("utf-8"),
+            file_name="market_prices_partial.csv",
+            mime="text/csv",
+            key="market_partial_csv",
+            help="The maps priced so far, without waiting for the run to end.",
+        )
+        with st.expander(f"Priced so far ({len(priced_rows)})", expanded=True):
+            st.dataframe(frame, use_container_width=True, hide_index=True)
+    else:
+        columns[2].caption("No prices yet — nothing to export.")
+
+
+def _live_priced(items, state, strategy):
+    """`PricedMap` rows from a state a worker thread is still writing into."""
+    pricer = st.session_state.get("market_run_pricer")
+    if pricer is None:
+        return []
     return pricer.priced(items, state, strategy=strategy)
 
 

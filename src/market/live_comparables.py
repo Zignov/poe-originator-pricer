@@ -810,6 +810,10 @@ class LivePool:
     slices_used: int = 0
     fetched_at: datetime | None = None
     error: str = ""
+    #: The pool was abandoned part-way because the caller asked it to stop. The
+    #: listings already read are still in here and still usable -- a partial
+    #: pool prices fewer maps, not none.
+    stopped: bool = False
 
     def __len__(self) -> int:
         return len(self.comparables)
@@ -935,6 +939,7 @@ class LiveComparableFinder:
         slices: Sequence[dict[str, Any]] | None = None,
         per_slice: int = DEFAULT_POOL_PER_SLICE,
         on_slice: Callable[[int, int, int], None] | None = None,
+        stop: Callable[[], bool] | None = None,
     ) -> LivePool:
         """Read one shared set of live listings for the whole tab.
 
@@ -953,8 +958,16 @@ class LiveComparableFinder:
         requests_used = 0
         used_slices = 0
         error = ""
+        stopped = False
 
         for index, spec in enumerate(slices):
+            # Checked here as well as in the per-map loop that calls this,
+            # because the pool is where the wall-clock goes: sixteen rate-limited searches
+            # and eighty fetches, all of them before the first map is priced. A
+            # cancel that only took effect afterwards would not be a cancel.
+            if stop is not None and stop():
+                stopped = True
+                break
             if not self.budget.can_spend(1):
                 error = "request budget ran out while building the pool"
                 break
@@ -977,6 +990,9 @@ class LiveComparableFinder:
             used_slices += 1
             ids = [i for i in ids[:per_slice] if i not in seen]
             for start in range(0, len(ids), FETCH_BATCH):
+                if stop is not None and stop():
+                    stopped = True
+                    break
                 if not self.budget.can_spend(1):
                     error = "request budget ran out while building the pool"
                     break
@@ -1006,6 +1022,8 @@ class LiveComparableFinder:
                     found.append(comp)
             if on_slice is not None:
                 on_slice(index + 1, len(slices), len(found))
+            if stopped:
+                break
 
         return LivePool(
             comparables=tuple(found),
@@ -1013,6 +1031,7 @@ class LiveComparableFinder:
             slices_used=used_slices,
             fetched_at=datetime.now(timezone.utc),
             error=error,
+            stopped=stopped,
         )
 
     def find_in_pool(self, item: NormalizedMap, pool: LivePool) -> FetchOutcome:
@@ -1153,7 +1172,11 @@ class MarketRunState:
 
     @property
     def priced_count(self) -> int:
-        return sum(1 for o in self.outcomes.values() if o.priced)
+        # `list(...)` rather than a generator over `.values()`: this is read from
+        # the Streamlit script thread while the worker thread is still recording
+        # outcomes, and iterating the live dict raises when it grows mid-loop.
+        # Snapshotting is one C-level call, so it cannot interleave.
+        return sum(1 for o in list(self.outcomes.values()) if o.priced)
 
 
 @dataclass
