@@ -45,11 +45,13 @@ from src.overlay.layout import (
     geometry_string,
     window_geometry,
 )
+from src.overlay.analyze import AnalyzeWorker
+from src.overlay.profiles import DEFAULT_PROFILE, OverlayProfile, profile_for
 from src.overlay.state import (
-    DEFAULT_STATE_PATH,
     EXALT_SKIP,
     OverlayState,
     StateWatcher,
+    state_path_for,
 )
 
 #: The colour that is made fully transparent. Any colour would do as long as
@@ -64,6 +66,11 @@ SENTINEL = "#010203"
 #: it keeps the overlay off the CPU while the game wants it.
 STATE_POLL_MS = 500
 HOTKEY_POLL_MS = 80
+
+#: The control strip's width. Sized to its buttons: five of them plus the
+#: profile label do not fit in the four-button strip this started as, and a
+#: clipped "quit" is a button people cannot find.
+STRIP_WIDTH = 500
 
 
 class OverlayUnavailable(RuntimeError):
@@ -145,19 +152,26 @@ class OverlayWindow:
         self,
         cfg: Config,
         calibration: Calibration,
-        state_path: Path = DEFAULT_STATE_PATH,
+        state_path: Path | str | None = None,
     ):
         import tkinter as tk
 
         self._tk = tk
         self.cfg = cfg
         self.calibration = calibration
-        self.state_path = Path(state_path)
+        # Which surface this window is for comes from the calibration it was
+        # handed, not from a second argument that could disagree with it.
+        self.profile: OverlayProfile = calibration.profile_spec
+        self.state_path = Path(state_path or state_path_for(self.profile))
         self.state: OverlayState | None = None
         self.watcher = StateWatcher(self.state_path)
         self.visible = True
         self.calibrating = False
         self._pending: Calibration | None = None
+        # Held between the worker finishing and the watcher noticing the file it
+        # wrote, so the strip ends up saying "42 maps re-priced" rather than the
+        # generic summary line the redraw would otherwise overwrite it with.
+        self._analysis_note = ""
 
         try:
             self.root = tk.Tk()
@@ -187,7 +201,16 @@ class OverlayWindow:
 
         self.strip = _ControlStrip(self, tk)
 
-        self.hotkeys = HotkeyListener({"toggle": calibration.hotkey_toggle})
+        # One analysis at a time, on a thread, because a fetch plus a model
+        # pass is seconds and this window sits on top of a game.
+        self.analyzer = AnalyzeWorker(cfg)
+
+        self.hotkeys = HotkeyListener(
+            {
+                "toggle": calibration.hotkey_toggle,
+                "analyze": calibration.hotkey_analyze,
+            }
+        )
         self.hotkeys.start()
 
         self._place()
@@ -250,10 +273,23 @@ class OverlayWindow:
 
     # -- the state file ---------------------------------------------------
     def _poll_state(self) -> None:
+        # The analysis result is collected here, on the Tk thread, rather than
+        # by a callback from the worker: every widget this touches belongs to
+        # this thread and Tk is not thread-safe. A failed analysis reports and
+        # is otherwise ignored -- the tiles already on screen are the last good
+        # prices, and blanking them because a fetch timed out would lose real
+        # information to report an error that the strip is already showing.
+        finished = self.analyzer.poll()
+        if finished is not None and not finished.ok:
+            self.strip.report(finished.message)
+        elif finished is not None:
+            self._analysis_note = finished.message
+
         state = self.watcher.poll()
         if state is not None:
             self.state = state
-            self.strip.report(state.summary())
+            self.strip.report(self._analysis_note or state.summary())
+            self._analysis_note = ""
             self.redraw()
         elif self.watcher.error:
             self.strip.report(self.watcher.error)
@@ -275,7 +311,24 @@ class OverlayWindow:
         for name in self.hotkeys.poll():
             if name == "toggle":
                 self.toggle()
+            elif name == "analyze":
+                self.analyze()
         self._timers["hotkeys"] = self.root.after(HOTKEY_POLL_MS, self._poll_hotkeys)
+
+    def analyze(self) -> None:
+        """Read this surface again and re-price it, without leaving the game.
+
+        Everything after "write the file" is the ordinary redraw path: the
+        worker writes the state file and the watcher three lines above notices
+        it, exactly as it notices an export from the browser. Analysing is a way
+        of writing that file, not a second way of drawing.
+        """
+        if self.calibrating:
+            # The grid on screen is an alignment tool right now, not prices.
+            # Repainting it mid-drag would lose the drag.
+            self.strip.report("finish calibrating first (Enter saves, Esc cancels)")
+            return
+        self.strip.report(self.analyzer.start(self.state, self.profile, self.state_path))
 
     def toggle(self) -> None:
         self.visible = not self.visible
@@ -284,6 +337,7 @@ class OverlayWindow:
 
     def quit(self) -> None:
         self.hotkeys.stop()
+        self.analyzer.close()
         for job in self._timers.values():
             try:
                 self.root.after_cancel(job)
@@ -386,7 +440,7 @@ class OverlayWindow:
             path = save_to_config(self.cfg, self.calibration)
             self.strip.report(f"calibration saved to {path.name}")
         else:
-            self.calibration = Calibration.from_config(self.cfg)
+            self.calibration = Calibration.from_config(self.cfg, self.profile)
             self.strip.report("calibration cancelled")
         self._pending = None
         self._place()
@@ -422,7 +476,7 @@ class OverlayWindow:
                 "arrows move  -  shift+arrows resize  -  +/- opacity  -  "
                 "Enter saves  -  Esc cancels"
             ),
-            "Line this up with the stash tab's own cell borders, then press Enter.",
+            self.profile.calibration_hint,
         ]
         for index, text in enumerate(lines):
             self.canvas.create_text(
@@ -450,15 +504,25 @@ class _ControlStrip:
     def __init__(self, overlay: OverlayWindow, tk):
         self.overlay = overlay
         self.window = tk.Toplevel(overlay.root)
-        self.window.title("Originator overlay")
+        self.window.title(f"Originator overlay — {overlay.profile.label}")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
         self.window.configure(bg="#15181d", padx=6, pady=4)
 
         row = tk.Frame(self.window, bg="#15181d")
         row.pack(fill="x")
+        # With both profiles running there are two identical strips on screen,
+        # and the only way to know which "calibrate" you are about to press is
+        # for each to say what it is drawing over.
+        tk.Label(
+            row, text=overlay.profile.label, bg="#15181d", fg="#39d0d8",
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side="left", padx=(2, 8))
         for label, command in (
             ("show/hide", overlay.toggle),
+            # Between reload (re-read the file) and calibrate (move the grid),
+            # because that is the order of how much it does.
+            ("analyze", overlay.analyze),
             ("reload", overlay.reload),
             ("calibrate", overlay.start_calibration),
             ("quit", overlay.quit),
@@ -491,6 +555,7 @@ class _ControlStrip:
 
         for sequence, action in (
             ("<o>", overlay.toggle),
+            ("<a>", overlay.analyze),
             ("<r>", overlay.reload),
             ("<c>", overlay.start_calibration),
             ("<q>", overlay.quit),
@@ -511,7 +576,7 @@ class _ControlStrip:
         # Above the grid if there is room, below it otherwise, so the strip
         # never covers the first row of maps.
         y = top - 58 if top - 58 >= 0 else bottom + 6
-        self.window.geometry(geometry_string(420, 52, left, y))
+        self.window.geometry(geometry_string(STRIP_WIDTH, 52, left, y))
 
     def report(self, message: str) -> None:
         if message:
@@ -536,8 +601,14 @@ def run_overlay(
     *,
     calibrate: bool = False,
     state_path: Path | str | None = None,
+    profile: str | OverlayProfile = DEFAULT_PROFILE,
 ) -> int:
-    """Open the overlay and block until it is closed. The CLI's entry point."""
+    """Open one overlay and block until it is closed. The CLI's entry point.
+
+    `profile` selects which surface this process draws over -- the stash tab or
+    the inventory -- which in turn selects the config block it calibrates into
+    and the state file it watches. Run it twice, once per profile, to have both.
+    """
     try:
         import tkinter  # noqa: F401
     except ImportError as exc:  # pragma: no cover - tkinter ships with CPython
@@ -546,8 +617,9 @@ def run_overlay(
         ) from exc
 
     cfg = cfg or load_config()
-    calibration = Calibration.from_config(cfg)
-    overlay = OverlayWindow(cfg, calibration, Path(state_path or DEFAULT_STATE_PATH))
+    spec = profile_for(profile)
+    calibration = Calibration.from_config(cfg, spec)
+    overlay = OverlayWindow(cfg, calibration, state_path)
     if calibrate or not calibration.calibrated:
         overlay.start_calibration()
     return overlay.run()

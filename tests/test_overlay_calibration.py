@@ -108,7 +108,16 @@ def test_a_calibration_round_trips_through_the_config_mapping():
 
 def test_the_saved_block_has_the_shape_the_example_config_documents():
     keys = set(Calibration(screen=(1920, 1080)).to_mapping())
-    assert keys == {"origin", "cell_px", "grid", "opacity", "monitor", "hotkey_toggle", "screen"}
+    assert keys == {
+        "origin",
+        "cell_px",
+        "grid",
+        "opacity",
+        "monitor",
+        "hotkey_toggle",
+        "hotkey_analyze",
+        "screen",
+    }
 
 
 def test_an_uncalibrated_calibration_writes_no_screen_key():
