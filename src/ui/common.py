@@ -8,7 +8,7 @@ import streamlit as st
 from src.config import Config, load_config
 from src.database.repository import Repository
 from src.market.ingest import converter_for
-from src.market.seed import seed_if_empty
+from src.market.seed import seed_bundled_sample
 from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.pricing.currency import CurrencyConverter
@@ -506,11 +506,12 @@ def get_repo() -> Repository:
     if "repo" not in st.session_state:
         cfg = get_config()
         repo = Repository(cfg.db_path)
-        # First run of a download: fill the empty table with the sample the
-        # bundled model was trained on, so collecting adds to a dataset rather
-        # than starting one. Declines instantly once anything is stored, so the
-        # cost is one COUNT per session. See src/market/seed.py.
-        seed_if_empty(cfg, repo)
+        # First run of a download, and again after an upgrade ships a newer
+        # sample: load the market the bundled model was trained on, so that
+        # collecting adds to a dataset rather than starting one. Every other
+        # session finds the fingerprint already stored and returns immediately.
+        # See src/market/seed.py.
+        seed_bundled_sample(cfg, repo)
         st.session_state["repo"] = repo
     return st.session_state["repo"]
 

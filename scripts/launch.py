@@ -49,13 +49,15 @@ def seed_local_files() -> None:
 
 
 def seed_database() -> None:
-    """Fill an empty database with the sample the bundled model was trained on.
+    """Load the market the bundled model was trained on into the database.
 
-    The app does this too, on the first page load -- but silently, and after a
-    30-second cold start. Doing it here means the one run it happens on says so
-    on the console, where a first-time downloader is already looking. Imported
-    inside the function because it pulls in the whole data stack, and every run
-    after the first has nothing to do.
+    Runs on a first install and again after an upgrade that ships a newer
+    sample; every other run finds the fingerprint already stored and does
+    nothing. The app does this too, on the first page load -- but silently, and
+    after a 30-second cold start. Doing it here means the run it happens on says
+    so on the console, where a first-time downloader is already looking.
+
+    Imported inside the function because it pulls in the whole data stack.
     """
     # `python scripts/launch.py` puts scripts/ on the path, not the repo root,
     # so `src` is not importable without this.
@@ -64,11 +66,11 @@ def seed_database() -> None:
 
     from src.config import load_config
     from src.database.repository import Repository
-    from src.market.seed import seed_if_empty
+    from src.market.seed import seed_bundled_sample
 
     cfg = load_config()
     with Repository(cfg.db_path) as repo:
-        seed_if_empty(cfg, repo, log=lambda message: print(f"  {message}"))
+        seed_bundled_sample(cfg, repo, log=lambda message: print(f"  {message}"))
 
 
 def port_is_taken(port: int) -> bool:

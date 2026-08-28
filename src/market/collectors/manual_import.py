@@ -28,6 +28,18 @@ CSV_TEMPLATE_COLUMNS = (
     "seller",
     "listing_id",
     "indexed_at",
+    # When the row was *collected*, as opposed to when the listing was posted.
+    # Appended last so that a CSV written before this column existed still
+    # imports -- everything here past the feature and price columns is optional.
+    #
+    # It carries more weight than its name suggests. `validation.is_snapshot`
+    # asks whether a dataset was gathered in one sitting, and answers with the
+    # span of this column; the answer decides between a chronological split and
+    # a seller-grouped random one, and whether rolling-window folds are computed
+    # at all. Dropping it stamped every imported row with the moment of import,
+    # so the shipped sample -- three weeks of collections -- arrived looking like
+    # a single snapshot and was validated as one.
+    "captured_at",
 )
 
 
@@ -38,10 +50,21 @@ class ManualImportError(ValueError):
 class ManualCsvCollector(MarketCollector):
     name = "manual_csv"
 
-    def __init__(self, converter: CurrencyConverter, league: str, map_tier: int = 16):
+    def __init__(
+        self,
+        converter: CurrencyConverter,
+        league: str,
+        map_tier: int = 16,
+        source_name: str | None = None,
+    ):
         self.converter = converter
         self.league = league
         self.map_tier = map_tier
+        # Rows written by the first-run seed are labelled `bundled_sample`
+        # rather than `manual_csv`, which is what lets a later release swap its
+        # sample for a bigger one without touching a CSV the user imported
+        # themselves. See src/market/seed.py.
+        self.name = source_name or type(self).name
 
     def collect(self, text: str = "", path: str | Path | None = None, **_kw) -> Iterator[MarketListing]:
         if path is not None:
@@ -65,10 +88,12 @@ class ManualCsvCollector(MarketCollector):
                 raw_item_data={"csv_row": row},
                 **{name: int(float(row.get(name) or 0)) for name in FEATURE_NAMES},
             )
+            captured_at = _to_datetime(row.get("captured_at"))
             yield MarketListing(
                 item=classify(item, map_tier=self.map_tier),
                 listing_id=(row.get("listing_id") or "").strip() or None,
                 indexed_at=_to_datetime(row.get("indexed_at")),
+                **({"captured_at": captured_at} if captured_at else {}),
                 league=self.league,
                 price_amount=amount,
                 price_currency=currency,
@@ -168,7 +193,9 @@ class ClipboardListingCollector(MarketCollector):
         )
 
 
-def listing_rows_to_csv(rows: Any, anonymise: bool = False) -> str:
+def listing_rows_to_csv(
+    rows: Any, anonymise: bool = False, in_chaos: bool = False
+) -> str:
     """Render repository rows as CSV this module's own importer can read back.
 
     The Market Data page used to serialise its display DataFrame instead. That
@@ -178,6 +205,21 @@ def listing_rows_to_csv(rows: Any, anonymise: bool = False) -> str:
     the column names not matching, a rename-only fix would have re-imported a
     222c listing as 48,950c without raising anything. Exporting from the stored
     price_amount / price_currency pair is the only version that round-trips.
+
+    `in_chaos` writes the stored `price_chaos` as the price instead of the
+    listing's own amount and currency, which makes a snapshot self-contained:
+    a divine-priced row otherwise has to be re-converted whenever it is
+    imported, at whatever rate the importer can find that day, and one row in
+    eight is priced in divine.
+
+    Worth being precise about what this did and did not buy, since the obvious
+    reading is that it fixed something. It did not: re-exporting the sample this
+    way and retraining produced identical metrics to the digit, because
+    `recompute_price_chaos` restates every stored price whenever the rate
+    changes, so the two representations already agree. What it removes is the
+    dependency itself -- the import no longer has to guess a rate for a
+    snapshot whose prices were settled weeks ago. A user exporting their own
+    data leaves this off and keeps the original amounts.
 
     `anonymise` blanks the seller and the listing id, for the sample dataset
     that ships with the repository. A user exporting their own data keeps both:
@@ -190,28 +232,55 @@ def listing_rows_to_csv(rows: Any, anonymise: bool = False) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(CSV_TEMPLATE_COLUMNS)
+    pseudonyms: dict[str, str] = {}
     for row in rows:
+        amount, currency = row["price_amount"], row["price_currency"]
+        if in_chaos and row["price_chaos"]:
+            amount, currency = round(float(row["price_chaos"]), 4), "chaos"
         writer.writerow(
             [
                 *(row[name] for name in FEATURE_NAMES),
-                row["price_amount"],
-                row["price_currency"],
+                amount,
+                currency,
                 row["map_tier"],
                 row["item_level"],
                 "true" if row["corrupted"] else "false",
-                "" if anonymise else (row["seller"] or ""),
+                _pseudonym(row["seller"], pseudonyms) if anonymise else (row["seller"] or ""),
                 "" if anonymise else (row["listing_id"] or ""),
                 row["indexed_at"] or "",
+                row["captured_at"] or "",
             ]
         )
     return buffer.getvalue()
+
+
+def _pseudonym(seller: Any, seen: dict[str, str]) -> str:
+    """A stable, meaningless label for one account within a single export.
+
+    Blanking the seller entirely was the first version of this, and it cost more
+    than it protected. `grouped_split` keys on the column to keep one account's
+    maps on one side of the train/test line, so a whole export sharing the empty
+    string became one enormous group: seeding a fresh install and retraining
+    produced train 2743 / valid 3 / test 5 and an R2 of nan.
+
+    Sequential labels in order of first appearance keep exactly the fact the
+    split needs -- these two rows came from the same account -- and carry nothing
+    else. There is no hash to reverse and no salt to leak: "anon-0007" is the
+    seventh distinct account in this file and means nothing in any other.
+    """
+    name = (seller or "").strip()
+    if not name:
+        return ""
+    if name not in seen:
+        seen[name] = f"anon-{len(seen) + 1:04d}"
+    return seen[name]
 
 
 def csv_template() -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(CSV_TEMPLATE_COLUMNS)
-    writer.writerow([84, 134, 32, 47, 35, 0, 0, 9.8, "divine", 16, 84, "false", "", "", ""])
+    writer.writerow([84, 134, 32, 47, 35, 0, 0, 9.8, "divine", 16, 84, "false", "", "", "", ""])
     return buffer.getvalue()
 
 

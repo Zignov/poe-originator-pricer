@@ -105,13 +105,38 @@ def test_an_empty_dataset_still_exports_a_usable_header(repo):
     assert _reimport(csv_text) == []
 
 
-def test_the_anonymised_export_drops_seller_and_listing_id(repo):
-    """The shipped sample must not carry live ids that would upsert over real rows."""
+def test_the_anonymised_export_drops_the_account_name_and_the_listing_id(repo):
+    """The shipped sample must not carry account names, or live ids that would
+    upsert over somebody's real rows."""
     repo.upsert_listings([_listing(listing_id="live-id", seller="Exile#1234")])
     back = _reimport(listing_rows_to_csv(repo.listing_rows(), anonymise=True))[0]
-    assert back.seller is None
     assert back.listing_id is None
+    assert "Exile" not in (back.seller or "")
     assert back.price_chaos == pytest.approx(120.0)
+
+
+def test_the_anonymised_export_still_says_which_rows_shared_an_account(repo):
+    """Blanking the column outright cost more than it protected.
+
+    `grouped_split` groups on the seller to keep one account's maps off both
+    sides of the train/test line. When the whole sample shared the empty string
+    it became one group, and seeding a fresh install then retraining produced
+    train 2743 / valid 3 / test 5. The label is meaningless outside the file;
+    what survives is only the fact that two rows came from one account.
+    """
+    repo.upsert_listings(
+        [
+            _listing(listing_id="a", seller="Exile#1234"),
+            _listing(listing_id="b", seller="Exile#1234"),
+            _listing(listing_id="c", seller="Someone#9999"),
+        ]
+    )
+    back = _reimport(listing_rows_to_csv(repo.listing_rows(), anonymise=True))
+    labels = [row.seller for row in back]
+    assert all(label and "#" not in label for label in labels)
+    assert len(set(labels)) == 2
+    # The two rows that shared an account still share a label.
+    assert max(labels.count(label) for label in set(labels)) == 2
 
 
 def test_the_normal_export_keeps_seller_and_listing_id(repo):

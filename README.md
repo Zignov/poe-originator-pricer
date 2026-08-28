@@ -275,16 +275,24 @@ The download ships with a **trained model already in it**, so prices work on the
 first stash tab you paste — no collection run needed to see something. The 33 MB
 listings database is not in the zip, but the rows that model was fitted on are:
 the first run imports `data/originator_listings_allflame.csv` into a fresh
-database, prints a line saying so, and never does it again. That is what makes
-your first **Collect and retrain** add ~4,100 listings' worth of history rather
-than start from the few hundred it just pulled — which used to mean trading the
-bundled model for a much thinner one without being told.
+database, prints a line saying so, and does not do it again. That is what makes
+your first **Collect and retrain** add to **7,627 listings** of history rather
+than start over from the few hundred it just pulled — which used to mean trading
+the bundled model for a much thinner one without being told.
 
-Two consequences worth knowing. The sample is one league's snapshot
-(`Allflame`), so if you set a different league in `config.yaml` before the first
-run the seed is skipped rather than filed under the wrong league's name — you
-start empty and collect. And if you ever do retrain on far less data than the
-current model saw, the training log now says so before it overwrites it.
+Three consequences worth knowing:
+
+- **An upgrade brings the newer market with it.** The import is keyed to the
+  contents of the bundled file, not to the database being empty, so installing a
+  release that ships more listings loads them. Only rows the previous bundle put
+  there are replaced; anything you collected or imported yourself is untouched,
+  which is why those rows carry a source of their own (`bundled_sample`).
+- **It is one league's market** (`Allflame`). Set a different league in
+  `config.yaml` before the first run and the import is skipped rather than filed
+  under the wrong league's name — you start empty and collect.
+- **Retraining on much less data says so.** If a retrain would replace a model
+  fitted on more than twice the listings it is about to use, the training log
+  warns before overwriting it.
 
 Everything the launcher creates — `.venv`, `config.yaml`, `.env`, the database —
 stays inside that one folder. Deleting the folder uninstalls it completely.
@@ -1086,23 +1094,30 @@ there is no reason for each person to repeat it. A ready-made export lives in
 the repo:
 
 ```
-data/originator_listings_allflame.csv     # 4,102 listings, ~282 KB
+data/originator_listings_allflame.csv     # 7,629 listings, ~600 KB
 ```
 
-Import it on **Market Data → Import → CSV**, then retrain. It is the same
-format the export button produces, so anyone can share theirs the same way
+You do not have to do anything with it: the first run imports it (§6). It is
+also there to import by hand on **Market Data → Import → CSV**, and it is the
+same format the export button produces, so anyone can share theirs the same way
 (**Market Data → Inspect and export**, which offers an anonymised export).
+Rebuild it from your own database with `python scripts/export_sample.py --seed`.
 
 Three honest caveats:
 
-- **Seller and listing id are blank.** They are stripped on export, which is
-  what makes the file safe to publish. The cost is that two identical maps at
-  the same price can no longer be told apart, so a re-import merges a handful
-  of them.
+- **The account names are gone and the listing ids are blank.** Each account
+  becomes a label like `anon-0042` that means nothing outside the one file. The
+  labels are kept rather than blanked because the train/test split groups on
+  them: when a whole export shared the empty string it became one group, and
+  training on it produced a validation slice of three rows. Blank listing ids
+  are deliberate too — a live id would upsert over somebody's own collected row.
 - **It is a snapshot, not a feed.** Prices move through a league. An export from
   three weeks ago will train a model that prices a market that no longer exists.
-  The `indexed_at` column is preserved so age is at least visible.
-- **It is one league.** Rates and prices do not carry across leagues.
+  `indexed_at` and `captured_at` are both preserved, so age is visible and the
+  collection history survives — which is what lets the split below come out
+  chronological rather than treating three weeks of collecting as one sitting.
+- **It is one league.** Rates and prices do not carry across leagues, which is
+  why the first-run import declines when your league is not the sample's.
 
 What happens:
 
