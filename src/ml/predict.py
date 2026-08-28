@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import Config, load_config
-from src.ml.features import feature_columns, map_to_row, target_inverse
+from src.ml.features import feature_columns, map_to_values, target_inverse
 from src.ml.train import ARTIFACT_NAME
 from src.schema import FEATURE_NAMES, NormalizedMap
 
@@ -93,9 +93,10 @@ class Predictor:
         return self.metadata.get("model_version", "unknown")
 
     def frame_for(self, items: Sequence[NormalizedMap], divine_to_chaos: float | None = None) -> pd.DataFrame:
-        optional = [c for c in self.columns if c not in FEATURE_NAMES]
-        frames = [map_to_row(item, optional, divine_to_chaos) for item in items]
-        return pd.concat(frames, ignore_index=True)[self.columns]
+        return pd.DataFrame(
+            [map_to_values(item, self.columns, divine_to_chaos) for item in items],
+            columns=self.columns,
+        )
 
     def predict_chaos(self, items: Sequence[NormalizedMap], divine_to_chaos: float | None = None) -> np.ndarray:
         if not items:
@@ -105,23 +106,49 @@ class Predictor:
 
     # ------------------------------------------------------------------
     def estimate(self, item: NormalizedMap, divine_to_chaos: float | None = None) -> Estimate:
+        return self.estimate_many([item], divine_to_chaos)[0]
+
+    def estimate_many(
+        self, items: Sequence[NormalizedMap], divine_to_chaos: float | None = None
+    ) -> list[Estimate]:
+        """Estimates for a batch, with one call into the model rather than N.
+
+        A stash tab is sixty maps, and `model.predict` costs about as much for
+        sixty rows as for one -- the per-call overhead is the whole expense, so
+        pricing them one at a time paid it sixty times. The feature matrix is
+        built once here and reused for the nearest-neighbour lookup as well,
+        which otherwise rebuilt the same single-row frame per map.
+        """
         from src.ml.confidence import score_confidence
 
-        fair = float(self.predict_chaos([item], divine_to_chaos)[0])
-        low_ratio, high_ratio = self.interval_ratios(fair)
-        low = fair * low_ratio
-        high = fair * high_ratio
+        if not items:
+            return []
+        frame = self.frame_for(items, divine_to_chaos)
+        raw = np.asarray(self.model.predict(frame), dtype=float)
+        fairs = np.clip(target_inverse(raw, self.target_mode), 0.0, None)
+        vectors = frame.to_numpy(dtype=float)
 
-        level, score, reasons = score_confidence(self, item, fair, low, high)
-        return Estimate(
-            fair_value_chaos=fair,
-            interval_low_chaos=low,
-            interval_high_chaos=high,
-            confidence=level,
-            confidence_score=score,
-            confidence_reasons=reasons,
-            model_version=self.version,
-        )
+        estimates: list[Estimate] = []
+        for item, fair_value, vector in zip(items, fairs, vectors):
+            fair = float(fair_value)
+            low_ratio, high_ratio = self.interval_ratios(fair)
+            low = fair * low_ratio
+            high = fair * high_ratio
+            level, score, reasons = score_confidence(
+                self, item, fair, low, high, vector=vector
+            )
+            estimates.append(
+                Estimate(
+                    fair_value_chaos=fair,
+                    interval_low_chaos=low,
+                    interval_high_chaos=high,
+                    confidence=level,
+                    confidence_score=score,
+                    confidence_reasons=reasons,
+                    model_version=self.version,
+                )
+            )
+        return estimates
 
     def interval_ratios(self, predicted_chaos: float) -> tuple[float, float]:
         """Conformal band for a prediction of this size.
@@ -140,11 +167,18 @@ class Predictor:
         return float(conformal.get("low", 0.7)), float(conformal.get("high", 1.4))
 
     # ------------------------------------------------------------------
-    def neighbour_distances(self, item: NormalizedMap, k: int = 10) -> tuple[np.ndarray, np.ndarray]:
-        """(indices, scaled distances) of the k closest training examples."""
+    def neighbour_distances(
+        self, item: NormalizedMap, k: int = 10, vector: np.ndarray | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """(indices, scaled distances) of the k closest training examples.
+
+        `vector` lets a caller that has already built the item's feature row --
+        `estimate_many` has, for the whole batch -- skip rebuilding it here.
+        """
         if not self.training_features.size:
             return np.empty(0, dtype=int), np.empty(0)
-        vector = self.frame_for([item]).to_numpy(dtype=float)[0]
+        if vector is None:
+            vector = self.frame_for([item]).to_numpy(dtype=float)[0]
         deltas = (self.training_features - vector) / self._scale
         distances = np.sqrt((deltas**2).sum(axis=1))
         order = np.argsort(distances)[:k]

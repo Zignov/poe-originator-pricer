@@ -48,7 +48,13 @@ def _shap_explanation(predictor: "Predictor", item: "NormalizedMap") -> dict[str
     if background.size == 0:
         raise RuntimeError("no training data stored with the model")
 
-    explainer = shap.TreeExplainer(predictor.model)
+    # Cached on the predictor, which is itself a cached resource: building a
+    # TreeExplainer walks the whole forest, and the model it is built from
+    # cannot change without the predictor being replaced.
+    explainer = getattr(predictor, "_shap_explainer", None)
+    if explainer is None:
+        explainer = shap.TreeExplainer(predictor.model)
+        predictor._shap_explainer = explainer
     values = explainer.shap_values(row)
     values = np.asarray(values).reshape(-1)
     base = float(np.asarray(explainer.expected_value).reshape(-1)[0])

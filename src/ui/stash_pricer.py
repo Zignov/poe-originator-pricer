@@ -226,8 +226,13 @@ def render() -> None:
 
     supported = [p for p in priced if p.supported]
     total_chaos = sum(p.suggested_chaos or 0 for p in supported)
+    # Keyed by object identity so the grid never has to know how a map is
+    # priced. Computed once, here, rather than once for the rail's count and
+    # again for the grid's tiles -- it is ~2ms a map, so a quad tab was paying
+    # a quarter of a second twice over for the same answers.
+    verdicts = {id(p): verdict_for(p.item) for p in supported}
     exaltable = sum(
-        1 for p in supported if (v := verdict_for(p.item)) and v.available and v.worth_it
+        1 for p in supported if (v := verdicts[id(p)]) and v.available and v.worth_it
     )
     stat_rail(
         [
@@ -259,10 +264,6 @@ def render() -> None:
             "means an Exalted Orb pays for itself; a dashed one means it does "
             "not. Hover a tile for fair value and the reasoning."
         )
-        # Verdicts are keyed by object identity so the grid never has to know how
-        # a map is priced -- ~2ms each, so a full tab costs about a tenth of a
-        # second per rerun.
-        verdicts = {id(p): verdict_for(p.item) for p in priced if p.supported}
         render_grid(priced, fmt, verdicts=verdicts)
 
     with table_col:
@@ -303,26 +304,35 @@ def render() -> None:
     names = ["Inspect a map", "Highlight in game", "Copy & save", "Overlay"]
     if mode == "market":
         names.insert(1, "Market evidence")
-    tabs = st.tabs(names)
+    # `on_change="rerun"` makes these dynamic tabs, which is what lets `.open`
+    # answer truthfully and the bodies below be skipped. Default tabs render
+    # every pane on every rerun whether or not it is the one on screen, so
+    # moving a checkbox at the top of the page was rebuilding the stash-search
+    # pattern, the market evidence and the overlay preview as well.
+    tabs = st.tabs(names, on_change="rerun")
     panes = dict(zip(names, tabs))
 
-    with panes["Inspect a map"]:
-        _detail_panel(visible, fmt)
-    if mode == "market":
+    if panes["Inspect a map"].open:
+        with panes["Inspect a map"]:
+            _detail_panel(visible, fmt)
+    if mode == "market" and panes["Market evidence"].open:
         with panes["Market evidence"]:
             _market_evidence(priced, fmt)
             _mode_comparison(model_priced, priced, fmt)
-    with panes["Highlight in game"]:
-        # The whole tab, not `visible`: the pattern must know about every map
-        # that has to stay dark, and the table filters only change what is on
-        # screen. repo and league are what let it name every map that *could*
-        # be in the tab, not just the ones scanned into it.
-        _highlight_tool(priced, fmt, repo, cfg.get("league"))
-    with panes["Copy & save"]:
-        _copy_tools(visible, fmt)
-        _snapshot_button(cfg, repo, items, priced)
-    with panes["Overlay"]:
-        _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode)
+    if panes["Highlight in game"].open:
+        with panes["Highlight in game"]:
+            # The whole tab, not `visible`: the pattern must know about every map
+            # that has to stay dark, and the table filters only change what is on
+            # screen. repo and league are what let it name every map that *could*
+            # be in the tab, not just the ones scanned into it.
+            _highlight_tool(priced, fmt, repo, cfg.get("league"))
+    if panes["Copy & save"].open:
+        with panes["Copy & save"]:
+            _copy_tools(visible, fmt)
+            _snapshot_button(cfg, repo, items, priced)
+    if panes["Overlay"].open:
+        with panes["Overlay"]:
+            _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode)
 
 
 # ---------------------------------------------------------------------------
@@ -1172,7 +1182,15 @@ def _explanation(entry, fmt):
     predictor, _ = get_predictor()
     if predictor is None:
         return
-    with st.expander("Why this price?"):
+    # Dynamic, so the body below only runs when the panel is actually open. It
+    # is the most expensive thing on the page by a distance -- the first call
+    # imports shap and sklearn, ~3.7s -- and a plain expander runs its contents
+    # whether or not anyone has opened it, which put that whole cost on the
+    # Analyze click of every session.
+    panel = st.expander("Why this price?", on_change="rerun")
+    if not panel.open:
+        return
+    with panel:
         try:
             result = explain_item(predictor, entry.item)
         except Exception as exc:

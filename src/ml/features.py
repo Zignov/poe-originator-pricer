@@ -89,8 +89,15 @@ def rows_to_frame(rows: Sequence[Any], divine_to_chaos: float | None = None) -> 
     return frame
 
 
-def map_to_row(nm: NormalizedMap, optional: Sequence[str] = (), divine_to_chaos: float | None = None) -> pd.DataFrame:
-    """One-row frame for prediction, matching the training column order."""
+def map_to_values(
+    nm: NormalizedMap, columns: Sequence[str], divine_to_chaos: float | None = None
+) -> list[Any]:
+    """One map as a plain row, in `columns` order.
+
+    Split out of `map_to_row` so a batch can be one DataFrame rather than one
+    per map concatenated: pricing a stash tab builds sixty of these, and a
+    one-row DataFrame costs far more to construct than the list inside it.
+    """
     now = datetime.now(timezone.utc)
     values: dict[str, Any] = nm.features()
     values.update(
@@ -103,8 +110,13 @@ def map_to_row(nm: NormalizedMap, optional: Sequence[str] = (), divine_to_chaos:
             "divine_to_chaos": divine_to_chaos if divine_to_chaos else np.nan,
         }
     )
+    return [values[c] for c in columns]
+
+
+def map_to_row(nm: NormalizedMap, optional: Sequence[str] = (), divine_to_chaos: float | None = None) -> pd.DataFrame:
+    """One-row frame for prediction, matching the training column order."""
     columns = feature_columns(optional)
-    return pd.DataFrame([[values[c] for c in columns]], columns=columns)
+    return pd.DataFrame([map_to_values(nm, columns, divine_to_chaos)], columns=columns)
 
 
 def recency_weights(
