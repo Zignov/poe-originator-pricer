@@ -202,6 +202,16 @@ overlay_inventory:
   # spends a stash read you did not ask for.
   hotkey_analyze: "ctrl+alt+shift+a"
 
+listing_tracker:
+  enabled: false                 # stays off until POE_ACCOUNT_NAME is set
+  poll_interval_minutes: 15
+  young_listing_minutes: 60      # a listing this new is polled on the fast cadence
+  young_poll_interval_minutes: 5
+  reappearance_window_hours: 6   # a sold map returning this soon was never sold
+  stale_after_hours: 24          # page filter: what counts as sitting
+  ladder:
+    steps: [[24, 0.92], [72, 0.85], [168, 0.78]]
+    floor_ratio: 0.75
 http:
   # GGG publishes rate limits in response headers; the client obeys whatever the
   # server reports. These are only the initial conservative guesses.

@@ -75,6 +75,27 @@ _DEFAULTS: dict[str, Any] = {
         "hotkey_toggle": "ctrl+alt+i",
         "hotkey_analyze": "ctrl+alt+shift+a",
     },
+    # Watching your own instant-buyout listings: what you asked, how long it
+    # sat, and what that says the price should be. Off until POE_ACCOUNT_NAME is
+    # set, because there is nothing to poll without it.
+    "listing_tracker": {
+        "enabled": False,
+        "poll_interval_minutes": 15,
+        # A listing this new is polled on the fast cadence. Its first hour holds
+        # the fast-sale signal; a three-day-old map does not need a five-minute
+        # check to confirm it is still sitting.
+        "young_listing_minutes": 60,
+        "young_poll_interval_minutes": 5,
+        # A "sold" map that comes back this soon was never sold -- a sold map
+        # cannot return. Beyond the window it is treated as a different map.
+        "reappearance_window_hours": 6,
+        # Page filter: what counts as "sitting".
+        "stale_after_hours": 24,
+        "ladder": {
+            "steps": [[24, 0.92], [72, 0.85], [168, 0.78]],
+            "floor_ratio": 0.75,
+        },
+    },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
 }
 
