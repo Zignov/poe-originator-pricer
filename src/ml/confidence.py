@@ -28,12 +28,18 @@ FRESH_HOURS = 24.0
 
 
 def score_confidence(
-    predictor: "Predictor", item: "NormalizedMap", fair: float, low: float, high: float
+    predictor: "Predictor",
+    item: "NormalizedMap",
+    fair: float,
+    low: float,
+    high: float,
+    vector: np.ndarray | None = None,
 ) -> tuple[str, float, list[str]]:
+    """`vector` is the item's already-built feature row, when the caller has one."""
     reasons: list[str] = []
     parts: list[float] = []
 
-    indices, distances = predictor.neighbour_distances(item, k=40)
+    indices, distances = predictor.neighbour_distances(item, k=40, vector=vector)
     close = int((distances <= NEAR_DISTANCE).sum()) if distances.size else 0
     support = min(close / GOOD_NEIGHBOURS, 1.0)
     parts.append(support)

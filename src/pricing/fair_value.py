@@ -11,8 +11,8 @@ from typing import Any, Sequence
 import pandas as pd
 
 from src.config import Config
-from src.database.repository import Repository
-from src.market.comparables import find_comparables, market_reference_price
+from src.database.repository import PRICING_COLUMNS, Repository
+from src.market.comparables import ComparablePool, market_reference_price
 from src.ml.decision_bands import verdict
 from src.ml.predict import Estimate, Predictor
 from src.pricing.currency import CurrencyConverter
@@ -98,26 +98,43 @@ class PricingService:
         self.multipliers = multipliers or multipliers_from_config(
             cfg.get("pricing.strategies", {})
         )
+        #: Built on first use and shared by every map priced through this
+        #: service. See `comparable_pool`.
+        self._pool: ComparablePool | None = None
+
+    def comparable_pool(self) -> ComparablePool:
+        """The listing snapshot every comparables search on this service shares.
+
+        Memoised on the instance rather than globally, because a service is
+        built per request (per Streamlit rerun, per CLI invocation) and that is
+        exactly the lifetime over which the listings cannot change underneath
+        it. A pool that outlived the request would need invalidating; this one
+        does not.
+        """
+        if self._pool is None:
+            self._pool = ComparablePool.build(
+                self.repo,
+                league=self.cfg.get("league"),
+                max_age_days=self.cfg.get("market.max_age_days"),
+                map_tier=self.cfg.get("scope.map_tier"),
+                require_uncorrupted=self.cfg.get("scope.require_uncorrupted"),
+            )
+        return self._pool
 
     def price(
         self,
         item: NormalizedMap,
         strategy: str = "market",
         comparables: int = 8,
+        estimate: Estimate | None = None,
     ) -> PricedMap:
+        """One priced map. `estimate` skips the model call when a batch made it."""
         if not item.supported or self.predictor is None:
             return PricedMap(item=item, estimate=None, strategy=strategy)
 
-        estimate = self.predictor.estimate(item, self.converter.divine_to_chaos)
-        comps = find_comparables(
-            self.repo,
-            item,
-            league=self.cfg.get("league"),
-            limit=comparables,
-            max_age_days=self.cfg.get("market.max_age_days"),
-            map_tier=self.cfg.get("scope.map_tier"),
-            require_uncorrupted=self.cfg.get("scope.require_uncorrupted"),
-        )
+        if estimate is None:
+            estimate = self.predictor.estimate(item, self.converter.divine_to_chaos)
+        comps = self.comparable_pool().nearest(item, limit=comparables)
         suggested = suggested_price(estimate.fair_value_chaos, strategy, self.multipliers)
         # Round to a number a player would actually type, then convert back so
         # the stored figure and the displayed note never disagree.
@@ -203,7 +220,27 @@ class PricingService:
     def price_many(
         self, items: Sequence[NormalizedMap], strategy: str = "market", comparables: int = 8
     ) -> list[PricedMap]:
-        return [self.price(item, strategy, comparables) for item in items]
+        """Price a whole tab.
+
+        The two costs that do not have to be paid per map are lifted out here:
+        the model runs once over every priceable map rather than once each, and
+        the comparables all search one shared `ComparablePool`. What is left in
+        the loop is the part that genuinely differs per map.
+        """
+        if self.predictor is None:
+            return [PricedMap(item=item, estimate=None, strategy=strategy) for item in items]
+
+        priceable = [item for item in items if item.supported]
+        estimates = dict(
+            zip(
+                (id(item) for item in priceable),
+                self.predictor.estimate_many(priceable, self.converter.divine_to_chaos),
+            )
+        )
+        return [
+            self.price(item, strategy, comparables, estimate=estimates.get(id(item)))
+            for item in items
+        ]
 
     def to_frame(self, priced: Sequence[PricedMap]) -> pd.DataFrame:
         return pd.DataFrame([p.row(self.formatter) for p in priced])
@@ -232,6 +269,7 @@ def observed_multipliers(
         max_age_days=cfg.get("market.max_age_days"),
         map_tier=cfg.get("scope.map_tier"),
         require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+        columns=PRICING_COLUMNS,
     )
     frame = rows_to_frame(rows)
     if frame.empty:

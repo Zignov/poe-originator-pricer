@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from src.database.repository import PRICING_COLUMNS
 from src.ml.explain import INTERESTING_INTERACTIONS, global_importance, interaction_grid
 from src.ml.features import rows_to_frame, target_inverse
 from src.ml.validation import metrics as compute_metrics
@@ -193,6 +194,7 @@ def _scored(league, tier, uncorrupted, rate, version, model_stamp):
         include_outliers=False,
         map_tier=tier,
         require_uncorrupted=uncorrupted,
+        columns=PRICING_COLUMNS,
     )
     predictor, _ = get_predictor()
     frame = rows_to_frame(rows, divine_to_chaos=rate)

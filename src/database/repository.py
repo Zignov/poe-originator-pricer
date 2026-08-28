@@ -29,6 +29,35 @@ def _parse_iso(text: str | None) -> datetime | None:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+#: What the pricing and scoring paths read: everything except `raw_data`, which
+#: none of them look at and all of them would pay ~5KB a row to fetch. Keep in
+#: step with `rows_to_frame`, `find_comparables` and `outliers.evaluate`, which
+#: are the readers this list exists for.
+PRICING_COLUMNS: tuple[str, ...] = (
+    "id",
+    "listing_id",
+    "captured_at",
+    "first_seen",
+    "indexed_at",
+    "league",
+    "name",
+    "base_type",
+    "map_tier",
+    "item_level",
+    "quality",
+    "corrupted",
+    *FEATURE_NAMES,
+    "price_amount",
+    "price_currency",
+    "price_type",
+    "price_chaos",
+    "seller",
+    "source",
+    "is_outlier",
+    "outlier_reason",
+)
+
+
 class Repository:
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
@@ -132,8 +161,19 @@ class Repository:
         max_age_days: float | None = None,
         map_tier: int | None = None,
         require_uncorrupted: bool | None = None,
+        columns: Sequence[str] | None = None,
     ) -> list[sqlite3.Row]:
-        sql = "SELECT * FROM originator_listings WHERE 1=1"
+        """Listings matching the scope, oldest first.
+
+        `columns` narrows the SELECT. It is not a micro-optimisation: `raw_data`
+        holds the whole trade payload and averages ~5KB a row, so `SELECT *`
+        over a 7k-row table costs ~1.5s of pure deserialisation -- eighty times
+        the 19ms the same query takes without it. Every caller that only wants
+        to score or compare listings should pass `PRICING_COLUMNS`; the ones
+        that re-export or re-parse the payload are the only ones that need `*`.
+        """
+        selected = "*" if columns is None else ", ".join(columns)
+        sql = f"SELECT {selected} FROM originator_listings WHERE 1=1"
         params: list[Any] = []
         if league:
             sql += " AND league = ?"

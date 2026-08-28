@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from src.config import Config, user_agent
-from src.database.repository import Repository
+from src.database.repository import PRICING_COLUMNS, Repository
 from src.market import outliers
 from src.market.collectors.base import dedupe
 from src.market.collectors.official_trade_api import OfficialTradeApiCollector
@@ -27,7 +27,9 @@ def store(cfg: Config, repo: Repository, listings: Iterable[MarketListing]) -> d
 
 
 def refresh_outliers(cfg: Config, repo: Repository) -> dict[str, Any]:
-    rows = repo.listing_rows(league=cfg.get("league"), include_outliers=True)
+    rows = repo.listing_rows(
+        league=cfg.get("league"), include_outliers=True, columns=PRICING_COLUMNS
+    )
     bounds = cfg.get("market.plausible_price_chaos", [5, 1000])
     decisions = outliers.evaluate(
         rows, max_age_days=None, plausible_chaos=(float(bounds[0]), float(bounds[1]))

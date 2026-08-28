@@ -6,7 +6,7 @@ from typing import Any
 import streamlit as st
 
 from src.config import Config, load_config
-from src.database.repository import Repository
+from src.database.repository import PRICING_COLUMNS, Repository
 from src.market.ingest import converter_for
 from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
@@ -631,12 +631,16 @@ def invalidate_data() -> None:
 def listing_records(league: str | None, include_outliers: bool, version: int) -> list[dict]:
     """listing_rows() as plain dicts.
 
+    Narrowed to PRICING_COLUMNS: no reader of this list looks at `raw_data`,
+    and fetching it anyway was most of the query -- ~1.5s of JSON against 19ms
+    for the same rows without it.
+
     sqlite3.Row cannot be pickled and therefore cannot be a cache_data return
     value. dict() is also what makes the rows safe to hand to pandas and to
     listing_rows_to_csv, both of which only ever subscript them by column name.
     """
     return [dict(row) for row in get_repo().listing_rows(
-        league=league, include_outliers=include_outliers
+        league=league, include_outliers=include_outliers, columns=PRICING_COLUMNS
     )]
 
 
