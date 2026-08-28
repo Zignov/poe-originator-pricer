@@ -38,7 +38,6 @@ from src.overlay.calibration import (
 )
 from src.overlay.hotkeys import HotkeyListener
 from src.overlay.layout import (
-    TEXT_COLOUR,
     TILE_OUTLINE,
     build_draw_list,
     font_size_for,
@@ -267,7 +266,7 @@ class OverlayWindow:
                 (box.left + box.right) / 2,
                 (box.top + box.bottom) / 2,
                 text=box.text,
-                fill=TEXT_COLOUR,
+                fill=box.text_fill,
                 font=font,
             )
 

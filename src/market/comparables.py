@@ -14,6 +14,11 @@ import pandas as pd
 
 from src.database.repository import Repository, _parse_iso
 from src.schema import FEATURE_NAMES, NormalizedMap
+# The band vocabulary lives in the palette because that module has no
+# dependencies and the tkinter overlay reads it in a process with no pandas
+# in it. Importing it here rather than restating the names keeps one
+# definition of what the bands are and what order they come in.
+from src.ui.palette import NEGLIGIBLE_CHAOS, VALUE_ORDER
 
 
 def scaled_distance(matrix: np.ndarray, vector: np.ndarray) -> np.ndarray:
@@ -96,24 +101,49 @@ def format_age(hours: float | None) -> str:
 
 
 def percentile_bands(values: Sequence[float]) -> dict[str, float]:
-    """Percentile-based value thresholds, so nothing league-specific is hardcoded."""
+    """Percentile-based value thresholds, so nothing league-specific is hardcoded.
+
+    One entry per band above ``low``, keyed by the band it opens: a price at or
+    above ``bands["high"]`` is "high". The quantiles are deliberately uneven --
+    tighter at the top -- because map prices are long-tailed, and evenly spaced
+    percentiles would spend three of the six colours on the lump of
+    near-identical cheap maps and one on everything from 200c upwards.
+
+    Maps under ``NEGLIGIBLE_CHAOS`` are left out of the calculation entirely.
+    They get their own flat band regardless, and leaving them in dragged every
+    threshold down so that a tab of mostly-junk lit up as though it were full of
+    good maps. If *everything* is under the cut the unfiltered values are used,
+    which changes no colour -- all of them are negligible -- but keeps the
+    thresholds ordered and finite for the legend.
+    """
     arr = np.asarray([v for v in values if v is not None and np.isfinite(v)], dtype=float)
+    meaningful = arr[arr >= NEGLIGIBLE_CHAOS]
+    if meaningful.size:
+        arr = meaningful
     if arr.size == 0:
-        return {"low": 0.0, "medium": 0.0, "high": 0.0}
-    return {
-        "low": float(np.quantile(arr, 0.35)),
-        "medium": float(np.quantile(arr, 0.70)),
-        "high": float(np.quantile(arr, 0.90)),
+        return {name: 0.0 for name in VALUE_ORDER[2:]}
+    quantiles = {
+        "modest": 0.20,
+        "medium": 0.45,
+        "high": 0.68,
+        "very high": 0.85,
+        "exceptional": 0.95,
     }
+    return {name: float(np.quantile(arr, q)) for name, q in quantiles.items()}
 
 
 def value_category(price: float | None, bands: dict[str, float]) -> str:
+    """Which colour band a price falls in.
+
+    The negligible cut is absolute and comes first: percentiles rank a tab
+    against itself, and no ranking of a tab full of junk should make a 12c map
+    look worth carrying out of the map device.
+    """
     if price is None:
         return "unknown"
-    if price >= bands["high"]:
-        return "very high"
-    if price >= bands["medium"]:
-        return "high"
-    if price >= bands["low"]:
-        return "medium"
+    if price < NEGLIGIBLE_CHAOS:
+        return "negligible"
+    for name in reversed(VALUE_ORDER[2:]):
+        if price >= bands[name]:
+            return name
     return "low"

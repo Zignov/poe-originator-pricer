@@ -30,7 +30,7 @@ from src.overlay.state import (
     OverlayState,
     OverlayTile,
 )
-from src.ui.palette import CONFIDENCE_COLOURS, VALUE_COLOURS
+from src.ui.palette import CONFIDENCE_COLOURS, VALUE_COLOURS, value_text_colour
 
 CAL = Calibration(origin=(100, 200), cell_px=50.0, grid=(12, 12))
 
@@ -82,8 +82,17 @@ def test_colours_come_from_the_same_percentile_bands_as_the_web_grid():
 
 def test_the_bands_are_percentiles_of_this_tab_not_fixed_thresholds():
     """A cheap tab still has a dearest map, and it is still coloured as one."""
-    cheap = _state(*[_tile(x=i, price=p) for i, p in enumerate([1.0, 2.0, 3.0, 99.0])])
-    assert build_draw_list(cheap, CAL)[-1].fill == VALUE_COLOURS["very high"]
+    cheap = _state(*[_tile(x=i, price=p) for i, p in enumerate([40.0, 50.0, 60.0, 99.0])])
+    assert build_draw_list(cheap, CAL)[-1].fill == VALUE_COLOURS["exceptional"]
+
+
+def test_maps_under_thirty_chaos_are_drawn_to_be_ignored():
+    """Fill and label both recede: a dark tile with a white price is not dark."""
+    state = _state(_tile(x=0, price=12.0), _tile(x=1, price=400.0))
+    cheap, dear = build_draw_list(state, CAL)
+    assert cheap.fill == VALUE_COLOURS["negligible"]
+    assert cheap.text_fill != dear.text_fill
+    assert cheap.text_fill == value_text_colour("negligible")
 
 
 def test_unsupported_maps_do_not_drag_the_bands_around():

@@ -22,7 +22,12 @@ from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
 from src.ui.common import VALUE_COLOURS
-from src.ui.palette import CONFIDENCE_COLOURS, confidence_fill
+from src.ui.palette import (
+    CONFIDENCE_COLOURS,
+    NEGLIGIBLE_CHAOS,
+    VALUE_ORDER,
+    confidence_fill,
+)
 
 
 def render_grid(
@@ -62,10 +67,15 @@ def render_grid(
                 )
                 continue
             price = _tile_price(entry)
-            colour = VALUE_COLOURS[value_category(price, bands)]
+            category = value_category(price, bands)
+            colour = VALUE_COLOURS[category]
             ring = exalt_class((verdicts or {}).get(id(entry)))
+            # The negligible band gets a class as well as a colour: the fill
+            # alone recedes, but the white price on top of it does not, and the
+            # point of the band is that the eye skips the whole tile.
+            dim = " negligible" if category == "negligible" else ""
             cells.append(
-                f'<div class="stash-cell filled {ring}" style="background:{colour}" '
+                f'<div class="stash-cell filled{dim} {ring}" style="background:{colour}" '
                 f'title="{tooltip}">{fmt.format(price)}'
                 f"{confidence_meter(entry)}</div>"
             )
@@ -182,7 +192,9 @@ def _exalt_legend() -> None:
 
 
 def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
-    spread = (fmt.value(bands["high"]) or 0.0) - (fmt.value(bands["low"]) or 0.0)
+    spread = (fmt.value(bands["exceptional"]) or 0.0) - (
+        fmt.value(bands["modest"]) or 0.0
+    )
     # One chaos apart is indistinguishable once rounded; in divine the same
     # applies at a hundredth.
     too_close = 1.0 if fmt.unit == "chaos" else 0.05
@@ -190,18 +202,24 @@ def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
     if count < MIN_FOR_BANDS or spread < too_close:
         st.caption(
             f"Colour still ranks the {count} priced map"
-            f"{'' if count == 1 else 's'} from cheapest to dearest, but with so "
-            "few (or such similar) values the percentile bands are not worth "
+            f"{'' if count == 1 else 's'} from cheapest to dearest -- and anything "
+            f"under {fmt.format(NEGLIGIBLE_CHAOS)} is still greyed out -- but with "
+            "so few (or such similar) values the percentile bands are not worth "
             "labelling. Hover a tile for the actual numbers."
         )
         return
 
-    entries = [
-        ("low", f"&lt; {fmt.format(bands['low'])}"),
-        ("medium", fmt.range(bands["low"], bands["medium"])),
-        ("high", fmt.range(bands["medium"], bands["high"])),
-        ("very high", f"&gt; {fmt.format(bands['high'])}"),
-    ]
+    # Built from VALUE_ORDER so the legend cannot drift out of step with the
+    # bands: each entry runs from the threshold that opens it to the one that
+    # opens the next, with the two ends written as open-ended.
+    edges = [NEGLIGIBLE_CHAOS] + [bands[name] for name in VALUE_ORDER[2:]]
+    entries = [("negligible", f"&lt; {fmt.format(NEGLIGIBLE_CHAOS)}")]
+    for index, key in enumerate(VALUE_ORDER[1:-1]):
+        entries.append((key, fmt.range(edges[index], edges[index + 1])))
+    entries.append(
+        (VALUE_ORDER[-1], f"&gt; {fmt.format(bands[VALUE_ORDER[-1]])}")
+    )
+
     html = ['<div class="legend">']
     for key, text in entries:
         html.append(
@@ -215,8 +233,9 @@ def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
     st.caption(
-        "Thresholds are percentiles of this tab, not fixed league values. "
-        "Hover a tile for details."
+        f"Anything under {fmt.format(NEGLIGIBLE_CHAOS)} is greyed out on a fixed "
+        "threshold; the bands above it are percentiles of this tab's remaining "
+        "maps, not fixed league values. Hover a tile for details."
     )
 
 
