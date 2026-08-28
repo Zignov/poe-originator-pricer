@@ -51,6 +51,51 @@ class PersonalCalibration:
         return self.applied and bool(model_version) and model_version == self.model_version
 
 
+def apply_calibration(
+    base,
+    calibration: PersonalCalibration,
+    enabled: bool,
+    active_model_version: str,
+):
+    """Attach the factor to a set of strategy multipliers, or explain why not.
+
+    Three gates, and all three return the multipliers unchanged rather than
+    quietly halving the difference: the user can switch it off, a measurement
+    that never qualified stays off, and a measurement taken against a different
+    model is refused outright.
+
+    That last one is the subtle one. The model's own underpricing already has a
+    measured fix, so this factor sits on top of whatever the active model does.
+    Carry it across a retrain and the two corrections stack, with the second
+    fitted on prices the first already moved -- and nothing on screen would say
+    so, because the number would still look perfectly reasonable.
+
+    The strategy multipliers themselves are never touched, so the
+    observed-spread provenance in `source` survives alongside this one.
+    """
+    from dataclasses import replace
+
+    if not enabled:
+        return replace(
+            base, personal=1.0, personal_source="off (listing_tracker.calibration)"
+        )
+    if not calibration.applied:
+        return replace(base, personal=1.0, personal_source=calibration.source)
+    if not calibration.applies_to(active_model_version):
+        return replace(
+            base,
+            personal=1.0,
+            personal_source=(
+                f"not applied: measured against model {calibration.model_version!r}, "
+                f"but {active_model_version!r} is active -- re-measure rather than "
+                f"stacking two corrections"
+            ),
+        )
+    return replace(
+        base, personal=calibration.factor, personal_source=calibration.source
+    )
+
+
 def personal_factor(
     observations, model_version: str, cfg: CalibrationConfig
 ) -> PersonalCalibration:

@@ -540,7 +540,20 @@ class Repository:
             status=row["status"],
             gone_first_missing=_parse_iso(row["gone_first_missing"]),
             ambiguous=bool(row["ambiguous"]),
+            exclude_from_learning=bool(row["exclude_from_learning"]),
         )
+
+    def tracking_version(self) -> int:
+        """Highest event id, as a cheap "has anything been polled since?" stamp.
+
+        The multiplier cache is keyed on this. Listing writes bump a session
+        counter, but the poller runs on a background thread and must not touch
+        Streamlit state, so the marker has to live in the database.
+        """
+        row = self.conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM tracked_listing_events"
+        ).fetchone()
+        return int(row[0]) if row else 0
 
     def live_tracked_rows(self, account: str, league: str) -> list["TrackedRow"]:
         rows = self.conn.execute(

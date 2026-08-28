@@ -50,6 +50,10 @@ class TrackedRow:
     status: str = "live"
     gone_first_missing: datetime | None = None
     ambiguous: bool = False
+    #: Set by hand on the page for a map you pulled rather than sold. Reconciling
+    #: ignores it -- a delisted map still disappears -- but the learning must
+    #: not see it, which is the whole point of the tick box.
+    exclude_from_learning: bool = False
     #: The snapshot row this was matched to, when there was one. The writer needs
     #: the item to fill in name, rewards and stash position on an insert;
     #: reconciling itself never reads it.

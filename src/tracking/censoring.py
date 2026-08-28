@@ -140,6 +140,8 @@ def all_observations(rows, events_by_listing, predictions, now) -> list[Observat
     for row in rows:
         if getattr(row, "ambiguous", False):
             continue
+        if getattr(row, "exclude_from_learning", False):
+            continue
         out.extend(
             observations_for(
                 row,

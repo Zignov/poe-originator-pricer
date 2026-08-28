@@ -402,36 +402,34 @@ def render() -> None:
     from datetime import timedelta
 
     from src.tracking.alerts import alerts_for, observed_thresholds
-    from src.tracking.calibration import CalibrationConfig, personal_factor
-    from src.tracking.censoring import all_observations
+    from src.tracking.calibration import CalibrationConfig
+    from src.tracking.history import calibration_for_account, observations_for_account
     from src.tracking.survival import fit_hazard
+    from src.ui.common import get_predictor
 
     now = datetime.now(timezone.utc)
-    sold_rows = repo.recent_gone_rows(account, league, since=now - timedelta(days=60))
-    live_tracked = repo.live_tracked_rows(account, league)
-    predictions = {row["id"]: row["predicted_chaos"] for row in live}
-    for row in repo.tracked_rows_for_page(account, league, status="gone"):
-        predictions[row["id"]] = row["predicted_chaos"]
-    events: dict[int, list] = {}
-    for event in repo.tracked_events(list(predictions)):
-        events.setdefault(event["listing_id"], []).append(dict(event))
-
-    observations = all_observations(
-        list(live_tracked) + list(sold_rows), events, predictions, now
-    )
+    # One path from rows to observations, shared with the pricing seam in
+    # src/ui/common.py. If this page assembled its own, it could report a factor
+    # of 1.05 while prices moved by something else, and nothing on screen would
+    # reveal the disagreement.
+    observations = observations_for_account(repo, account, league, now)
     fit = fit_hazard(observations)
     thresholds = observed_thresholds(
         observations,
         fallback_fast=float(cfg.get("listing_tracker.fast_sale_hours") or 1),
         fallback_slow=float(cfg.get("listing_tracker.stale_after_hours") or 24),
     )
-    calibration = personal_factor(
-        observations,
-        next((row["model_version"] for row in live if row["model_version"]), ""),
+    predictor, _why = get_predictor()
+    calibration = calibration_for_account(
+        repo,
+        account,
+        league,
+        predictor.version if predictor else "",
         CalibrationConfig(
             min_sold=int(cfg.get("listing_tracker.calibration.min_sold") or 20),
             clamp=tuple(cfg.get("listing_tracker.calibration.clamp") or (0.8, 1.3)),
         ),
+        now,
     )
 
     gone_page_rows = repo.tracked_rows_for_page(account, league, status="gone")
