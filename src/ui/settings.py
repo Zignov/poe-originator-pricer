@@ -10,6 +10,7 @@ from src.ml import models as backends
 from src.ml.train import NotEnoughData, train
 from src.pricing.display import UNIT_LABELS, UNITS
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
+from src.ui import prefs
 from src.ui.common import (
     flash,
     get_config,
@@ -347,3 +348,16 @@ def render() -> None:
     if st.button("Save to config.yaml"):
         path = cfg.save()
         st.success(f"Wrote {path}")
+
+    st.markdown("**Remembered selections**")
+    st.caption(
+        "Every picker on every page comes back where you left it -- the source, "
+        "the stash tabs, the character, the pricing mode and the filter row -- "
+        "kept in `data/ui_prefs.json` and nowhere near your config or your "
+        "listings. Clearing them puts every one of those controls back to its "
+        "default; nothing else on this page is touched."
+    )
+    if st.button("Forget remembered selections"):
+        prefs.forget()
+        flash("success", "Every picker is back to its default.")
+        st.rerun()

@@ -8,6 +8,7 @@ from src.market.comparables import format_age
 from src.parsing.item_parser import ItemParseError, classify, parse_item_text
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
 from src.schema import FEATURE_NAMES, NormalizedMap
+from src.ui import prefs
 from src.ui.common import (
     get_config,
     get_service,
@@ -15,6 +16,10 @@ from src.ui.common import (
     render_confidence,
 )
 from src.ui.exalt_panel import render_verdict, verdict_for
+
+#: The two ways of describing one map. Named so the remembered choice can be
+#: checked against what is still on offer; the first is the default.
+INPUT_MODES = ["Enter values", "Paste item text"]
 
 LABELS = {
     "quantity": "Item Quantity",
@@ -41,7 +46,12 @@ def render() -> None:
     if model_error:
         st.markdown(f'<div class="warn">{model_error}</div>', unsafe_allow_html=True)
 
-    mode = st.radio("Input", ["Enter values", "Paste item text"], horizontal=True)
+    mode = st.radio(
+        "Input",
+        INPUT_MODES,
+        horizontal=True,
+        key=prefs.sticky("single_map_input", INPUT_MODES[0], INPUT_MODES),
+    )
     item: NormalizedMap | None = None
 
     if mode == "Enter values":
@@ -86,7 +96,10 @@ def render() -> None:
         return
 
     strategy = st.selectbox(
-        "Selling strategy", STRATEGIES, index=1, format_func=STRATEGY_LABELS.get
+        "Selling strategy",
+        STRATEGIES,
+        format_func=STRATEGY_LABELS.get,
+        key=prefs.sticky("single_map_strategy", STRATEGIES[1], STRATEGIES),
     )
     if service is not None:
         st.caption(f"Strategy multipliers from {service.multipliers.source}")

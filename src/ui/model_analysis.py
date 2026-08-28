@@ -11,6 +11,7 @@ from src.database.repository import PRICING_COLUMNS
 from src.ml.explain import INTERESTING_INTERACTIONS, global_importance, interaction_grid
 from src.ml.features import rows_to_frame, target_inverse
 from src.ml.validation import metrics as compute_metrics
+from src.ui import prefs
 from src.ui.common import (
     CHART_SERIES,
     data_version,
@@ -277,6 +278,14 @@ def _interactions(predictor, fmt) -> None:
         "Interaction",
         INTERESTING_INTERACTIONS,
         format_func=lambda p: f"{p[0]} x {p[1]}",
+        # The options are pairs, and JSON has no tuple, so this one is read
+        # back as a list and matched to the tuple it names -- see
+        # prefs.remembered, which returns the option rather than the store.
+        key=prefs.sticky(
+            "analysis_interaction",
+            INTERESTING_INTERACTIONS[0],
+            INTERESTING_INTERACTIONS,
+        ),
     )
     grid = interaction_grid(predictor, pair[0], pair[1])
     if grid.empty:

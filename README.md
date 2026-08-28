@@ -384,6 +384,24 @@ You get:
 - a **Pricing mode** selector — the trained model, or a live market comparison
   against the maps actually listed right now. See §8.
 
+### It comes back where you left it
+
+Every picker on the page is remembered between launches: the source, the tabs,
+the character, the pricing mode and the whole filter row — along with the page
+you were last on, and the equivalent controls on Market Data, Single Map, Bulk
+Buy and Model Analysis. They are kept in `data/ui_prefs.json`, which is local
+to your machine and not in the repo.
+
+A remembered choice is only used while it is still on offer. Rename a tab, end
+a league, or upgrade to a release that changed an option list, and the control
+falls back to its default rather than pointing at something that no longer
+exists. **Settings → Forget remembered selections** clears the lot.
+
+Two controls are deliberately not remembered, because a remembered value would
+be actively wrong rather than merely stale: the highlight threshold, whose
+default is the 75th percentile of *the tab currently on screen*, and the
+overlay's **Draw over** choice, which follows where the maps were read from.
+
 ### Pricing what is in your inventory
 
 The same page reads a character's backpack as well as a stash tab: pick
@@ -1258,12 +1276,13 @@ src/
   ui/                      one module per page, over one design system in
                            common.py: page_header, stat_rail, section, panels
                            and the CSS -- see "Colour is data" below
+                           prefs -- the pickers that survive a restart
   cli.py                   everything the UI does, without Streamlit
 docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     671 tests, including live-render checks of every page
+tests/                     700 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.

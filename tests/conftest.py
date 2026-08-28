@@ -12,6 +12,25 @@ if str(ROOT) not in sys.path:
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def isolated_ui_prefs(tmp_path, monkeypatch):
+    """Every test gets its own empty `data/ui_prefs.json`.
+
+    Sticky widget selections are written on every page render (see
+    src/ui/prefs.py), so without this the AppTest suite would do two things it
+    must never do: write the developer's real preferences file while the tests
+    run, and carry one test's choice of source or strategy into the next one --
+    which is exactly how a passing suite starts depending on its own order.
+
+    Imported lazily because streamlit is optional for most of this suite.
+    """
+    try:
+        from src.ui import prefs
+    except ImportError:  # pragma: no cover - streamlit not installed
+        return
+    monkeypatch.setattr(prefs, "PATH", tmp_path / "ui_prefs.json")
+
+
 # ---------------------------------------------------------------------------
 # Item text fixtures. These are real 3.29 items: the trade API returns the exact
 # clipboard text in item.extended.text (base64), and these were captured from it.
