@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 import streamlit as st
 
 from src.stash.highlight_regex import HighlightBatches, build_highlight_batches
-from src.tracking.reprice import LadderConfig, recommend_ladder
+from src.tracking.reprice import LadderConfig, recommend, recommend_ladder
 from src.ui.common import get_config, get_repo, hint, page_header, section, stat_rail
 
 
@@ -36,39 +36,113 @@ def _ladder_from_config(cfg, stale_after_hours: float) -> LadderConfig:
     )
 
 
+def _priced_at(row) -> datetime:
+    value = row["priced_at"]
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def hours_listed(row, now: datetime) -> float:
+    """How long the *current* price has been up.
+
+    From `priced_at`, not from when the map was first listed: a map you marked
+    down an hour ago is an hour old here however long it sat at its old price.
+    That is the question the page asks -- is this price working.
+    """
+    return (now - _priced_at(row)).total_seconds() / 3600.0
+
+
 def stale_rows(
-    rows, now: datetime, stale_after_hours: float, ladder: LadderConfig | None = None
+    rows,
+    now: datetime,
+    stale_after_hours: float,
+    ladder: LadderConfig | None = None,
+    fit=None,
+    target_window_hours: float = 24.0,
+    target_probability: float = 0.6,
 ) -> list[dict]:
     """The listings that have sat at least `stale_after_hours`, longest first.
 
-    Time runs from `priced_at`, not from when the map was first listed, so a map
-    you marked down an hour ago is an hour old here however long it sat at its
-    old price. That is the point: the question this page asks is whether the
-    *current* price is working.
+    Each carries a recommended price. With a fit, that price is the dearest one
+    your own history shows clearing inside the target window; without one it is
+    the fallback ladder, and the recommendation says which it is.
     """
     ladder = ladder or LadderConfig(stale_after_hours=stale_after_hours)
     out: list[dict] = []
     for row in rows:
-        priced_at = row["priced_at"]
-        if isinstance(priced_at, str):
-            priced_at = datetime.fromisoformat(priced_at)
-        if priced_at.tzinfo is None:
-            priced_at = priced_at.replace(tzinfo=timezone.utc)
-        hours = (now - priced_at).total_seconds() / 3600.0
+        hours = hours_listed(row, now)
         if hours < stale_after_hours:
             continue
         entry = dict(row)
         entry["hours_listed"] = hours
-        entry["recommendation"] = recommend_ladder(
-            price_chaos=row["price_chaos"],
-            hours_listed=hours,
-            predicted_chaos=row["predicted_chaos"],
-            interval_low_chaos=row["interval_low_chaos"],
-            cfg=ladder,
-        )
+        if fit is not None and getattr(fit, "ok", False):
+            entry["recommendation"] = recommend(
+                price_chaos=row["price_chaos"],
+                hours_listed=hours,
+                predicted_chaos=row["predicted_chaos"],
+                interval_low_chaos=row["interval_low_chaos"],
+                fit=fit,
+                target_window_hours=target_window_hours,
+                target_probability=target_probability,
+                cfg=ladder,
+            )
+        else:
+            entry["recommendation"] = recommend_ladder(
+                price_chaos=row["price_chaos"],
+                hours_listed=hours,
+                predicted_chaos=row["predicted_chaos"],
+                interval_low_chaos=row["interval_low_chaos"],
+                cfg=ladder,
+            )
         out.append(entry)
     out.sort(key=lambda entry: entry["hours_listed"], reverse=True)
     return out
+
+
+def alert_rows(live, gone, now: datetime) -> list[dict]:
+    """Live and sold listings, shaped for `alerts_for`.
+
+    The sold ones carry their bracket rather than a time, because that is all we
+    have: `last_seen` is the last moment it was there and `gone_first_missing`
+    the first moment it was not.
+    """
+    rows: list[dict] = []
+    for row in live:
+        entry = dict(row)
+        entry["hours_listed"] = hours_listed(row, now)
+        entry["sold_lo_hours"] = entry["sold_hi_hours"] = None
+        rows.append(entry)
+    for row in gone:
+        entry = dict(row)
+        start = _priced_at(row)
+        last_seen = row["last_seen"]
+        missing = row["gone_first_missing"]
+        if isinstance(last_seen, str):
+            last_seen = datetime.fromisoformat(last_seen)
+        if isinstance(missing, str):
+            missing = datetime.fromisoformat(missing)
+        entry["sold_lo_hours"] = max((last_seen - start).total_seconds() / 3600.0, 0.0)
+        entry["sold_hi_hours"] = max((missing - start).total_seconds() / 3600.0, 0.0)
+        entry["hours_listed"] = entry["sold_hi_hours"]
+        rows.append(entry)
+    return rows
+
+
+def calibration_note(calibration) -> str:
+    """One line that always says whether the factor is in force, and why.
+
+    A personal factor that moves prices without announcing itself is the failure
+    mode this whole feature has to avoid, so the refusals read as plainly as the
+    measurements.
+    """
+    if not calibration.applied:
+        return f"Personal price calibration: not applied — {calibration.source}."
+    return (
+        f"Personal price calibration: ×{calibration.factor:.2f}, "
+        f"{calibration.source}. Suggested listing prices are scaled by it; fair "
+        f"value is not."
+    )
 
 
 def regex_for_stale(stale, all_rows) -> HighlightBatches:
@@ -324,6 +398,62 @@ def render() -> None:
             "disappearances were not acted on this pass."
         )
 
+    # --- what your own history says --------------------------------------
+    from datetime import timedelta
+
+    from src.tracking.alerts import alerts_for, observed_thresholds
+    from src.tracking.calibration import CalibrationConfig, personal_factor
+    from src.tracking.censoring import all_observations
+    from src.tracking.survival import fit_hazard
+
+    now = datetime.now(timezone.utc)
+    sold_rows = repo.recent_gone_rows(account, league, since=now - timedelta(days=60))
+    live_tracked = repo.live_tracked_rows(account, league)
+    predictions = {row["id"]: row["predicted_chaos"] for row in live}
+    for row in repo.tracked_rows_for_page(account, league, status="gone"):
+        predictions[row["id"]] = row["predicted_chaos"]
+    events: dict[int, list] = {}
+    for event in repo.tracked_events(list(predictions)):
+        events.setdefault(event["listing_id"], []).append(dict(event))
+
+    observations = all_observations(
+        list(live_tracked) + list(sold_rows), events, predictions, now
+    )
+    fit = fit_hazard(observations)
+    thresholds = observed_thresholds(
+        observations,
+        fallback_fast=float(cfg.get("listing_tracker.fast_sale_hours") or 1),
+        fallback_slow=float(cfg.get("listing_tracker.stale_after_hours") or 24),
+    )
+    calibration = personal_factor(
+        observations,
+        next((row["model_version"] for row in live if row["model_version"]), ""),
+        CalibrationConfig(
+            min_sold=int(cfg.get("listing_tracker.calibration.min_sold") or 20),
+            clamp=tuple(cfg.get("listing_tracker.calibration.clamp") or (0.8, 1.3)),
+        ),
+    )
+
+    gone_page_rows = repo.tracked_rows_for_page(account, league, status="gone")
+    alerts = alerts_for(alert_rows(live, gone_page_rows, now), thresholds)
+    if alerts:
+        section("Mispriced", "Only where the evidence is decisive.")
+        for alert in alerts:
+            st.markdown(f"**{alert.headline}** — {alert.evidence}")
+
+    with st.expander("What your maps actually clear at"):
+        st.caption(fit.reason)
+        st.caption(
+            f"Fast is under {thresholds.fast_hours:.1f} h and slow is over "
+            f"{thresholds.slow_hours:.0f} h ({thresholds.source})."
+        )
+        st.caption(calibration_note(calibration))
+        st.caption(
+            "A sale seen only across a polling gap is kept as the interval it "
+            "might have happened in, so it counts for what it is worth without "
+            "pretending to a precision it does not have."
+        )
+
     default_stale = float(cfg.get("listing_tracker.stale_after_hours") or 24)
     section("Sitting", "Maps that have not sold at their current price.")
     hours = st.select_slider(
@@ -333,8 +463,17 @@ def render() -> None:
         format_func=lambda h: f"{h} h" if h < 48 else f"{h // 24} days",
     )
 
-    now = datetime.now(timezone.utc)
-    stale = stale_rows(live, now, float(hours), _ladder_from_config(cfg, float(hours)))
+    stale = stale_rows(
+        live,
+        now,
+        float(hours),
+        _ladder_from_config(cfg, float(hours)),
+        fit=fit,
+        target_window_hours=float(cfg.get("listing_tracker.target_window_hours") or 24),
+        target_probability=float(
+            cfg.get("listing_tracker.target_sell_probability") or 0.6
+        ),
+    )
 
     if not stale:
         hint(f"Nothing has been sitting for {hours} hours. ")
