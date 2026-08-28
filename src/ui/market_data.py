@@ -16,6 +16,7 @@ from src.market.collectors.manual_import import (
 from src.market.currency_source import ExchangeRateError, fetch_rate_quote
 from src.market.ingest import collect_from_trade_api, converter_for, refresh_outliers, store
 from src.schema import FEATURE_NAMES
+from src.ui import prefs
 from src.ui.common import (
     CHART_SERIES,
     data_version,
@@ -35,6 +36,10 @@ from src.ui.common import (
     stat_rail,
     typical_focus,
 )
+
+#: The manual-import formats. Named so the remembered choice can be checked
+#: against what is still on offer; the first is the default.
+IMPORT_FORMATS = ["Saved trade JSON", "CSV"]
 
 #: The four reward flags whose combination the Inspect tab counts.
 REWARD_COLUMNS = ("more_currency", "more_maps", "more_scarabs", "more_divination_cards")
@@ -80,7 +85,10 @@ def _collect(cfg, repo) -> None:
         "rate-limit policy GGG returns in its own response headers. Nothing is scraped "
         "and no access control is bypassed. See `docs/data-access.md`."
     )
-    limit = st.number_input("How many listings to collect", 50, 5000, 500, step=50)
+    limit = st.number_input(
+        "How many listings to collect", 50, 5000, step=50,
+        key=prefs.sticky("market_collect_limit", 500, bounds=(50, 5000)),
+    )
     already = listing_counts(cfg.get("league"), data_version())["total"]
 
     buttons = st.columns(2)
@@ -264,7 +272,12 @@ def _import(cfg, repo) -> None:
         "If automated collection is ever unavailable or inappropriate, the app still "
         "works entirely on manual imports."
     )
-    kind = st.radio("Format", ["Saved trade JSON", "CSV"], horizontal=True)
+    kind = st.radio(
+        "Format",
+        IMPORT_FORMATS,
+        horizontal=True,
+        key=prefs.sticky("market_import_format", IMPORT_FORMATS[0], IMPORT_FORMATS),
+    )
 
     if kind == "CSV":
         st.download_button(
@@ -370,7 +383,9 @@ def _inspect(cfg, repo, fmt) -> None:
     table. As a fragment, only this block redraws, so the rest of the page
     stops being greyed out on every touch.
     """
-    show_outliers = st.checkbox("Include flagged outliers", value=False)
+    show_outliers = st.checkbox(
+        "Include flagged outliers", key=prefs.sticky("market_show_outliers", False)
+    )
     frame, combos, flagged_frame, dataset_csv, view_csv = _view_frame(
         cfg.get("league"), fmt.unit, fmt.divine_to_chaos, data_version(), show_outliers
     )

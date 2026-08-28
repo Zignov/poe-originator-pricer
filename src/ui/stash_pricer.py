@@ -44,6 +44,7 @@ from src.ui.common import (
     section,
     stat_rail,
 )
+from src.ui import prefs
 from src.ui.exalt_panel import affix_label, affixes_for, render_verdict, verdict_for
 from src.ui.stash_grid import render_grid
 
@@ -55,6 +56,29 @@ MODE_LABELS = {
 #: What the primary button says when the inventory is the chosen source. Named
 #: once because it appears on every return path out of that loader.
 READ_INVENTORY = "Read inventory"
+
+#: The filter row's two option lists. Hoisted out of the widget calls because
+#: a remembered choice has to be checked against the list that is on offer now,
+#: which means the list needs a name -- and the first entry of each is the
+#: default a forgotten or no-longer-offered choice falls back to.
+REWARD_FILTERS = [
+    "Any",
+    "More Currency",
+    "More Maps",
+    "More Scarabs",
+    "More Div Cards",
+]
+
+SORT_KEYS = [
+    "Highest value",
+    "Lowest value",
+    "More currency",
+    "More maps",
+    "More scarabs",
+    "Pack size",
+    "Confidence",
+    "Stash position",
+]
 
 SOURCE_LABELS = {
     "session": "Connect account (POESESSID)",
@@ -119,7 +143,7 @@ def render() -> None:
         list(SOURCE_LABELS),
         format_func=SOURCE_LABELS.get,
         horizontal=True,
-        key="stash_source_pick",
+        key=prefs.sticky("stash_source_pick", "session", list(SOURCE_LABELS)),
     )
 
     # Switching source opens the details again even with a tab already loaded:
@@ -175,7 +199,7 @@ def render() -> None:
         list(MODE_LABELS),
         format_func=MODE_LABELS.get,
         horizontal=True,
-        key="pricing_mode",
+        key=prefs.sticky("pricing_mode", "model", list(MODE_LABELS)),
         help=(
             "The model prices from what maps like this have historically been listed "
             "at. Market comparison asks the trade site what maps like this are listed "
@@ -185,11 +209,20 @@ def render() -> None:
 
     controls = st.columns([1.2, 1, 1, 1, 1])
     strategy = controls[0].selectbox(
-        "Selling strategy", STRATEGIES, index=1, format_func=STRATEGY_LABELS.get
+        "Selling strategy",
+        STRATEGIES,
+        format_func=STRATEGY_LABELS.get,
+        key=prefs.sticky("stash_strategy", STRATEGIES[1], STRATEGIES),
     )
     min_value = controls[1].number_input(
-        f"Min value ({fmt.column_suffix()})", min_value=0.0, value=0.0,
+        f"Min value ({fmt.column_suffix()})", min_value=0.0,
         step=5.0 if fmt.unit == "chaos" else 0.5,
+        # Remembered per display unit. The number is in whatever is on screen,
+        # so one shared memory would read a threshold of 50 chaos back as 50
+        # divine the first time the sidebar unit changed and hide the tab.
+        key=prefs.sticky(
+            f"stash_min_value_{fmt.unit}", 0.0, bounds=(0.0, float("inf"))
+        ),
     )
     # The two checkboxes are one question -- what to leave out -- and without a
     # label of their own they also sat a label's height higher than every other
@@ -197,25 +230,23 @@ def render() -> None:
     controls[2].markdown(
         '<div class="filter-label">Show only</div>', unsafe_allow_html=True
     )
-    only_confident = controls[2].checkbox("High confidence only")
+    only_confident = controls[2].checkbox(
+        "High confidence only", key=prefs.sticky("stash_only_confident", False)
+    )
     exaltable_only = controls[2].checkbox(
-        "Exaltable only", help="Uncorrupted maps with fewer than 6 affixes."
+        "Exaltable only",
+        help="Uncorrupted maps with fewer than 6 affixes.",
+        key=prefs.sticky("stash_exaltable_only", False),
     )
     reward_filter = controls[3].selectbox(
-        "Reward filter", ["Any", "More Currency", "More Maps", "More Scarabs", "More Div Cards"]
+        "Reward filter",
+        REWARD_FILTERS,
+        key=prefs.sticky("stash_reward_filter", REWARD_FILTERS[0], REWARD_FILTERS),
     )
     sort_key = controls[4].selectbox(
         "Sort by",
-        [
-            "Highest value",
-            "Lowest value",
-            "More currency",
-            "More maps",
-            "More scarabs",
-            "Pack size",
-            "Confidence",
-            "Stash position",
-        ],
+        SORT_KEYS,
+        key=prefs.sticky("stash_sort", SORT_KEYS[0], SORT_KEYS),
     )
 
     model_priced = service.price_many(items, strategy=strategy)
@@ -411,8 +442,14 @@ def _from_session(cfg):
     if not tabs:
         return SourcePlan(blocked="Load the stash tab list first.")
 
+    # The one this whole feature was asked for: the tab you read every evening.
+    # Checked against the list that just came back from GGG, so a tab renamed
+    # or a league ended falls back to the first tab rather than to nothing.
+    names = [t.name for t in tabs]
     chosen_names = st.multiselect(
-        "Tabs to analyze", [t.name for t in tabs], default=[tabs[0].name] if tabs else []
+        "Tabs to analyze",
+        names,
+        key=prefs.sticky("stash_tabs", names[:1], names),
     )
     chosen = [t for t in tabs if t.name in chosen_names]
     if not chosen:
@@ -479,7 +516,10 @@ def _from_inventory(cfg):
             ),
         )
 
-    chosen_name = st.selectbox("Character", [c.name for c in characters])
+    names = [c.name for c in characters]
+    chosen_name = st.selectbox(
+        "Character", names, key=prefs.sticky("stash_character", names[0], names)
+    )
     chosen = next((c for c in characters if c.name == chosen_name), None)
     if chosen is None:
         return SourcePlan(blocked="Choose a character to read.", label=READ_INVENTORY)

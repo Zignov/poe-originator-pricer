@@ -26,6 +26,9 @@ data/*.db-wal
 # Bucket cache for the market-comparison mode. Short-lived fetched market state;
 # safe to delete at any time and never worth sharing.
 data/market_comparison_cache.json
+# Which stash tab you had selected, which pricing mode, which filters. One
+# person's habits on one machine -- useful to them, meaningless in a diff.
+data/ui_prefs.json
 .ruff_cache/
 
 # Local config -- copy config.example.yaml to config.yaml and edit.

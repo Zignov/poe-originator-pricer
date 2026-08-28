@@ -24,6 +24,7 @@ from src.market.bulk import (
 )
 from src.market.collectors.official_trade_api import OfficialTradeApiCollector
 from src.market.ingest import converter_for
+from src.ui import prefs
 from src.ui.common import (
     get_config,
     get_formatter,
@@ -54,14 +55,22 @@ def render() -> None:
         "training is protected from."
     )
 
-    _live_search_callout(cfg, price_max=st.session_state.get("bulk_price_max", DEFAULT_PRICE_MAX))
+    # Seeded before the callout rather than at the widget below, because the
+    # callout is drawn first and reads this same key: leaving it to the widget
+    # would show the trade-site link a remembered price behind for one run.
+    price_key = prefs.sticky(
+        "bulk_price_max", float(DEFAULT_PRICE_MAX), bounds=(1.0, 500.0)
+    )
+    _live_search_callout(cfg, price_max=st.session_state[price_key])
 
     controls = st.columns([1, 1, 1, 1.3])
     price_max = controls[0].number_input(
-        "Max chaos per map", 1.0, 500.0, float(DEFAULT_PRICE_MAX), step=1.0,
-        key="bulk_price_max",
+        "Max chaos per map", 1.0, 500.0, step=1.0, key=price_key
     )
-    min_lot = controls[1].number_input("Minimum maps in a lot", 2, 60, DEFAULT_MIN_LOT)
+    min_lot = controls[1].number_input(
+        "Minimum maps in a lot", 2, 60,
+        key=prefs.sticky("bulk_min_lot", DEFAULT_MIN_LOT, bounds=(2, 60)),
+    )
     seller = controls[2].text_input("Re-check one seller", placeholder="Account#1234")
     controls[3].markdown("&nbsp;", unsafe_allow_html=True)
     scan_now = controls[3].button("Scan now", type="primary", use_container_width=True)

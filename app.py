@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st  # noqa: E402
 
+from src.ui import prefs  # noqa: E402
 from src.ui.common import page_setup, sidebar_context  # noqa: E402
 
 #: Order matters twice over. It is the order of the nav, and the group headings
@@ -42,11 +43,22 @@ def main() -> None:
             '<div class="sub">Map Pricer</div></div>',
             unsafe_allow_html=True,
         )
-        choice = st.radio("Page", list(PAGES), label_visibility="collapsed")
+        choice = st.radio(
+            "Page",
+            list(PAGES),
+            label_visibility="collapsed",
+            key=prefs.sticky("nav_page", "Dashboard", list(PAGES)),
+        )
     sidebar_context()
 
     module = __import__(PAGES[choice], fromlist=["render"])
     module.render()
+
+    # After the page, not before: `sticky` seeds a widget on the way in, and
+    # this is the one place that has seen every widget on the way out. A page
+    # that ends in st.rerun() never reaches here, which costs nothing -- the
+    # rerun draws the same widgets again and the run after that saves them.
+    prefs.flush()
 
 
 if __name__ == "__main__":
