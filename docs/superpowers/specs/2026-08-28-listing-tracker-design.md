@@ -61,12 +61,17 @@ GET  /api/trade/fetch/{up to 10 ids}?query={id}
 `account` argument, verified against `/api/trade/data/filters`. Three parameters
 matter more than the rest:
 
-**`collapse` must be off.** It defaults to `True` and it means "collapse
-listings by account". An account-filtered search with collapse on would
-plausibly return a single row, and every other map would look sold. Its exact
-behaviour under an account filter has not been verified live; a test asserts the
-query body carries `collapse: false`, and the first real run confirms the
-behaviour. If a poll ever returns exactly one listing when the previous poll saw
+**`collapse` must be off.** It defaults to `True` in `build_query` and it means
+"collapse listings by account". An account-filtered search with collapse on
+would plausibly return a single row, and every other map would look sold.
+
+In this codebase, off means **the key is omitted**, not sent as false:
+`build_query` emits `collapse` only when it is on, `src/market/bulk.py` relies
+on that for its own account-scoped scan, and
+`tests/test_live_search_link.py::test_the_link_is_uncollapsed_so_a_seller_shows_every_map`
+pins the convention by asserting `"collapse" not in trade`. The tracker follows
+it rather than changing the shared query builder. Its own test asserts the same
+absence. If a poll ever returns exactly one listing when the previous poll saw
 many, the run is marked partial rather than trusted (§4).
 
 **`status` is `"any"`, not `"online"`.** Otherwise logging out is
@@ -211,6 +216,12 @@ CREATE TABLE tracked_listings (
     price_chaos           REAL,
     price_type            TEXT,
 
+    -- Where the map physically is, straight from listing.stash. This is what
+    -- lets the overlay draw on it without a separate stash read.
+    stash_name            TEXT,
+    stash_x               INTEGER,
+    stash_y               INTEGER,
+
     indexed_at            TEXT,      -- GGG's own listing.indexed
     priced_at             TEXT,      -- last repriced, or indexed_at
     first_seen            TEXT NOT NULL,
@@ -267,7 +278,7 @@ browser; only two files do I/O.
 
 | File | Does | Depends on |
 |---|---|---|
-| `src/market/my_listings.py` | account-filtered search + fetch + parse into `TrackedListing` | trade collector, `parse_api_item`, `parse_api_price`, `RateLimiter` |
+| `src/market/my_listings.py` | account-filtered search + fetch + parse into `MarketListing` | trade collector, `parse_api_item`, `parse_api_price`, `RateLimiter` |
 | `src/tracking/reconcile.py` | **pure.** previous rows + new snapshot → events | nothing |
 | `src/tracking/censoring.py` | **pure.** rows + events → censored observations | nothing |
 | `src/tracking/survival.py` | **pure.** censored observations → hazard by ratio band | numpy |
@@ -336,8 +347,11 @@ Three actions on the filtered set:
   sold-map overlay would not have.
 - **Copy-ready price notes**, in the format the app already produces.
 
-Matching a tracked listing to a stash grid position is by reward fingerprint and
-name; the trade API does not report stash coordinates. Ambiguous matches are
+The trade API reports where the map physically is. Each fetch result carries
+`listing.stash` with `name`, `x` and `y` -- `src/market/bulk.py` already reads
+exactly those three fields. So overlay placement needs no matching against a
+separate stash read and no fingerprint guesswork: the tile is drawn where GGG
+says the item is. A listing whose stash block is missing or lacks coordinates is
 shown as unplaced rather than drawn in a guessed cell.
 
 ### The recommended adjusted price
