@@ -18,6 +18,7 @@ AppTest = st_testing.AppTest
 PAGES = [
     "Dashboard",
     "Stash Pricer",
+    "My Listings",
     "Single Map",
     "Market Data",
     "Bulk Buy",
@@ -495,3 +496,32 @@ def test_the_page_never_offers_cancel_when_nothing_is_running():
     labels = [str(b.label) for b in app.button]
     assert "Cancel run" not in labels, labels
     assert "Price from live listings" in labels, labels
+
+
+def test_the_nav_group_headings_sit_on_the_right_rows():
+    """app.py's PAGES order and common.py's nth-child selectors must agree.
+
+    The group headings are drawn by CSS keyed on position rather than by
+    splitting the picker into three radios, so inserting a page shifts every
+    heading below it. app.py says so in a comment; this makes the comment fail
+    the build instead of being read after the fact.
+    """
+    import re
+
+    from app import PAGES as ORDER
+
+    root = Path(__file__).resolve().parent.parent
+    css = (root / "src" / "ui" / "common.py").read_text(encoding="utf-8")
+    headings = dict(
+        (int(pos), label)
+        for pos, label in re.findall(
+            r'nth-child\((\d+)\)::before \{ content: "([^"]+)"', css
+        )
+    )
+    names = list(ORDER)
+    expected = {
+        names.index("Dashboard") + 1: "Price",
+        names.index("Market Data") + 1: "Market",
+        names.index("Model Analysis") + 1: "Tool",
+    }
+    assert headings == expected

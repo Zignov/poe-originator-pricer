@@ -193,17 +193,17 @@ h3, [data-testid="stHeading"] h3 { font-size: 1.06rem; }
    arguing over one selection. Keyed on position, so the order in app.py's PAGES
    and these three selectors have to move together. */
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1),
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4),
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6) {
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5),
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7) {
   position: relative; margin-top: 1.45rem;
 }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1) { margin-top: .35rem; }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before { content: "Price"; }
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before { content: "Market"; }
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before { content: "Tool"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5)::before { content: "Market"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7)::before { content: "Tool"; }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before,
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before,
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before {
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5)::before,
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7)::before {
   position: absolute; top: -1.02rem; left: .62rem;
   font-family: var(--font-display); font-size: .62rem; font-weight: 500;
   text-transform: uppercase; letter-spacing: .2em; color: var(--ink-faint);
