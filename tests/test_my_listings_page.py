@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from src.ui.my_listings import overlay_groups, regex_for_stale, stale_rows
+from src.ui.my_listings import (
+    overlay_groups,
+    overlay_state_for_tab,
+    regex_for_stale,
+    stale_rows,
+)
 
 T0 = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
 
@@ -75,3 +80,76 @@ def test_a_listing_without_coordinates_is_unplaced_not_guessed():
     stale = stale_rows(rows, now=T0, stale_after_hours=24)
     groups = overlay_groups(stale)
     assert groups == {}, "no cell is better than a guessed cell"
+
+
+def test_the_overlay_tile_shows_the_recommended_price_not_the_current_ask():
+    from src.pricing.display import PriceFormatter
+
+    rows = [_row("Rune Path", 30, price=150.0, predicted=140.0, low=100.0)]
+    stale = stale_rows(rows, now=T0, stale_after_hours=24)
+    state = overlay_state_for_tab(stale, "Sell 3", PriceFormatter(unit="chaos"), "Allflame")
+
+    assert len(state.tiles) == 1
+    tile = state.tiles[0]
+    assert (tile.x, tile.y) == (1, 2)
+    assert tile.price_chaos == stale[0]["recommendation"].price_chaos
+    assert tile.price_chaos < 150.0, "the point is to show what to change it to"
+    assert state.tab_names == ("Sell 3",)
+
+
+def test_the_overlay_export_is_not_marked_as_a_repeatable_stash_read():
+    """Analyze re-reads a tab and re-prices it, which would wipe these numbers."""
+    from src.pricing.display import PriceFormatter
+
+    stale = stale_rows([_row("Rune Path", 30)], now=T0, stale_after_hours=24)
+    state = overlay_state_for_tab(stale, "Sell 3", PriceFormatter(unit="chaos"), "Allflame")
+    assert not state.source.repeatable
+
+
+def test_the_page_body_renders_with_real_tracked_rows(monkeypatch, tmp_path):
+    """The plain smoke test has no account name, so it stops at the early
+    return and never reaches the table, the regex or the overlay block. This
+    drives the actual body."""
+    import pytest
+
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    from pathlib import Path
+
+    from src.config import Config
+    from src.database.repository import Repository
+    from src.schema import MarketListing, NormalizedMap
+    from src.tracking.reconcile import reconcile
+
+    db = tmp_path / "tracked.db"
+    monkeypatch.setattr(Config, "db_path", property(lambda self: db))
+    monkeypatch.setenv("POE_ACCOUNT_NAME", "me#1234")
+
+    repo = Repository(db)
+    old = datetime.now(timezone.utc) - timedelta(hours=60)
+    item = NormalizedMap(
+        name="Rune Path", base_type="Terror Solace", map_tier=16, item_level=84,
+        is_originator=True, supported=True, quantity=90, rarity=140, pack_size=30,
+    )
+    listing = MarketListing(
+        item=item, listing_id="abc", league="Allflame", price_amount=150.0,
+        price_currency="chaos", price_chaos=150.0, price_type="~b/o", seller="me#1234",
+        raw_data={"listing": {"stash": {"name": "Sell 3", "x": 1, "y": 2}}},
+    )
+    result = reconcile([], [listing], now=old, complete=True)
+    repo.apply_reconciliation("me#1234", "Allflame", result)
+    repo.close()
+
+    app = st_testing.AppTest.from_file(
+        str(Path(__file__).resolve().parent.parent / "app.py"), default_timeout=120
+    )
+    app.run()
+    app.sidebar.radio[0].set_value("My Listings").run()
+    assert not app.exception, [str(e) for e in app.exception]
+
+    # Prove it got past the "set your account name" early return: the staleness
+    # control and the in-game search block only exist in the body.
+    body = " ".join(str(m.value) for m in app.markdown) + " ".join(
+        str(c.value) for c in app.code
+    )
+    assert app.select_slider, "the staleness control never rendered"
+    assert "Find them in game" in body, body[:400]

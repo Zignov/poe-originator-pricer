@@ -16,6 +16,7 @@ rather than inside `render`, so they are tested without a browser.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -93,6 +94,54 @@ def regex_for_stale(stale, all_rows) -> HighlightBatches:
     return build_highlight_batches(stale_names, excluded)
 
 
+def overlay_state_for_tab(rows, tab: str, fmt, league: str, grid=(12, 12)):
+    """One stash tab's stale maps, projected onto the overlay contract.
+
+    Built straight from `OverlayTile` rather than through `state_from_priced`,
+    because that helper takes `PricedMap` objects and the thing being drawn here
+    is not a priced tab -- it is a set of listings with a *recommended* price.
+    Fabricating PricedMaps to reach the same tiles would be more code and one
+    more place for the two prices to diverge.
+
+    The tile shows the recommended price, not the current ask: the point of
+    putting it on screen is to see what to change the note to.
+    """
+    from src.overlay.state import (
+        OVERLAY_STATE_VERSION,  # noqa: F401  (imported for the module's contract)
+        OverlaySource,
+        OverlayState,
+        OverlayTile,
+        SOURCE_MANUAL,
+    )
+
+    tiles = []
+    for row in rows:
+        recommendation = row.get("recommendation")
+        price = recommendation.price_chaos if recommendation else row["price_chaos"]
+        tiles.append(
+            OverlayTile(
+                x=int(row["stash_x"]),
+                y=int(row["stash_y"]),
+                name=row["name"] or "",
+                supported=True,
+                price_chaos=price,
+                label=fmt.format(price),
+            )
+        )
+    return OverlayState(
+        tiles=tuple(tiles),
+        grid=tuple(grid),
+        league=league,
+        tab_names=(tab,),
+        unit=fmt.unit,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        # "manual", not "stash": the overlay's Analyze button re-reads a stash
+        # tab and re-prices it, which is a different thing from these
+        # recommendations and would silently replace them with fair values.
+        source=OverlaySource(kind=SOURCE_MANUAL, league=league, names=(tab,)),
+    )
+
+
 def overlay_groups(stale) -> dict[str, list[dict]]:
     """Stale listings by stash tab, since the overlay draws one grid at a time.
 
@@ -110,11 +159,119 @@ def overlay_groups(stale) -> dict[str, list[dict]]:
     return groups
 
 
+def _poller(cfg, account: str, league: str):
+    """The session's poller, started once and kept across reruns.
+
+    It gets a `Repository` of its own. `src/database/models.py:connect` opens
+    with `check_same_thread=False` on the stated grounds that Streamlit
+    serialises reruns so the connection only ever moves between threads -- and a
+    background poller is exactly what breaks that. Two connections to the same
+    file is what SQLite is for.
+    """
+    existing = st.session_state.get("listing_poller")
+    if existing is not None:
+        return existing
+
+    from src.config import user_agent
+    from src.database.repository import Repository
+    from src.market.collectors.official_trade_api import OfficialTradeApiCollector
+    from src.market.ingest import converter_for
+    from src.market.my_listings import fetch_my_listings
+    from src.tracking.poller import ListingPoller, PollerConfig
+
+    own_repo = Repository(cfg.db_path)
+    collector = OfficialTradeApiCollector(
+        league=league,
+        user_agent=user_agent(cfg),
+        converter=converter_for(cfg, own_repo),
+        map_tier=cfg.get("scope.map_tier"),
+        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+    )
+    poller = ListingPoller(
+        repo=own_repo,
+        source=lambda name: fetch_my_listings(collector, account=name),
+        account=account,
+        league=league,
+        cfg=PollerConfig(
+            interval_minutes=float(cfg.get("listing_tracker.poll_interval_minutes") or 15),
+            young_listing_minutes=float(cfg.get("listing_tracker.young_listing_minutes") or 60),
+            young_poll_interval_minutes=float(
+                cfg.get("listing_tracker.young_poll_interval_minutes") or 5
+            ),
+            reappearance_window_hours=float(
+                cfg.get("listing_tracker.reappearance_window_hours") or 6
+            ),
+        ),
+    ).start()
+    st.session_state["listing_poller"] = poller
+    return poller
+
+
+def _fill_predictions(repo, rows, account: str, league: str) -> None:
+    """Give every tracked listing the model's number, once.
+
+    Without this the page has an ask and no estimate to compare it against, and
+    the reprice floor -- the bottom of the model's interval -- does not exist,
+    so the ladder would have nothing to stop it. Only rows missing a prediction
+    are computed, so this costs nothing on a rerun.
+    """
+    from src.ui.common import get_predictor
+
+    pending = [row for row in rows if row["predicted_chaos"] is None]
+    if not pending:
+        return
+    predictor, _why = get_predictor()
+    if predictor is None:
+        return
+
+    from src.schema import NormalizedMap
+
+    items, ids = [], []
+    for row in pending:
+        items.append(
+            NormalizedMap(
+                name=row["name"] or "",
+                base_type=row["base_type"] or "",
+                map_tier=row["map_tier"],
+                item_level=row["item_level"],
+                corrupted=bool(row["corrupted"]),
+                is_originator=True,
+                supported=True,
+                quantity=row["quantity"],
+                rarity=row["rarity"],
+                pack_size=row["pack_size"],
+                more_currency=row["more_currency"],
+                more_maps=row["more_maps"],
+                more_scarabs=row["more_scarabs"],
+                more_divination_cards=row["more_divination_cards"],
+            )
+        )
+        ids.append(row["id"])
+
+    payload = []
+    for listing_id, item in zip(ids, items):
+        estimate = predictor.estimate(item)
+        payload.append(
+            {
+                "id": listing_id,
+                "predicted_chaos": float(estimate.fair_value_chaos),
+                "suggested_chaos": float(estimate.fair_value_chaos),
+                "interval_low_chaos": float(estimate.interval_low_chaos),
+                "interval_high_chaos": float(estimate.interval_high_chaos),
+                "model_version": estimate.model_version or predictor.version,
+            }
+        )
+    repo.save_tracked_predictions(payload)
+
+
 # ----------------------------------------------------------------------
 def render() -> None:
     cfg = get_config()
     repo = get_repo()
-    account = (cfg.get("account_name") or "").strip()
+    # The account name is not a config key -- it is a credential, and Settings
+    # persists it to the environment / .env alongside POESESSID. Read it the way
+    # src/stash/official_api.py does rather than inventing a second home for it.
+    account = os.getenv("POE_ACCOUNT_NAME", "").strip()
     league = cfg.get("league")
 
     page_header(
@@ -132,7 +289,18 @@ def render() -> None:
         )
         return
 
+    if cfg.get("listing_tracker.enabled"):
+        _poller(cfg, account, league)
+    else:
+        hint(
+            "The tracker is off. Turn on `listing_tracker.enabled` in config to "
+            "start checking your listings while the app is open. Anything "
+            "already recorded is shown below."
+        )
+
     run = repo.last_poll_run(account, league)
+    live = repo.tracked_rows_for_page(account, league)
+    _fill_predictions(repo, live, account, league)
     live = repo.tracked_rows_for_page(account, league)
 
     stat_rail(
@@ -209,6 +377,48 @@ def render() -> None:
     if groups:
         section("Draw on the tab", "Positions come from the listing itself.")
         st.caption(
-            "The overlay draws one grid, so export a tab at a time: "
-            + ", ".join(f"{tab} ({len(rows)})" for tab, rows in sorted(groups.items()))
+            "The overlay draws one grid, so a tab is exported at a time. Tiles "
+            "show the recommended price, not what you are asking now."
         )
+        tab = st.selectbox(
+            "Tab",
+            sorted(groups),
+            format_func=lambda name: f"{name} ({len(groups[name])} maps)",
+        )
+        if st.button("Send to overlay", type="primary"):
+            from src.overlay.state import write_state
+            from src.ui.common import get_formatter
+
+            state = overlay_state_for_tab(
+                groups[tab],
+                tab,
+                get_formatter(cfg),
+                league,
+                grid=tuple(cfg.get("overlay.grid") or (12, 12)),
+            )
+            path = write_state(state)
+            st.success(f"Written to {path}. {state.summary()}")
+
+    placed = {row["id"] for rows in groups.values() for row in rows}
+    unplaced = [row for row in stale if row["id"] not in placed]
+    if unplaced:
+        st.caption(
+            f"{len(unplaced)} of these have no stash position in their listing, so "
+            "they are listed but not drawn. A guessed cell would put a price on "
+            "the wrong map."
+        )
+
+    section("Leave one out", "A map you pulled rather than sold.")
+    hint(
+        "A listing that disappears is recorded as sold, because the trade API "
+        "cannot tell a sale from a delist. Tick a map you know you removed and "
+        "it stays off the learning."
+    )
+    for row in stale:
+        if st.checkbox(
+            f"{row['name']} — not a sale",
+            value=bool(row["exclude_from_learning"]),
+            key=f"exclude-{row['id']}",
+        ) != bool(row["exclude_from_learning"]):
+            repo.set_exclude_from_learning(row["id"], not row["exclude_from_learning"])
+            st.rerun()
