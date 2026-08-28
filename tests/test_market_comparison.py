@@ -43,7 +43,14 @@ from src.parsing.item_parser import classify, parse_item_text
 from src.pricing.currency import CurrencyConverter
 from src.schema import ORIGINATOR_IMPLICIT_STAT_ID, NormalizedMap
 
-NOW = datetime(2026, 8, 25, 12, 0, tzinfo=timezone.utc)
+#: The reference present for every fixture in this file. It has to move with
+#: the real clock, not sit on a date: the paths that go through `MarketPricer`
+#: age listings against `datetime.now()` rather than an injected one, so a
+#: pinned NOW makes every fixture listing older by a day each day until it
+#: crosses `max_listing_age_hours` and the freshness filter throws all of them
+#: away. That failed the suite on a calendar boundary rather than on a change,
+#: with each test reporting nothing priced instead of a stale fixture.
+NOW = datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
