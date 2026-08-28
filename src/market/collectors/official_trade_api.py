@@ -283,7 +283,7 @@ class OfficialTradeApiCollector(MarketCollector):
                     time.sleep(15)
                     continue
                 for result in results:
-                    listing = self._to_listing(result)
+                    listing = self.listing_from_result(result)
                     if listing is None:
                         continue
                     seller = listing.seller or "<unknown>"
@@ -308,7 +308,7 @@ class OfficialTradeApiCollector(MarketCollector):
             slice_count,
         )
 
-    def _to_listing(self, result: dict[str, Any]) -> MarketListing | None:
+    def listing_from_result(self, result: dict[str, Any]) -> MarketListing | None:
         item = result.get("item") or {}
         listing_info = result.get("listing") or {}
         nm = classify(
