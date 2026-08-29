@@ -13,7 +13,6 @@ model:
   # Falls back to sklearn_hgb, which is always available.
   backends: [catboost, catboost_mae, lightgbm, lightgbm_mae, xgboost, sklearn_hgb]
   target: log1p          # "log1p" or "raw" -- see docs/architecture.md
-  retrain_interval_hours: 24
 
 display:
   # Unit prices are shown in. Everything is stored and modelled in chaos; this
@@ -201,6 +200,19 @@ overlay_inventory:
   # Likewise its own re-analyse chord, so analysing your inventory never also
   # spends a stash read you did not ask for.
   hotkey_analyze: "ctrl+alt+shift+a"
+
+collection:
+  passive:
+    # Unattended collection while the app is open. One scan is roughly 400 maps
+    # for about 56 requests (one search per query slice, one fetch per ten
+    # results), which GGG's published policy would allow far more often than
+    # this -- the cooldown is politeness, not safety. RateLimiter obeys the
+    # server's own headers regardless of what is set here.
+    maps_per_scan: 400
+    cooldown_minutes: 30
+    auto_off_after_hours: 0   # 0 = run until the app closes
+    auto_retrain: true
+    retrain_every_scans: 4    # 4 scans is ~1600 listings; training is minutes
 
 listing_tracker:
   enabled: false                 # stays off until POE_ACCOUNT_NAME is set

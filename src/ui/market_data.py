@@ -63,12 +63,14 @@ def render() -> None:
         ]
     )
 
-    collect_tab, import_tab, inspect_tab = st.tabs(
-        ["Collect", "Import", "Inspect and export"]
+    collect_tab, passive_tab, import_tab, inspect_tab = st.tabs(
+        ["Collect", "Passive", "Import", "Inspect and export"]
     )
 
     with collect_tab:
         _collect(cfg, repo)
+    with passive_tab:
+        _passive(cfg)
     with import_tab:
         _import(cfg, repo)
     with inspect_tab:
@@ -302,6 +304,165 @@ def _report_finished_collection(cfg, repo, job, already: int) -> None:
 
     if should_retrain_after(stats, train_after):
         _retrain(cfg)
+
+
+#: How often the passive panel redraws. Slower than the collect panel: nothing
+#: on it needs to feel like a button, and a countdown ticking every two seconds
+#: is as legible as one ticking every one.
+PASSIVE_REFRESH_SECONDS = 2.0
+
+
+def _passive(cfg) -> None:
+    """The unattended collector: a switch, four settings, and what it is doing.
+
+    A mode rather than an action, which is why it is a tab of its own and not a
+    fourth button next to Collect. See `src/market/passive.py` for why the loop
+    lives in a process-global rather than in session state, and why the switch
+    is deliberately not remembered between launches.
+    """
+    from src.market.passive import PassiveSettings, controller
+
+    control = controller()
+    st.markdown(
+        "Collects on a loop for as long as this app is open: one scan, then a "
+        "quiet period long enough for the rate limit to reset, then another. "
+        "**It stops when you close the app and does not restart itself.**"
+    )
+
+    settings = PassiveSettings.from_config(cfg)
+    on = st.toggle(
+        "Passive collection",
+        value=control.running,
+        help="Starts a background scan loop. The manual Collect buttons stay "
+        "usable -- a manual run simply waits for any scan in flight to finish.",
+    )
+    if on and not control.running:
+        control.start(cfg, settings)
+        st.rerun()
+    elif not on and control.running:
+        control.stop()
+        st.rerun()
+
+    if control.running:
+        _passive_panel(cfg)
+    else:
+        state = control.state
+        if state.scans_done:
+            st.caption(
+                f"Last session: {state.scans_done} scans, "
+                f"{state.listings_total:,} listings. {state.stopped_reason}."
+            )
+        _passive_settings(cfg, settings)
+
+    _publish_passive_model(control)
+
+
+def _passive_settings(cfg, settings) -> None:
+    """The four knobs. Editable only while the loop is off, because changing
+    the cooldown under a sleeping worker would not take effect until the sleep
+    it is already in has finished -- a setting that appears to do nothing."""
+    st.markdown("##### Settings")
+    left, right = st.columns(2)
+    maps = left.number_input(
+        "Maps per scan", 50, 2000, int(settings.maps_per_scan), step=50,
+        help="About one request per ten maps, plus one per query slice. 400 "
+        "maps is roughly 56 requests -- well inside what GGG's policy allows.",
+    )
+    cooldown = right.number_input(
+        "Cooldown (minutes)", 1, 360, int(settings.cooldown_minutes), step=5,
+        help="Time off the wire between scans. This is politeness, not safety: "
+        "the rate limiter obeys GGG's own headers whatever this says.",
+    )
+    auto_off = left.number_input(
+        "Switch off after (hours)", 0, 48, int(settings.auto_off_after_hours),
+        help="0 runs until you close the app.",
+    )
+    retrain = right.checkbox(
+        "Retrain automatically", value=settings.auto_retrain,
+        help="Otherwise the model quietly falls behind the data it is being "
+        "shown over, which is the one failure state that is invisible.",
+    )
+    every = right.number_input(
+        "Retrain every N scans", 1, 50, int(settings.retrain_every_scans),
+        disabled=not retrain,
+    )
+    if st.button("Save settings"):
+        cfg.set("collection.passive.maps_per_scan", int(maps))
+        cfg.set("collection.passive.cooldown_minutes", int(cooldown))
+        cfg.set("collection.passive.auto_off_after_hours", int(auto_off))
+        cfg.set("collection.passive.auto_retrain", bool(retrain))
+        cfg.set("collection.passive.retrain_every_scans", int(every))
+        cfg.save()
+        flash("success", "Passive collection settings saved.")
+        st.rerun()
+
+
+@st.fragment(run_every=PASSIVE_REFRESH_SECONDS)
+def _passive_panel(cfg) -> None:
+    from src.market.passive import COOLING, SCANNING, TRAINING, WAITING, controller
+
+    control = controller()
+    if not control.running:
+        # The loop ended between renders. Hand the tab back to the full page so
+        # the settings and the toggle come back, and stop this fragment ticking.
+        st.rerun()
+        return
+
+    state = control.state
+    labels = {
+        WAITING: "waiting for the manual collector to finish",
+        SCANNING: "scanning",
+        TRAINING: "retraining on everything collected so far",
+        COOLING: "cooling down",
+    }
+    st.markdown(f"**{labels.get(state.phase, state.phase).capitalize()}**")
+
+    if state.phase == COOLING:
+        remaining = state.seconds_until_next_scan()
+        st.progress(
+            1.0 - min(1.0, remaining / max(1.0, _cooldown_seconds(cfg))),
+            text=f"Next scan in {int(remaining // 60)}m {int(remaining % 60)}s",
+        )
+    elif state.phase == SCANNING:
+        st.caption(f"{state.listings_this_scan:,} listings this scan")
+
+    stat_rail(
+        [
+            ("Scans", f"{state.scans_done:,}", "this session"),
+            ("Collected", f"{state.listings_total:,}", "listings"),
+            ("Model", f"v+{state.model_generation}", "retrains"),
+        ]
+    )
+    if state.last_error:
+        st.warning(state.last_error)
+
+    if st.button("Stop passive collection"):
+        control.stop()
+        st.rerun()
+
+
+def _cooldown_seconds(cfg) -> float:
+    from src.market.passive import PassiveSettings
+
+    return PassiveSettings.from_config(cfg).cooldown_minutes * 60.0
+
+
+def _publish_passive_model(control) -> None:
+    """Drop the model caches when the worker has retrained behind our back.
+
+    The worker cannot do this for itself: `invalidate_model_cache` touches
+    `st.session_state` and calls `.clear()` on `@st.cache_resource` objects,
+    and neither is legal off the script thread. So it bumps a counter and this
+    runs the Streamlit half on the next render that notices.
+    """
+    generation = control.state.model_generation
+    if st.session_state.get("passive_model_generation", 0) == generation:
+        return
+    st.session_state["passive_model_generation"] = generation
+    if generation:
+        invalidate_model_cache()
+        flash("success", "Passive collection retrained the model. Prices are new.")
+        st.rerun()
 
 
 def _retrain(cfg) -> None:

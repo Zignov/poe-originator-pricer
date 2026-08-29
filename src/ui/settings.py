@@ -344,14 +344,9 @@ def render() -> None:
             "Search recency-weight schedules",
             help="Tries several age-weighting schedules and keeps the best on validation.",
         )
-        retrain_hours = st.number_input(
-            "Retraining interval (hours)", 1, 240, int(cfg.get("model.retrain_interval_hours", 24))
-        )
-
         if st.button("Retrain model", type="primary"):
             cfg.set("model.backends", chosen)
             cfg.set("model.target", target)
-            cfg.set("model.retrain_interval_hours", int(retrain_hours))
             log_area = st.empty()
             lines: list[str] = []
 

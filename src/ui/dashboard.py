@@ -178,9 +178,9 @@ STALE_ROW_MARGIN = 100
 def _training_status(counts: dict, run, repo=None, cfg=None) -> None:
     """Say whether the model has seen the data that is in the database.
 
-    Nothing retrains on its own -- `model.retrain_interval_hours` is a stored
-    preference that no code path acts on -- so collecting more listings does not
-    improve any price until Retrain is pressed. The dashboard used to show only
+    Nothing retrains on its own unless passive collection is on and set to --
+    see `src/market/passive.py` -- so a manual collection does not improve any
+    price until Retrain is pressed. The dashboard used to show only
     *when* the model trained, which cannot answer the question people actually
     have after a collection run: is this number built on what I just collected?
 

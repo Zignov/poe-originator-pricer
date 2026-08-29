@@ -28,7 +28,19 @@ _DEFAULTS: dict[str, Any] = {
         "directory": "models",
         "backends": ["catboost", "catboost_mae", "lightgbm", "lightgbm_mae", "xgboost", "sklearn_hgb"],
         "target": "log1p",
-        "retrain_interval_hours": 24,
+    },
+    "collection": {
+        # Passive mode: scan, go quiet long enough for the rate limit to forget
+        # the scan, scan again. See src/market/passive.py. The cooldown is
+        # politeness, not safety -- RateLimiter obeys GGG's own headers
+        # unconditionally and would allow this far more often.
+        "passive": {
+            "maps_per_scan": 400,
+            "cooldown_minutes": 30,
+            "auto_off_after_hours": 0,
+            "auto_retrain": True,
+            "retrain_every_scans": 4,
+        }
     },
     "display": {"currency": "chaos"},
     "currency": {"divine_to_chaos": 210.0, "exalted_to_chaos": 1.25},
