@@ -171,3 +171,56 @@ def test_bundled_rows_are_labelled_so_recollect_leaves_them_alone(tmp_path, bund
         }
     assert sources == {BUNDLED_SOURCE}
     assert BUNDLED_SOURCE != "official_trade_api"
+
+
+def test_exporting_a_new_seed_stops_the_next_launch_re_importing_it(tmp_path, bundle, monkeypatch):
+    """The maintainer's own database must not re-import the file it just wrote.
+
+    Rebuilding the seed leaves the database it came from holding rows the new
+    file also contains, but with a stale fingerprint -- so seeding deletes the
+    `bundled_sample` rows, imports the file, and every row that came from a
+    collection or a user's own CSV lands a second time. `export_sample` claims
+    the fingerprint to close that, and this is the assertion that it does.
+    """
+    root, write = bundle
+    write(_csv(6))
+    cfg = _config()
+    with Repository(tmp_path / "mine.db") as repo:
+        assert seed_bundled_sample(cfg, repo) == 6
+
+        # A rebuilt seed: same rows, different bytes, so a different fingerprint.
+        write(_csv(6) + _csv(3, offset=100).split("\n", 1)[1])
+        assert repo.get_setting(FINGERPRINT_SETTING) != seed_module._fingerprint(
+            root / seed_module.SEED_CSV
+        )
+
+        import scripts.export_sample as export_sample
+
+        monkeypatch.setattr(export_sample, "ROOT", root)
+        args = type("Args", (), {"seed": True, "db": None})()
+        assert export_sample._claim_seed(args, export_sample.SEED_PATH, repo) is True
+
+        before = repo.count_listings("Allflame")["total"]
+        assert seed_bundled_sample(cfg, repo) == 0
+        assert repo.count_listings("Allflame")["total"] == before
+
+
+def test_the_small_sample_and_a_foreign_database_never_claim_the_seed(tmp_path, bundle):
+    """Only the file the launcher actually imports may be claimed.
+
+    `sample_listings.csv` is a fixture for a fresh checkout and `--db` reads
+    somebody else's database, so neither says anything about whether *this*
+    database holds the release seed.
+    """
+    root, write = bundle
+    write(_csv(4))
+    import scripts.export_sample as export_sample
+
+    with Repository(tmp_path / "mine.db") as repo:
+        for args, destination in (
+            (type("Args", (), {"seed": False, "db": None})(), export_sample.SAMPLE_PATH),
+            (type("Args", (), {"seed": True, "db": "other.db"})(), export_sample.SEED_PATH),
+            (type("Args", (), {"seed": True, "db": None})(), "data/somewhere-else.csv"),
+        ):
+            assert export_sample._claim_seed(args, destination, repo) is False
+            assert repo.get_setting(FINGERPRINT_SETTING) is None

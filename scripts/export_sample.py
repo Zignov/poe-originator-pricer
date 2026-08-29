@@ -34,9 +34,10 @@ import sys
 
 sys.path.insert(0, ".")
 
-from src.config import load_config
+from src.config import ROOT, load_config
 from src.database.repository import Repository
 from src.market.collectors.manual_import import listing_rows_to_csv
+from src.market.seed import FINGERPRINT_SETTING, SEED_CSV, _fingerprint
 
 SAMPLE_PATH = "data/sample_listings.csv"
 SEED_PATH = "data/originator_listings_allflame.csv"
@@ -90,7 +91,35 @@ def main(argv=None) -> int:
             + (f"; {flagged} currently flagged as outliers" if flagged else "")
             + ")"
         )
+        if _claim_seed(args, destination, repo):
+            print(
+                "  recorded it as already loaded here, so the next launch does not "
+                "re-import this database's own rows on top of themselves"
+            )
     return 0
+
+
+def _claim_seed(args, destination: str, repo: Repository) -> bool:
+    """Tell the source database it already holds the sample just written from it.
+
+    `src.market.seed` decides whether to import the bundled CSV by comparing a
+    fingerprint of the file against the one stored in `app_settings`. Writing a
+    new seed therefore leaves the very database it was exported from looking
+    like it has never seen it -- so the next launch dutifully deletes the
+    `bundled_sample` rows and imports the file, and every row that came from
+    somewhere else (a collection, a user's own CSV) arrives a second time under
+    a new label. Rebuilding the seed for this release did exactly that once, and
+    the database went from 9,552 rows to 11,472 before anyone noticed.
+
+    The claim is only made for the real seed path, written from the configured
+    database. `--out` somewhere else, `--db` (opened read-only), and the small
+    `sample_listings.csv` all leave the setting alone: none of them is the file
+    the launcher imports, and a read-only handle could not be written to anyway.
+    """
+    if not args.seed or args.db or destination != SEED_PATH:
+        return False
+    repo.set_setting(FINGERPRINT_SETTING, _fingerprint(ROOT / SEED_CSV))
+    return True
 
 
 if __name__ == "__main__":

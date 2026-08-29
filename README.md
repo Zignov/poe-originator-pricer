@@ -330,11 +330,11 @@ gradient-boosting backends, which freezes to roughly 800 MB and breaks on every
 dependency bump, so a venv that `pip` can repair is the more honest package.
 
 The download ships with a **trained model already in it**, so prices work on the
-first stash tab you paste — no collection run needed to see something. The 33 MB
+first stash tab you paste — no collection run needed to see something. The 19 MB
 listings database is not in the zip, but the rows that model was fitted on are:
 the first run imports `data/originator_listings_allflame.csv` into a fresh
 database, prints a line saying so, and does not do it again. That is what makes
-your first **Collect and retrain** add to **7,627 listings** of history rather
+your first **Collect and retrain** add to **15,691 listings** of history rather
 than start over from the few hundred it just pulled — which used to mean trading
 the bundled model for a much thinner one without being told.
 
@@ -1185,8 +1185,8 @@ whatever a cancelled collection left behind — without calling the API.
 > the honest version of it.
 
 Because that is easy to lose track of, the **Dashboard** compares the two and
-says which state you are in — either *"Model is current: trained on 5,579 of
-5,579 usable listings"* or a warning naming the gap and pointing at Retrain.
+says which state you are in — either *"Model is current: trained on 9,085 of
+9,085 usable listings"* or a warning naming the gap and pointing at Retrain.
 Check there after a collection run.
 
 ### The trained model ships with the repo
@@ -1225,7 +1225,7 @@ there is no reason for each person to repeat it. A ready-made export lives in
 the repo:
 
 ```
-data/originator_listings_allflame.csv     # 7,629 listings, ~600 KB
+data/originator_listings_allflame.csv     # 15,695 listings, ~1.6 MB
 ```
 
 You do not have to do anything with it: the first run imports it (§6). It is
@@ -1233,6 +1233,10 @@ also there to import by hand on **Market Data → Import → CSV**, and it is th
 same format the export button produces, so anyone can share theirs the same way
 (**Market Data → Inspect and export**, which offers an anonymised export).
 Rebuild it from your own database with `python scripts/export_sample.py --seed`.
+That also records the new file as already loaded in the database it came from,
+so the next launch does not helpfully re-import your own rows on top of
+themselves — which is worth a sentence because it happened, and took a database
+from 9,552 rows to 11,472 before anyone noticed.
 
 Three honest caveats:
 
@@ -1390,8 +1394,8 @@ Read this part.
   it.** On a clean sample, `more_currency` and `quantity` carry most of the
   signal (correlations with log price around +0.6), `pack_size` follows (+0.44),
   and `rarity`, `more_maps` and `more_scarabs` are close to flat on their own.
-  On the 5,579 listings the shipped model is fitted to, held-out R² lands around
-  0.48 on a chronological split with a median error of ~25 chaos. Predictions
+  On the 9,085 listings the shipped model is fitted to, held-out R² lands around
+  0.58 on a chronological split with a median error of ~24 chaos. Predictions
   are a good ballpark, not a quote — the comparable listings shown beside every
   estimate are doing genuine work, not decoration.
 
