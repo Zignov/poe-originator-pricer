@@ -945,10 +945,30 @@ missed — a rejection is exactly when those are worth reading.
 
 **Not every reward is affix-driven, and the catalogue refuses the ones that are
 not.** Each feature has to predict held-out data before it is modelled.
-`more_divination_cards` scores a held-out R² near zero because it comes from the
-Originator memory rather than a rolled affix — so exalting is never credited with
-adding any, where a less careful version would have invented value on every
-estimate. Which rewards passed is printed when the model trains.
+`more_divination_cards` scores a held-out R² near zero, so exalting is never
+credited with adding any, where a less careful version would have invented value
+on every estimate. Which rewards passed is printed when the model trains.
+
+The reason it fails that test is worth stating, because an earlier version of
+this section guessed wrong and blamed the Originator memory. **It is a chisel.**
+On 1,925 freshly collected listings, `More Divination Cards` and
+`Quality (Divination Cards)` co-occur perfectly — 111 maps carry both, and not
+one map carries either alone — and the value is always exactly `+50%`, never
+anything else. So the feature is not a reward roll at all; it is a binary record
+of a crafting decision somebody made, which is precisely why no affix predicts
+it.
+
+It is still worth keeping, and by a wide margin. Fitted on a seller-grouped
+random split so the held-out slice carries the feature at its real rate (77 of
+1,042 maps), dropping it takes overall MAE from 42.5c to 46.1c and R² from 0.545
+to 0.480 — and on the maps that actually carry the flag, error nearly doubles,
+from 39c to 76c. Those maps sell for about 3.3x the median despite carrying
+*fewer* of the other rewards, and nothing else in the feature set knows that.
+
+Four more chisel properties are visible in the same payloads and are currently
+read by nothing: `Quality (Currency)` on 73 maps, `Quality (Scarabs)` on 34,
+`Quality (Pack Size)` on 5 and `Quality (Rarity)` on 3. Whether they carry
+signal the way the divination-card one does is untested.
 
 The orb price is fetched from the same source as the divine rate, on the Market
 Data page, and stored alongside it, because it is the entire right-hand side of
