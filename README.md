@@ -200,6 +200,38 @@ manual imports alone — CSV, a saved trade JSON response, or a copied item plus
 price. See **[docs/data-access.md](docs/data-access.md)** for exactly what was
 verified, what was not, and why.
 
+### Two ways to run it
+
+**Active** is the manual button on the Market Data page: pick a size, press
+Collect, watch the progress bar. It runs on a worker thread, so **Cancel is a
+real button** rather than a decoration — the flag is checked inside the
+rate-limit wait, not after it, which matters because GGG's search policy can
+impose a half-hour penalty and a cancel that has to wait one out is not a
+cancel. Everything collected before the stop is already committed; ingest
+flushes every fifty listings. A separate **Retrain on stored data** button then
+trains on whatever landed, including a cancelled run's partial haul, without
+calling the API at all.
+
+**Passive** is a toggle that collects on a loop for as long as the app is open:
+one scan of ~400 maps (about 56 requests), then a quiet period long enough for
+the rate limit to reset, then another. Scan size, cooldown, an optional
+switch-off timer and automatic retraining are all configurable.
+
+Two things worth being explicit about:
+
+- **The cooldown is politeness, not safety.** The rate limiter obeys GGG's own
+  response headers unconditionally and would allow this far more often. The
+  cooldown is there so the traffic looks like what it is.
+- **It stops when you close the app, and never restarts itself.** The switch is
+  deliberately not remembered between launches, even though the settings are. A
+  background collector running because a config file said so — while you believe
+  it is stopped — is exactly what gets a User-Agent blocked.
+
+The two modes share one lock, so they never read the market at the same time.
+Two concurrent collections would be two rate limiters neither of which can see
+the other's requests, each individually convinced it is obeying a policy they
+are together doubling.
+
 **Instant Buyout** is not a separate feed. It is the `sale_type` filter on the
 same search, and omitting the filter selects "Buyout or Fixed Price" — which is
 what the collector does. Each listing's `~b/o` vs `~price` type is stored anyway,
@@ -390,7 +422,11 @@ You get:
   threshold so junk recedes instead of competing for attention, with full details on hover, and a **confidence meter**
   along the bottom edge of each tile — a short bar means the number above it is
   a rough estimate rather than a price, which is otherwise buried in a tooltip
-  on the one tile you did not think to hover;
+  on the one tile you did not think to hover — and **one white dot per free
+  affix slot** in the top-right corner, because how many slots are left decides
+  whether an orb can touch the map at all and used to be reachable only by
+  opening it. No dots means no slots left; a map whose affixes could not be read
+  shows nothing rather than a misleading zero;
 - a **sortable table** — by value, by any reward, by pack size, by confidence, or
   by stash position;
 - **filters** — minimum value, high confidence only, or only maps carrying a
@@ -1088,12 +1124,17 @@ python -m src.cli train --tune-weights # also search recency-weight schedules
 
 or **Collect and retrain** on the Market Data page, which does both in one go
 and is the button to reach for by default — collecting without retraining is
-what leaves the app showing old numbers over new data. **Retrain model** in
-Settings trains without collecting.
+what leaves the app showing old numbers over new data. **Retrain on stored
+data**, beside it, trains on everything already in the database — including
+whatever a cancelled collection left behind — without calling the API.
+**Retrain model** in Settings does the same thing from the other page.
 
-> `model.retrain_interval_hours` in the config is **not** a schedule. It is
-> stored and shown in Settings, but no code path acts on it. Treat it as a note
-> to yourself until it does something.
+> Passive collection (§4) can retrain on its own, every N scans and only when
+> the scans actually inserted rows — a quiet league returns the same listings,
+> and refitting them spends minutes to produce the model already loaded.
+> `model.retrain_interval_hours` used to sit in the config as a schedule that
+> nothing acted on; it is gone, and `collection.passive.retrain_every_scans` is
+> the honest version of it.
 
 Because that is easy to lose track of, the **Dashboard** compares the two and
 says which state you are in — either *"Model is current: trained on 4,102 of
@@ -1436,7 +1477,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     671 tests, including live-render checks of every page
+tests/                     920 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
