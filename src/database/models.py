@@ -278,6 +278,16 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
+    # Five seconds of waiting for a write lock instead of an immediate
+    # "database is locked". Since collection moved to a worker thread there are
+    # genuinely two connections against this file -- the page's and the
+    # collector's (see src/market/collect_job.py) -- and WAL only lets a reader
+    # and a writer coexist, not two writers. Without this a background flush
+    # landing at the same moment as a rate refresh raises OperationalError and
+    # loses the batch; with it, one of them waits a few milliseconds. Five
+    # seconds is far beyond any write this app makes and still short enough to
+    # surface a genuine deadlock rather than hang the UI on it.
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 

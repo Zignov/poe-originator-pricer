@@ -35,18 +35,44 @@ def test_both_buttons_are_offered():
     assert "Collect and retrain" in labels
 
 
+def test_a_standalone_retrain_button_is_offered_beside_the_collect_buttons():
+    """Training has to be reachable without spending a single request.
+
+    "Collect and retrain" cannot serve a cancelled run: a cancel skips the
+    retrain on purpose -- stopping the API calls is not a request to start a
+    training run -- and the listings the run did write are then sitting under a
+    model that has never seen them. Without a button that only trains, the only
+    way out of that state is to collect all over again.
+    """
+    app = _market_data_page()
+    labels = [b.label for b in app.button]
+    assert "Retrain on stored data" in labels
+
+    button = next(b for b in app.button if b.label == "Retrain on stored data")
+    assert "cancelled" in (button.help or "").lower(), (
+        "the help text must say that a cancelled collection's listings are "
+        "included -- that is the workflow the button exists for"
+    )
+
+
 def test_collect_and_retrain_is_the_primary_action():
     """It is the one that leaves the app in a coherent state, so it should be
-    the one the eye lands on."""
-    import src.ui.market_data as page
+    the one the eye lands on.
 
-    source = Path(page.__file__).read_text(encoding="utf-8")
-    combined = source.index("Collect and retrain")
-    assert 'type="primary"' in source[combined : combined + 200], (
+    Asserted against the rendered buttons rather than against the source text.
+    The original read the module and looked for `type="primary"` within 120
+    characters of each label, which measured how long the comments happened to
+    be as much as which button was primary -- and broke the first time a
+    docstring elsewhere in the file mentioned one of the labels. The question is
+    which of the three buttons the page draws as primary, so that is what is
+    asked.
+    """
+    buttons = {b.label: b.proto.type for b in _market_data_page().button}
+    assert buttons["Collect and retrain"] == "primary", (
         "the paired action is the default, not the collect-only one"
     )
-    collect_only = source.index('"Collect from trade API"')
-    assert 'type="primary"' not in source[collect_only : collect_only + 120]
+    assert buttons["Collect from trade API"] != "primary"
+    assert buttons["Retrain on stored data"] != "primary"
 
 
 def test_retraining_is_wired_to_the_real_trainer(monkeypatch):

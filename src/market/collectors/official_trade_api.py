@@ -20,6 +20,7 @@ from typing import Any, Iterator
 
 import requests
 
+from src.market.cancel import CancelToken, is_cancelled
 from src.market.collectors.base import MarketCollector, ProgressUpdate
 from src.market.rate_limit import (
     OBSERVED_FETCH_POLICY,
@@ -39,6 +40,17 @@ class TradeApiError(RuntimeError):
     pass
 
 
+class CollectionCancelled(RuntimeError):
+    """Raised in place of a request that a cancel arrived just in time to stop.
+
+    Deliberately *not* a `TradeApiError`. The error path answers a rate limit or
+    a 500 by sleeping and trying the next slice, which is exactly the wrong
+    response to a cancel -- it would keep the run alive, one backoff at a time,
+    after the user asked it to stop. Being a separate type means the caller has
+    to say what a cancel means to it, and `collect()` says "stop the walk".
+    """
+
+
 class OfficialTradeApiCollector(MarketCollector):
     name = "official_trade_api"
 
@@ -51,11 +63,16 @@ class OfficialTradeApiCollector(MarketCollector):
         session: requests.Session | None = None,
         map_tier: int = 16,
         require_uncorrupted: bool = True,
+        cancel: CancelToken | None = None,
     ):
         self.league = league
         self.converter = converter
         self.map_tier = map_tier
         self.require_uncorrupted = require_uncorrupted
+        #: Optional. Every other caller of this collector -- bulk buy, my
+        #: listings, the market-comparison client -- runs short and inline, so
+        #: `None` means "not cancellable" and costs those paths nothing.
+        self.cancel = cancel
         self.session = session or requests.Session()
         self.session.headers.update(
             {"User-Agent": user_agent, "Accept": "application/json"}
@@ -70,6 +87,22 @@ class OfficialTradeApiCollector(MarketCollector):
         self.fetch_limiter = RateLimiter(
             "trade-fetch", min_interval=min_interval / 2, policy=OBSERVED_FETCH_POLICY
         )
+
+    # -- cancellation ----------------------------------------------------
+    def _stop(self) -> bool:
+        return is_cancelled(self.cancel)
+
+    def _wait(self, seconds: float) -> None:
+        """Sleep, unless there is a cancel to notice instead.
+
+        The two error backoffs on this path are ten and fifteen seconds, and a
+        run that has just been rate limited is the run most likely to be
+        cancelled -- so those are precisely the sleeps that must not be blind.
+        """
+        if self.cancel is not None:
+            self.cancel.sleep(seconds)
+        else:
+            time.sleep(seconds)
 
     def available(self) -> tuple[bool, str]:
         try:
@@ -183,7 +216,14 @@ class OfficialTradeApiCollector(MarketCollector):
         }
 
     def search(self, query: dict[str, Any]) -> tuple[str, list[str], int]:
-        self.search_limiter.acquire()
+        self.search_limiter.acquire(sleep=self._wait, should_stop=self._stop)
+        # Checked *after* the limiter, not only before it. The limiter is where
+        # the minutes go, so the overwhelmingly likely place for a cancel to
+        # arrive is while it is waiting -- and a cancel that then let the
+        # request it was waiting for go out anyway would be the one request the
+        # user explicitly asked not to make.
+        if self._stop():
+            raise CollectionCancelled("cancelled before the search went out")
         resp = self.session.post(
             f"{TRADE_BASE}/search/{self.league}", json=query, timeout=30
         )
@@ -199,7 +239,9 @@ class OfficialTradeApiCollector(MarketCollector):
     def fetch(self, ids: list[str], query_id: str) -> list[dict[str, Any]]:
         if not ids:
             return []
-        self.fetch_limiter.acquire()
+        self.fetch_limiter.acquire(sleep=self._wait, should_stop=self._stop)
+        if self._stop():
+            raise CollectionCancelled("cancelled before the fetch went out")
         url = f"{TRADE_BASE}/fetch/{','.join(ids)}"
         resp = self.session.get(url, params={"query": query_id}, timeout=30)
         self.fetch_limiter.update_from_headers(resp.headers)
@@ -235,6 +277,14 @@ class OfficialTradeApiCollector(MarketCollector):
             lesson that the rewards do not matter. `collapse` handles most of it
             server-side; this is the backstop, applied across the whole run
             rather than per slice so a whale cannot re-enter through each one.
+
+        A cancel is checked at the top of both loops -- between slices and
+        between fetch batches -- because those are the two places the run is
+        between requests rather than inside one. It ends the generator normally
+        rather than raising through it, so the caller's `for` loop finishes and
+        gets to flush what it has: everything read before a cancel is kept, and
+        an exception thrown out of a generator mid-iteration is how that would
+        quietly stop being true.
         """
         slices = slices or default_slices()
         if per_slice is None:
@@ -257,30 +307,39 @@ class OfficialTradeApiCollector(MarketCollector):
                     )
                 )
 
+        stopped = False
         for slice_index, spec in enumerate(slices):
-            if produced >= limit:
+            if produced >= limit or self._stop():
+                stopped = stopped or self._stop()
                 break
             taken_here = 0
             query = self.build_query(**spec)
             try:
                 query_id, ids, total = self.search(query)
+            except CollectionCancelled:
+                stopped = True
+                break
             except TradeApiError as exc:
                 report(f"slice skipped: {exc}", slice_index)
-                time.sleep(10)
+                self._wait(10)
                 continue
             take = min(len(ids), per_slice)
             report(f"slice {spec} -> {total} listings, taking {take}", slice_index)
             ids = ids[:take]
 
             for start in range(0, len(ids), FETCH_BATCH):
-                if produced >= limit or taken_here >= per_slice:
+                if produced >= limit or taken_here >= per_slice or self._stop():
+                    stopped = stopped or self._stop()
                     break
                 batch = ids[start : start + FETCH_BATCH]
                 try:
                     results = self.fetch(batch, query_id)
+                except CollectionCancelled:
+                    stopped = True
+                    break
                 except TradeApiError as exc:
                     report(f"fetch backoff: {exc}", slice_index)
-                    time.sleep(15)
+                    self._wait(15)
                     continue
                 for result in results:
                     listing = self.listing_from_result(result)
@@ -302,8 +361,14 @@ class OfficialTradeApiCollector(MarketCollector):
                     slice_index,
                 )
 
+        # A cancelled run says so rather than reporting "finished". The two are
+        # the same number of listings and completely different facts about the
+        # sample: a finished walk covered every slice, a cancelled one stopped
+        # somewhere in the stratification and is biased towards the slices it
+        # got to.
         report(
-            f"finished: {produced} listings from {slice_count} slices"
+            (f"cancelled: kept {produced} listings" if stopped
+             else f"finished: {produced} listings from {slice_count} slices")
             + (f", {skipped_for_seller} skipped as bulk" if skipped_for_seller else ""),
             slice_count,
         )

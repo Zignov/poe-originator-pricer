@@ -13,8 +13,9 @@ from src.market.collectors.manual_import import (
     csv_template,
     listing_rows_to_csv,
 )
+from src.market.collect_job import CollectJob
 from src.market.currency_source import ExchangeRateError, fetch_rate_quote
-from src.market.ingest import collect_from_trade_api, converter_for, refresh_outliers, store
+from src.market.ingest import converter_for, refresh_outliers, store
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
     CHART_SERIES,
@@ -74,16 +75,85 @@ def render() -> None:
         _inspect(cfg, repo, fmt)
 
 
+#: How often the collection panel redraws itself while a run is in flight.
+#: Lifted from the live-run panel on the Stash Pricer, and for the same reason:
+#: fast enough that Cancel feels like a button rather than a form submission,
+#: slow enough not to redraw a page for every frame of a progress bar.
+COLLECT_REFRESH_SECONDS = 1.5
+
+
+def collect_headline(update, already: int) -> tuple[float, str]:
+    """The progress bar's fraction and its one-line summary.
+
+    Module-level because two things draw it now -- the inline path this page
+    used to have, and the fragment that polls a worker thread -- and a headline
+    that says "4,102 maps indexed" in one place and something subtly different
+    in the other is a needless way to make the same run look like two runs.
+
+    Reads its fields with getattr: collectors emit a `ProgressUpdate`, which
+    stringifies to the old plain message, so a collector that only sends text
+    still renders here rather than raising.
+    """
+    fraction = float(getattr(update, "fraction", 0.0) or 0.0)
+    collected = getattr(update, "collected", 0)
+    target = getattr(update, "target", 0)
+    slice_index = getattr(update, "slice_index", 0)
+    slice_count = getattr(update, "slice_count", 0)
+    skipped = getattr(update, "skipped_as_bulk", 0)
+    headline = (
+        f"{already + collected} maps indexed  "
+        f"({collected} of {target} this run"
+        + (f", query {min(slice_index + 1, slice_count)}/{slice_count}" if slice_count else "")
+        + (f", {skipped} skipped as bulk" if skipped else "")
+        + ")"
+    )
+    return min(max(fraction, 0.0), 1.0), headline
+
+
+def should_retrain_after(stats: dict | None, requested: bool) -> bool:
+    """Whether the retrain half of "Collect and retrain" should still run.
+
+    It should not, if the collection was cancelled. Cancelling means "stop
+    calling the trade API", and answering that by starting a training run the
+    user is now waiting on is the opposite of stopping. The stated workflow is
+    cancel, look at what landed, then press "Retrain on stored data" when you
+    want it -- so the decision lives here, in one testable place, rather than
+    inside a fragment that only exists while a browser is open.
+
+    A run that errored out is excluded for a plainer reason: there is nothing
+    new to train on.
+    """
+    stats = stats or {}
+    return bool(requested) and not stats.get("cancelled") and not stats.get("error")
+
+
 def _collect(cfg, repo) -> None:
     st.markdown(
         "Collects listings from the **official pathofexile.com trade API**, obeying the "
         "rate-limit policy GGG returns in its own response headers. Nothing is scraped "
         "and no access control is bypassed. See `docs/data-access.md`."
     )
+
+    job = st.session_state.get("collect_job")
+    if job is not None and job.running:
+        # A run is in flight on a worker thread. Everything below -- the size
+        # box, the three buttons -- would start a second one, so the panel takes
+        # the tab for as long as it lasts.
+        _collect_panel(cfg)
+        st.markdown("---")
+        _orb_prices(cfg, repo)
+        return
+
     limit = st.number_input("How many listings to collect", 50, 5000, 500, step=50)
     already = listing_counts(cfg.get("league"), data_version())["total"]
 
-    buttons = st.columns(2)
+    # The run ended -- finished, cancelled or thrown. Retire the handle, say
+    # what came of it, and (unless it was cancelled) do the retrain half of the
+    # button that started it.
+    if job is not None:
+        _report_finished_collection(cfg, repo, job, already)
+
+    buttons = st.columns(3)
     collect_only = buttons[0].button("Collect from trade API")
     # The pairing exists because collecting on its own changes no price. The
     # model is a separate artefact and nothing retrains it on a timer, so
@@ -93,56 +163,145 @@ def _collect(cfg, repo) -> None:
         "Collect and retrain", type="primary",
         help="Collect, re-run outlier detection, then retrain on the result.",
     )
+    # The third button exists because the second one cannot be reached after a
+    # cancel. A collection that is stopped part way has still written every
+    # listing it read -- ingest flushes to SQLite every fifty rows -- but the
+    # retrain half of "Collect and retrain" is deliberately skipped, because a
+    # cancel means "stop calling the API", not "start a training run I did not
+    # ask for". That leaves exactly the state this app spends most of its prose
+    # warning about: newer data underneath older prices. This button is the way
+    # out of it, and it costs no requests at all.
+    train_only = buttons[2].button(
+        "Retrain on stored data",
+        help="Trains on everything already in the database -- including whatever "
+        "a cancelled collection left behind -- without calling the trade API.",
+    )
+
+    if train_only:
+        _retrain(cfg)
 
     if collect_only or collect_and_train:
-        bar = st.progress(0.0, text="Starting...")
-        detail = st.empty()
-
-        def on_progress(update) -> None:
-            # Collectors emit a ProgressUpdate; it stringifies to the old plain
-            # message, so guard on the attribute rather than the type and the
-            # page still works against a collector that only sends text.
-            fraction = getattr(update, "fraction", 0.0)
-            collected = getattr(update, "collected", 0)
-            target = getattr(update, "target", 0)
-            slice_index = getattr(update, "slice_index", 0)
-            slice_count = getattr(update, "slice_count", 0)
-            skipped = getattr(update, "skipped_as_bulk", 0)
-            headline = (
-                f"{already + collected} maps indexed  "
-                f"({collected} of {target} this run"
-                + (f", query {min(slice_index + 1, slice_count)}/{slice_count}" if slice_count else "")
-                + (f", {skipped} skipped as bulk" if skipped else "")
-                + ")"
-            )
-            bar.progress(fraction, text=headline)
-            detail.caption(str(update))
-
-        with st.spinner("Collecting -- this pauses when GGG's rate limit says to."):
-            stats = collect_from_trade_api(
-                cfg, repo, limit=int(limit), progress=on_progress
-            )
-        if stats.get("error"):
-            bar.empty()
-            st.error(stats["error"])
-            return
-
-        # Rows were just written, so the cached reads have to be dropped before
-        # anything reads a count again -- this one included.
-        invalidate_data()
-        total = repo.count_listings(cfg.get("league"))["total"]
-        bar.progress(1.0, text=f"{total} maps indexed")
-        detail.empty()
-        st.success(
-            f"Inserted {stats['inserted']}, refreshed {stats['updated']}, "
-            f"flagged {stats.get('flagged', 0)} outliers. "
-            f"{total} maps indexed in total (was {already})."
-        )
-        if collect_and_train:
-            _retrain(cfg)
+        st.session_state["collect_job"] = CollectJob.start(cfg, limit=int(limit))
+        st.session_state["collect_train_after"] = bool(collect_and_train)
+        st.session_state["collect_baseline"] = already
+        # Straight back into the branch above, so the Cancel button is on screen
+        # before the first request goes out rather than after the run ends. The
+        # run itself is on a worker thread; this thread's only remaining job is
+        # to draw.
+        st.rerun()
 
     st.markdown("---")
     _orb_prices(cfg, repo)
+
+
+@st.fragment(run_every=COLLECT_REFRESH_SECONDS)
+def _collect_panel(cfg) -> None:
+    """Progress, a Cancel button, and a way to look at what has landed.
+
+    A fragment rather than the page, for the reason the Stash Pricer's live-run
+    panel is one: this redraws a progress bar every second and a half instead of
+    redrawing the stat rail, the three tabs and both orb prices.
+
+    "Show what has landed" is not decoration either. ingest commits every fifty
+    listings, so a run twenty minutes in has most of its haul already in the
+    database -- the charts and the export on the Inspect tab can read it without
+    the run having to finish first.
+    """
+    job = st.session_state.get("collect_job")
+    if job is None:
+        return
+
+    if job.finished:
+        # Rows were written by another thread, so the session's cached reads are
+        # stale by definition. Drop them, then hand the page back to the full
+        # script, which reports the outcome and retrains if it was asked to.
+        invalidate_data()
+        st.rerun()
+
+    already = int(st.session_state.get("collect_baseline", 0))
+    if job.progress is not None:
+        fraction, headline = collect_headline(job.progress, already)
+        st.progress(fraction, text=headline)
+        st.caption(str(job.progress))
+    elif job.waiting_for_lock:
+        st.progress(0.0, text="Waiting for the passive scan to finish")
+        st.caption(
+            "Only one collection reads the market at a time -- two would each "
+            "obey GGG's policy while together breaking it."
+        )
+    else:
+        st.progress(0.0, text="Starting…")
+        st.caption("waiting on the first response from the trade API")
+
+    columns = st.columns([1, 1, 2])
+    if job.cancelling:
+        columns[0].button(
+            "Stopping…",
+            disabled=True,
+            key="collect_cancel",
+            help="The request already in flight has to finish. A rate-limit "
+            "wait does not: that is cut short.",
+        )
+    elif columns[0].button(
+        "Cancel collection",
+        key="collect_cancel",
+        help="Stops at the next slice or fetch boundary. Every listing already "
+        "read is kept, and no retrain follows -- press 'Retrain on stored "
+        "data' when you want one.",
+    ):
+        job.cancel()
+        st.rerun(scope="fragment")
+
+    if columns[1].button(
+        "Show what has landed",
+        key="collect_peek",
+        help="Redraws the page with everything written so far. The run keeps "
+        "going.",
+    ):
+        invalidate_data()
+        st.rerun()
+
+
+def _report_finished_collection(cfg, repo, job, already: int) -> None:
+    """Say what the run came to, then retire it.
+
+    The handle is dropped first and unconditionally. `_retrain` ends in
+    `st.rerun()`, and a job still sitting in session state at that point would
+    be reported, and retrained on, once per rerun forever.
+    """
+    st.session_state.pop("collect_job", None)
+    train_after = bool(st.session_state.pop("collect_train_after", False))
+    baseline = int(st.session_state.pop("collect_baseline", already))
+    stats = job.stats or {}
+
+    if job.error:
+        st.error(f"The collection stopped on an error: {job.error}")
+        return
+    if stats.get("error"):
+        st.error(stats["error"])
+        return
+
+    total = repo.count_listings(cfg.get("league"))["total"]
+    summary = (
+        f"Inserted {stats.get('inserted', 0)}, refreshed {stats.get('updated', 0)}, "
+        f"flagged {stats.get('flagged', 0)} outliers. "
+        f"{total} maps indexed in total (was {baseline})."
+    )
+    if stats.get("cancelled"):
+        # Said out loud, because it is the one outcome where the sample is
+        # incomplete in a way that matters: a cancelled walk stopped part way
+        # through the stratification, so it is weighted towards the slices it
+        # reached.
+        st.warning(
+            f"Collection cancelled. Everything it had already read was kept: "
+            f"{summary} The model has not been retrained -- press **Retrain on "
+            f"stored data** when you want these listings priced with."
+        )
+    else:
+        st.success(summary)
+
+    if should_retrain_after(stats, train_after):
+        _retrain(cfg)
 
 
 def _retrain(cfg) -> None:

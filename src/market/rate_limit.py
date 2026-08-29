@@ -170,10 +170,30 @@ class RateLimiter:
                 wait = max(wait, oldest + rule.period - now)
         return wait
 
-    def acquire(self, sleep=time.sleep) -> float:
-        """Block until a request is allowed. Returns how long it waited."""
+    def acquire(self, sleep=time.sleep, should_stop=None) -> float:
+        """Block until a request is allowed. Returns how long it waited.
+
+        `should_stop` is what makes a cancel land *inside* a rate-limit wait
+        rather than after it, and this is where nearly all of a collection run's
+        wall-clock is spent. GGG's search policy can put an 1800-second penalty
+        on the connection, and a cancel that has to sit that out is not a cancel.
+
+        The check is at the top of each iteration for a reason that is easy to
+        get wrong: passing a cancellable `sleep` alone is not enough. A
+        cancelled `CancelToken.sleep` returns immediately, so without a stop
+        check the loop simply spins through its sixty-four iterations and issues
+        the request anyway -- the caller gets a fast cancel that still hit the
+        API. The stop check is the part that returns; the cancellable sleep is
+        only what makes it return *soon*.
+
+        A stopped acquire returns without recording a hit, because no request
+        follows it. Counting one would have the limiter pace the next run
+        against traffic that never went out.
+        """
         waited = 0.0
         for _ in range(64):
+            if should_stop is not None and should_stop():
+                return waited
             wait = self._wait_time()
             if wait <= 0:
                 break
