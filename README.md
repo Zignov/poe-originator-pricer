@@ -232,6 +232,32 @@ Two concurrent collections would be two rate limiters neither of which can see
 the other's requests, each individually convinced it is obeying a policy they
 are together doubling.
 
+### Not paying twice for the same listing
+
+A search hands back 100 ids for one request; a fetch costs one request per ten.
+The fetch is therefore **ten times dearer per listing**, and it used to be spent
+re-reading rows already in the database — measured over a six-cycle run, 61% of
+every fetch request came back with something already stored.
+
+Two filters now run before anything is fetched: ids already taken this run
+(every slice sorts newest-first, so a map matching two slices sat near the top
+of both), and ids stored and seen inside `market.refetch_after_hours`. That
+second one is a window rather than "already stored" on purpose — a seller who
+marks a map down is publishing real information, and an id never re-read would
+freeze at its first asking price.
+
+Measured on a 150-listing scan afterwards: 508 repeats skipped before they cost
+anything, and **97% of what was fetched was new, against 26% before.**
+
+That also changes what paces passive mode. The useful gap between scans is not
+set by the rate limit — the limiter already obeys GGG's headers — but by how
+fast the market turns over, which measured at roughly 190 new listings every 18
+minutes. So the gap is a controller rather than a constant: it starts at
+`cooldown_minutes`, stretches when a scan comes back mostly repeats, and pulls
+back in when it does not, up to `max_cooldown_minutes`. The signal is the share
+of *search results* that were new — never the share of fetched rows, which now
+that repeats are filtered would read 100% for ever and never back off.
+
 **Instant Buyout** is not a separate feed. It is the `sale_type` filter on the
 same search, and omitting the filter selects "Buyout or Fixed Price" — which is
 what the collector does. Each listing's `~b/o` vs `~price` type is stored anyway,
@@ -881,7 +907,7 @@ Chance it beats the cost: 100%     Model can resolve: ±62c
 
 ### Why it is not simply "is the gain bigger than the orb"
 
-It was, and it said yes to **every map it was ever shown** — 92 of 92 on the
+It was, and it said yes to **every map it was ever shown** — 700 of 700 on the
 collected market, which is not a recommendation, it is a stuck needle. Four
 things were missing.
 
@@ -895,7 +921,7 @@ hardest on the cheap maps this was saying yes to.
 
 **The model's own uncertainty, which is the one that matters.** The gain is a
 *difference between two predictions of the same model*, and on the collected
-market **91 of 92 of those differences were smaller than the model's own 80%
+market **85% of those differences were smaller than the model's own 80%
 conformal band on the very same map**. Acting on a difference the instrument
 cannot resolve is not a gamble, it is noise with a recommendation attached. So
 the net gain — what survives paying for the orbs and the trade — has to clear
@@ -909,9 +935,11 @@ cheerful one — a third answer, drawn in brass rather than as a quieter "no",
 because "we will not judge this" and "we judged it and the answer is no" are
 different things.
 
-Together these take 92 of 92 down to **28**. The result is stable at 28 for
-trade costs of 3c, 5c and 8c, which says the uncertainty gate is doing the work
-and the numbers are not tuned to one lucky value. All of it is in `exalt:` in
+Together these take 700 of 700 down to **106 of 555** — the denominator shrinks
+because maps under the floor now get no verdict rather than a bad one. The share
+held steady across a full model retrain (35% then, 28% now), and across trade
+costs of 3c, 5c and 8c, which says the uncertainty gate is doing the work and
+the numbers are not tuned to one lucky value. All of it is in `exalt:` in
 `config.yaml`, and a rejected map still shows its range, its odds and the bar it
 missed — a rejection is exactly when those are worth reading.
 
@@ -1137,8 +1165,8 @@ whatever a cancelled collection left behind — without calling the API.
 > the honest version of it.
 
 Because that is easy to lose track of, the **Dashboard** compares the two and
-says which state you are in — either *"Model is current: trained on 4,102 of
-4,102 usable listings"* or a warning naming the gap and pointing at Retrain.
+says which state you are in — either *"Model is current: trained on 5,579 of
+5,579 usable listings"* or a warning naming the gap and pointing at Retrain.
 Check there after a collection run.
 
 ### The trained model ships with the repo
@@ -1338,10 +1366,10 @@ Read this part.
   it.** On a clean sample, `more_currency` and `quantity` carry most of the
   signal (correlations with log price around +0.6), `pack_size` follows (+0.44),
   and `rarity`, `more_maps` and `more_scarabs` are close to flat on their own.
-  On 1696 usable listings, held-out R² lands around 0.66 with a median error of
-  ~13 chaos against a 45-chaos median price. Predictions are a good ballpark,
-  not a quote — the comparable listings shown beside every estimate are doing
-  genuine work, not decoration.
+  On the 5,579 listings the shipped model is fitted to, held-out R² lands around
+  0.48 on a chronological split with a median error of ~25 chaos. Predictions
+  are a good ballpark, not a quote — the comparable listings shown beside every
+  estimate are doing genuine work, not decoration.
 
 - **The model is constrained so that more reward can never mean a lower price.**
   All seven reward features are monotonically non-decreasing, enforced in every
@@ -1477,7 +1505,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     920 tests, including live-render checks of every page
+tests/                     937 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
