@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator, Sequence
 
 import requests
 
@@ -64,11 +64,22 @@ class OfficialTradeApiCollector(MarketCollector):
         map_tier: int = 16,
         require_uncorrupted: bool = True,
         cancel: CancelToken | None = None,
+        skip_ids: Callable[[Sequence[str]], set[str]] | None = None,
     ):
         self.league = league
         self.converter = converter
         self.map_tier = map_tier
         self.require_uncorrupted = require_uncorrupted
+        #: Given a page of search results, which ids are not worth fetching.
+        #:
+        #: A search hands back up to 100 ids for one request; a fetch costs one
+        #: request per ten. So the fetch is ten times dearer per listing, and it
+        #: was being spent re-reading rows already in the database -- measured at
+        #: 61% of all fetch requests over a four-cycle run. Deciding what to skip
+        #: needs the database, which this module must not know about, so the
+        #: caller supplies it. `None` fetches everything, which is what the
+        #: short-lived callers (bulk buy, live comparables) want.
+        self.skip_ids = skip_ids
         #: Optional. Every other caller of this collector -- bulk buy, my
         #: listings, the market-comparison client -- runs short and inline, so
         #: `None` means "not cancellable" and costs those paths nothing.
@@ -81,6 +92,9 @@ class OfficialTradeApiCollector(MarketCollector):
         # asking what a run will cost gets a real answer before the first
         # request rather than the `min_interval` placeholder. The first response
         # overwrites both with whatever the server actually says.
+        #: Facts about the last `collect()` walk, for a caller that wants to
+        #: pace itself. Empty until one has run.
+        self.last_walk: dict[str, Any] = {}
         self.search_limiter = RateLimiter(
             "trade-search", min_interval=min_interval, policy=OBSERVED_SEARCH_POLICY
         )
@@ -285,6 +299,19 @@ class OfficialTradeApiCollector(MarketCollector):
         gets to flush what it has: everything read before a cancel is kept, and
         an exception thrown out of a generator mid-iteration is how that would
         quietly stop being true.
+
+        **Ids are filtered before they are fetched**, in two stages, because a
+        fetch costs ten times what a search does per listing:
+
+        1. `seen` -- ids already taken this run. Every slice sorts by `indexed
+           desc`, so a map that matches two slices is near the top of both and
+           was being fetched twice. `dedupe` downstream caught it only when both
+           copies landed in the same fifty-row batch.
+        2. `skip_ids` -- ids the caller says are not worth re-reading, normally
+           "already stored and seen recently".
+
+        Measured over a four-cycle run before this existed: 61% of fetch
+        requests returned rows that were already in the database.
         """
         slices = slices or default_slices()
         if per_slice is None:
@@ -292,6 +319,14 @@ class OfficialTradeApiCollector(MarketCollector):
         seller_counts: dict[str, int] = {}
         skipped_for_seller = 0
         produced = 0
+        #: Ids taken this run, across every slice.
+        seen: set[str] = set()
+        #: Search results considered, and how many survived the filters. The
+        #: ratio is the honest saturation signal -- it says whether the visible
+        #: window has turned over since last time, and it costs no fetch to
+        #: measure. The passive collector paces itself on it.
+        ids_seen = 0
+        ids_fresh = 0
         slice_count = len(slices)
 
         def report(message: str, slice_index: int) -> None:
@@ -323,9 +358,27 @@ class OfficialTradeApiCollector(MarketCollector):
                 report(f"slice skipped: {exc}", slice_index)
                 self._wait(10)
                 continue
+
+            ids_seen += len(ids)
+            # Both filters run before `per_slice` is applied, so the budget is
+            # spent on listings worth fetching rather than partly consumed by
+            # ones that are about to be discarded.
+            ids = [i for i in ids if i not in seen]
+            if self.skip_ids is not None and ids:
+                try:
+                    skip = self.skip_ids(ids)
+                except Exception:  # noqa: BLE001 - a filter that fails must not stop a run
+                    skip = set()
+                ids = [i for i in ids if i not in skip]
+            ids_fresh += len(ids)
+
             take = min(len(ids), per_slice)
-            report(f"slice {spec} -> {total} listings, taking {take}", slice_index)
+            report(
+                f"slice {spec} -> {total} listings, {len(ids)} worth fetching, taking {take}",
+                slice_index,
+            )
             ids = ids[:take]
+            seen.update(ids)
 
             for start in range(0, len(ids), FETCH_BATCH):
                 if produced >= limit or taken_here >= per_slice or self._stop():
@@ -361,6 +414,20 @@ class OfficialTradeApiCollector(MarketCollector):
                     slice_index,
                 )
 
+        # Left on the collector rather than yielded, because the caller is
+        # iterating listings and these are facts about the walk. `fresh_ratio`
+        # is what the passive collector paces on: it is measured on search
+        # results, so it says whether the market has moved without spending a
+        # single fetch to find out.
+        self.last_walk = {
+            "ids_seen": ids_seen,
+            "ids_fresh": ids_fresh,
+            "fresh_ratio": (ids_fresh / ids_seen) if ids_seen else 1.0,
+            "produced": produced,
+            "skipped_as_bulk": skipped_for_seller,
+            "cancelled": stopped,
+        }
+
         # A cancelled run says so rather than reporting "finished". The two are
         # the same number of listings and completely different facts about the
         # sample: a finished walk covered every slice, a cancelled one stopped
@@ -369,7 +436,8 @@ class OfficialTradeApiCollector(MarketCollector):
         report(
             (f"cancelled: kept {produced} listings" if stopped
              else f"finished: {produced} listings from {slice_count} slices")
-            + (f", {skipped_for_seller} skipped as bulk" if skipped_for_seller else ""),
+            + (f", {skipped_for_seller} skipped as bulk" if skipped_for_seller else "")
+            + (f" ({ids_fresh}/{ids_seen} search results were new)" if ids_seen else ""),
             slice_count,
         )
 

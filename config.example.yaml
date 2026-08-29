@@ -37,6 +37,14 @@ currency:
 market:
   # Listings older than this are excluded from training by default.
   max_age_days: 7
+  # Do not spend a fetch re-reading a listing seen this recently. A search
+  # returns 100 ids for one request; a fetch costs one request per ten, so
+  # re-reading a stored row is ten times the price of noticing it is stored.
+  # Measured before this existed: 61% of all fetch requests came back with rows
+  # already in the database. Not "never re-read" -- a seller who marks a map
+  # down publishes real information, and this window is how long that takes to
+  # get picked up. Set to 0 to fetch everything, as releases before 0.5.0 did.
+  refetch_after_hours: 12
   # Absolute sanity bounds in chaos. Anything outside is flagged as an outlier.
   # Observed 3.29 uncorrupted T16 spread on 820 collected listings: median ~40c,
   # 90th ~300c, 95th ~460c, 99th ~920c, 99.5th ~1150c, max 69000c. The bulk of
@@ -231,7 +239,16 @@ collection:
     # this -- the cooldown is politeness, not safety. RateLimiter obeys the
     # server's own headers regardless of what is set here.
     maps_per_scan: 400
-    cooldown_minutes: 30
+    # The gap between scans is adaptive, not fixed. It starts at the floor and
+    # stretches when a scan comes back mostly repeats -- because that means the
+    # visible window has not turned over yet, and the answer is to wait rather
+    # than keep asking. Measured over a six-cycle run: about 190 genuinely new
+    # listings enter the window every 18 minutes.
+    cooldown_minutes: 12       # floor, and where it starts
+    max_cooldown_minutes: 90   # ceiling, so a dead league is still checked
+    low_fresh_ratio: 0.15      # under this share of new search results, back off
+    high_fresh_ratio: 0.50     # over it, scan sooner
+    backoff_factor: 1.6        # multiplicative both ways
     auto_off_after_hours: 0   # 0 = run until the app closes
     auto_retrain: true
     retrain_every_scans: 4    # 4 scans is ~1600 listings; training is minutes

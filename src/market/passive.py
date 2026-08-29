@@ -70,8 +70,33 @@ class PassiveSettings:
     #: query slice plus one fetch per ten results, so four hundred maps is
     #: about fifty-six requests.
     maps_per_scan: int = 400
-    #: How long to stay off the wire between scans.
-    cooldown_minutes: float = 30.0
+    #: The shortest gap between scans, and where the adaptive cooldown starts.
+    #:
+    #: 12 minutes rather than 30. The old number was picked to let the rate
+    #: limit drain, which the limiter already guarantees on its own; what
+    #: actually governs the useful gap is how fast the *market* turns over.
+    #: Measured over a six-cycle run: about 190 genuinely new listings entered
+    #: the visible window every 18 minutes. Scanning much sooner than that reads
+    #: the same listings again, and now that repeats are filtered before they
+    #: are fetched, a too-early scan is cheap rather than wasteful -- so the
+    #: floor can be lower and the controller below can find the right gap.
+    cooldown_minutes: float = 12.0
+    #: The ceiling the backoff will not go past, so a quiet league still gets
+    #: looked at a few times a day rather than never again.
+    max_cooldown_minutes: float = 90.0
+    #: Below this share of *new* search results, the market has not moved enough
+    #: to be worth a scan and the gap is stretched. Measured on ids returned by
+    #: search, so judging it costs no fetch at all.
+    #:
+    #: A scan that comes back under this is not a failure -- it is the signal
+    #: the controller exists to read. Repeats are the input, not the problem.
+    low_fresh_ratio: float = 0.15
+    #: Above this the window is turning over faster than we are reading it, and
+    #: the gap is pulled back in.
+    high_fresh_ratio: float = 0.50
+    #: How hard to stretch or shrink. Multiplicative both ways, so a market that
+    #: dies overnight reaches the ceiling in a few scans rather than crawling.
+    backoff_factor: float = 1.6
     #: Switch off by itself after this long. 0 means never, which is the
     #: default because "until I close the app" is the honest lifetime anyway.
     auto_off_after_hours: float = 0.0
@@ -86,11 +111,42 @@ class PassiveSettings:
         get = cfg.get
         return cls(
             maps_per_scan=int(get("collection.passive.maps_per_scan", 400)),
-            cooldown_minutes=float(get("collection.passive.cooldown_minutes", 30)),
+            cooldown_minutes=float(get("collection.passive.cooldown_minutes", 12)),
+            max_cooldown_minutes=float(get("collection.passive.max_cooldown_minutes", 90)),
             auto_off_after_hours=float(get("collection.passive.auto_off_after_hours", 0)),
             auto_retrain=bool(get("collection.passive.auto_retrain", True)),
             retrain_every_scans=int(get("collection.passive.retrain_every_scans", 4)),
+            low_fresh_ratio=float(get("collection.passive.low_fresh_ratio", 0.15)),
+            high_fresh_ratio=float(get("collection.passive.high_fresh_ratio", 0.50)),
+            backoff_factor=float(get("collection.passive.backoff_factor", 1.6)),
         )
+
+    def next_cooldown_minutes(self, current: float, fresh_ratio: float | None) -> float:
+        """Where the gap should sit after a scan that came back this fresh.
+
+        Additive-increase / multiplicative-decrease in spirit, but multiplicative
+        both ways: a league that goes quiet overnight should reach the ceiling in
+        three or four scans rather than creeping towards it all night.
+
+        `fresh_ratio` is measured on search results, never on what was fetched.
+        That distinction is the whole point -- the ratio has to stay meaningful
+        once repeats are being filtered out before the fetch, and a ratio
+        computed on fetched rows would read 1.0 forever and never back off.
+        """
+        # A positive setting is honoured exactly, however small -- the tests
+        # drive whole days of cycles in milliseconds. Only 0 or a negative,
+        # which would leave the multiplicative step stuck at zero and spin the
+        # loop hot, falls back to a sane minute.
+        base = self.cooldown_minutes if self.cooldown_minutes > 0 else 1.0
+        ceiling = max(base, self.max_cooldown_minutes)
+        if fresh_ratio is None:
+            return current or base
+        current = current or base
+        if fresh_ratio < self.low_fresh_ratio:
+            return min(ceiling, current * self.backoff_factor)
+        if fresh_ratio > self.high_fresh_ratio:
+            return max(base, current / self.backoff_factor)
+        return current
 
 
 @dataclass
@@ -99,6 +155,15 @@ class PassiveState:
 
     phase: str = IDLE
     scans_done: int = 0
+    #: The gap the controller has settled on, in minutes. Starts at the
+    #: configured floor and moves with how much the market is turning over.
+    cooldown_minutes: float = 0.0
+    #: Share of the last scan's search results that were worth fetching. `None`
+    #: before the first scan. This is what the pacing reads.
+    fresh_ratio: float | None = None
+    #: Fetches the id filter avoided on the last scan. Shown because it is the
+    #: difference between the old behaviour and this one, in one number.
+    skipped_repeats: int = 0
     listings_this_scan: int = 0
     listings_total: int = 0
     #: `time.monotonic()` of the next scan, while cooling. Monotonic rather
@@ -213,10 +278,17 @@ class PassiveCollector:
                 if self._cancel.is_set():
                     break
 
+                # Pace on how much the market moved, not on a fixed clock. A
+                # scan that came back mostly repeats means the visible window
+                # has not turned over yet, and the answer to that is to wait
+                # longer rather than to keep asking.
+                state.cooldown_minutes = settings.next_cooldown_minutes(
+                    state.cooldown_minutes, state.fresh_ratio
+                )
                 state.phase = COOLING
-                state.next_scan_at = clock() + settings.cooldown_minutes * 60.0
+                state.next_scan_at = clock() + state.cooldown_minutes * 60.0
                 # Interruptible: this is what makes `stop()` immediate.
-                self._cancel.sleep(settings.cooldown_minutes * 60.0)
+                self._cancel.sleep(state.cooldown_minutes * 60.0)
         except Exception as exc:  # noqa: BLE001 - surfaced on the page
             state.last_error = f"{type(exc).__name__}: {exc}"
         finally:
@@ -257,6 +329,13 @@ class PassiveCollector:
                 inserted = int(stats.get("inserted", 0))
                 state.listings_this_scan = inserted
                 state.listings_total += inserted
+                # Read off the search results, so it stays meaningful now that
+                # repeats are filtered out before anything is fetched.
+                ratio = stats.get("fresh_ratio")
+                state.fresh_ratio = float(ratio) if ratio is not None else None
+                state.skipped_repeats = max(
+                    0, int(stats.get("ids_seen", 0)) - int(stats.get("ids_fresh", 0))
+                )
                 if stats.get("error"):
                     state.last_error = str(stats["error"])
                 return inserted

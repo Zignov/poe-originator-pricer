@@ -95,6 +95,41 @@ class Repository:
     # ------------------------------------------------------------------
     # Market listings
     # ------------------------------------------------------------------
+    def listing_ids_seen_since(
+        self, listing_ids: Sequence[str], since: datetime
+    ) -> set[str]:
+        """Which of these ids are stored and were last seen at or after `since`.
+
+        The filter in front of the expensive call. A trade search returns 100
+        ids for one request and a fetch costs one request per ten, so re-reading
+        a listing already in the database is ten times the price of noticing
+        that it is.
+
+        `since` rather than "is it stored at all", because a re-read is not pure
+        waste: a seller who marks a map down republishes real information, and
+        an id never re-read again would freeze at its first asking price. The
+        window is the trade-off -- long enough that a scan does not keep paying
+        for the same rows, short enough that a markdown is picked up on the next
+        pass rather than never.
+        """
+        ids = [i for i in listing_ids if i]
+        if not ids:
+            return set()
+        cutoff = since.astimezone(timezone.utc).isoformat()
+        found: set[str] = set()
+        # Chunked because SQLite caps host parameters (999 by default) and a
+        # caller is free to hand over more ids than that.
+        for start in range(0, len(ids), 400):
+            chunk = ids[start : start + 400]
+            placeholders = ",".join("?" * len(chunk))
+            rows = self.conn.execute(
+                f"SELECT listing_id FROM originator_listings "
+                f"WHERE listing_id IN ({placeholders}) AND last_seen >= ?",
+                (*chunk, cutoff),
+            ).fetchall()
+            found.update(r["listing_id"] for r in rows)
+        return found
+
     def upsert_listings(self, listings: Iterable[MarketListing]) -> dict[str, int]:
         """Insert new listings, refresh last_seen on ones already stored.
 

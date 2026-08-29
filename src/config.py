@@ -36,10 +36,17 @@ _DEFAULTS: dict[str, Any] = {
         # unconditionally and would allow this far more often.
         "passive": {
             "maps_per_scan": 400,
-            "cooldown_minutes": 30,
+            # The floor and ceiling of an adaptive gap, not a fixed wait. The
+            # controller stretches it when a scan comes back mostly repeats and
+            # pulls it back in when the market is moving.
+            "cooldown_minutes": 12,
+            "max_cooldown_minutes": 90,
             "auto_off_after_hours": 0,
             "auto_retrain": True,
             "retrain_every_scans": 4,
+            "low_fresh_ratio": 0.15,
+            "high_fresh_ratio": 0.50,
+            "backoff_factor": 1.6,
         }
     },
     "display": {"currency": "chaos"},

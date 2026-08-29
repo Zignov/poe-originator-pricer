@@ -36,8 +36,9 @@ def _cfg(**overrides):
         "league": "Allflame",
         "database": {"path": ":memory:"},
         "collection": {"passive": dict(
-            {"maps_per_scan": 400, "cooldown_minutes": 30, "auto_off_after_hours": 0,
-             "auto_retrain": True, "retrain_every_scans": 4}, **overrides)},
+            {"maps_per_scan": 400, "cooldown_minutes": 30, "max_cooldown_minutes": 90,
+             "auto_off_after_hours": 0, "auto_retrain": True,
+             "retrain_every_scans": 4}, **overrides)},
     }
     return Config(data)
 
@@ -61,7 +62,7 @@ def test_passive_mode_scans_then_waits_out_its_cooldown_before_scanning_again():
         return {"inserted": 3}
 
     collector.start(
-        _cfg(cooldown_minutes=0.001, retrain_every_scans=1000),
+        _cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=1000),
         collect=collect, train=lambda cfg: None, repo_factory=_Repo,
     )
     assert _settle(collector, lambda: len(scans) >= 2)
@@ -103,7 +104,7 @@ def test_turning_passive_mode_off_mid_scan_keeps_the_listings_it_already_wrote()
             time.sleep(0.005)
         return {"inserted": 17, "cancelled": True}
 
-    collector.start(_cfg(cooldown_minutes=0.001, retrain_every_scans=1000),
+    collector.start(_cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=1000),
                     collect=collect, train=lambda cfg: None, repo_factory=_Repo)
     assert in_scan.wait(timeout=5.0)
     collector.stop()
@@ -120,7 +121,7 @@ def test_passive_mode_switches_itself_off_after_the_configured_number_of_hours()
         return {"inserted": 1}
 
     collector.start(
-        _cfg(cooldown_minutes=0.001, auto_off_after_hours=2, retrain_every_scans=1000),
+        _cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, auto_off_after_hours=2, retrain_every_scans=1000),
         collect=collect, train=lambda cfg: None, repo_factory=_Repo,
         clock=lambda: now[0],
     )
@@ -143,7 +144,7 @@ def test_a_manual_collection_and_a_passive_scan_never_read_the_market_at_the_sam
             time.sleep(0.005)
         return {"inserted": 0}
 
-    collector.start(_cfg(cooldown_minutes=0.001, retrain_every_scans=1000),
+    collector.start(_cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=1000),
                     collect=collect, train=lambda cfg: None, repo_factory=_Repo)
     assert scanning.wait(timeout=5.0)
     assert COLLECT_LOCK.locked(), "a scan in flight must hold the shared lock"
@@ -157,7 +158,7 @@ def test_passive_mode_retrains_only_once_every_configured_number_of_scans():
     trains = []
     collector = PassiveCollector()
     collector.start(
-        _cfg(cooldown_minutes=0.001, retrain_every_scans=3),
+        _cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=3),
         collect=lambda cfg, repo, limit, progress=None, cancel=None: {"inserted": 5},
         train=lambda cfg: trains.append(1), repo_factory=_Repo,
     )
@@ -189,7 +190,7 @@ def test_not_enough_data_stops_the_retrain_without_stopping_the_collection():
         raise RuntimeError("NotEnoughData: 12 rows")
 
     collector.start(
-        _cfg(cooldown_minutes=0.001, retrain_every_scans=1),
+        _cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=1),
         collect=lambda cfg, repo, limit, progress=None, cancel=None: (
             scans.append(1) or {"inserted": 2}),
         train=boom, repo_factory=_Repo,
@@ -242,7 +243,7 @@ def test_a_scan_that_raises_is_recorded_and_the_loop_carries_on():
             raise ConnectionError("the wire went away")
         return {"inserted": 1}
 
-    collector.start(_cfg(cooldown_minutes=0.001, retrain_every_scans=1000),
+    collector.start(_cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=1000),
                     collect=collect, train=lambda cfg: None, repo_factory=_Repo)
     assert _settle(collector, lambda: len(scans) >= 2)
     assert "ConnectionError" in collector.state.last_error
@@ -258,7 +259,7 @@ def test_the_worker_closes_the_database_connection_it_opened():
         repos.append(repo)
         return repo
 
-    collector.start(_cfg(cooldown_minutes=0.001, retrain_every_scans=1000),
+    collector.start(_cfg(cooldown_minutes=0.001, max_cooldown_minutes=0.001, retrain_every_scans=1000),
                     collect=lambda cfg, repo, limit, progress=None, cancel=None: {"inserted": 1},
                     train=lambda cfg: None, repo_factory=factory)
     _settle(collector, lambda: len(repos) >= 2)

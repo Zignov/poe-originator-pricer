@@ -369,9 +369,17 @@ def _passive_settings(cfg, settings) -> None:
         "maps is roughly 56 requests -- well inside what GGG's policy allows.",
     )
     cooldown = right.number_input(
-        "Cooldown (minutes)", 1, 360, int(settings.cooldown_minutes), step=5,
-        help="Time off the wire between scans. This is politeness, not safety: "
-        "the rate limiter obeys GGG's own headers whatever this says.",
+        "Shortest gap (minutes)", 1, 360, int(settings.cooldown_minutes), step=1,
+        help="Where the gap starts, and the closest together two scans can get. "
+        "The gap is adaptive: a scan that comes back mostly listings we already "
+        "have means the market has not turned over, so it waits longer next "
+        "time. This is politeness and efficiency, not safety -- the rate limiter "
+        "obeys GGG's own headers whatever this says.",
+    )
+    max_cooldown = right.number_input(
+        "Longest gap (minutes)", 5, 720, int(settings.max_cooldown_minutes), step=5,
+        help="The ceiling the backoff stops at, so a quiet league still gets "
+        "looked at a few times a day rather than never again.",
     )
     auto_off = left.number_input(
         "Switch off after (hours)", 0, 48, int(settings.auto_off_after_hours),
@@ -389,6 +397,7 @@ def _passive_settings(cfg, settings) -> None:
     if st.button("Save settings"):
         cfg.set("collection.passive.maps_per_scan", int(maps))
         cfg.set("collection.passive.cooldown_minutes", int(cooldown))
+        cfg.set("collection.passive.max_cooldown_minutes", int(max_cooldown))
         cfg.set("collection.passive.auto_off_after_hours", int(auto_off))
         cfg.set("collection.passive.auto_retrain", bool(retrain))
         cfg.set("collection.passive.retrain_every_scans", int(every))
@@ -419,8 +428,9 @@ def _passive_panel(cfg) -> None:
 
     if state.phase == COOLING:
         remaining = state.seconds_until_next_scan()
+        window = max(1.0, (state.cooldown_minutes or 1.0) * 60.0)
         st.progress(
-            1.0 - min(1.0, remaining / max(1.0, _cooldown_seconds(cfg))),
+            1.0 - min(1.0, remaining / window),
             text=f"Next scan in {int(remaining // 60)}m {int(remaining % 60)}s",
         )
     elif state.phase == SCANNING:
@@ -433,6 +443,20 @@ def _passive_panel(cfg) -> None:
             ("Model", f"v+{state.model_generation}", "retrains"),
         ]
     )
+
+    # The pacing, said out loud. A gap that moves on its own looks broken
+    # otherwise -- the number in the settings is a floor, not what it is doing.
+    if state.fresh_ratio is not None:
+        gap = state.cooldown_minutes or 0.0
+        st.caption(
+            f"{state.fresh_ratio:.0%} of the last scan's search results were new, "
+            f"so the gap is {gap:.0f} min"
+            + (
+                f". {state.skipped_repeats:,} repeats were skipped before they cost a fetch"
+                if state.skipped_repeats
+                else ""
+            )
+        )
     if state.last_error:
         st.warning(state.last_error)
 
@@ -442,6 +466,11 @@ def _passive_panel(cfg) -> None:
 
 
 def _cooldown_seconds(cfg) -> float:
+    """The configured floor, for callers that need it before a scan has run.
+
+    Once one has, the live gap is on `PassiveState.cooldown_minutes` instead --
+    the controller moves it, so this number is where it starts, not where it is.
+    """
     from src.market.passive import PassiveSettings
 
     return PassiveSettings.from_config(cfg).cooldown_minutes * 60.0

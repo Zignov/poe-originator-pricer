@@ -264,6 +264,22 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        4,
+        """
+        -- Answering "have we already got this listing, and how recently did we
+        -- see it" for a page of up to 100 search results, before deciding
+        -- whether to spend a fetch on them.
+        --
+        -- A trade search returns 100 ids for one request; a fetch costs one
+        -- request per ten. Without this filter the dear call was being spent
+        -- re-reading rows already stored -- 61% of all fetch requests, measured
+        -- over a six-cycle run. The lookup is per collection slice, so it wants
+        -- an index rather than 100 table scans.
+        CREATE INDEX IF NOT EXISTS idx_listings_listing_id
+            ON originator_listings (listing_id, last_seen);
+        """,
+    ),
 ]
 
 

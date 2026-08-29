@@ -1,6 +1,7 @@
 """Wiring between collectors, the outlier pass and the database."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 from src.config import Config, user_agent
@@ -62,6 +63,18 @@ def collect_from_trade_api(
     over them. It is a local query with no request cost, so there is no reason
     to skip it just because the run was cut short.
     """
+    # Skip fetching anything already stored and seen inside this window. See
+    # Repository.listing_ids_seen_since for why it is a window rather than
+    # "already stored": a markdown is real information and has to get in
+    # eventually. Set the window to 0 to fetch everything, as older releases did.
+    refresh_hours = float(cfg.get("market.refetch_after_hours", 12) or 0)
+
+    def skip_ids(ids):
+        if refresh_hours <= 0:
+            return set()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=refresh_hours)
+        return repo.listing_ids_seen_since(ids, cutoff)
+
     collector = OfficialTradeApiCollector(
         league=cfg.get("league"),
         user_agent=user_agent(cfg),
@@ -70,6 +83,7 @@ def collect_from_trade_api(
         map_tier=cfg.get("scope.map_tier"),
         require_uncorrupted=cfg.get("scope.require_uncorrupted"),
         cancel=cancel,
+        skip_ids=skip_ids,
     )
     ok, why = collector.available()
     if not ok:
@@ -90,6 +104,12 @@ def collect_from_trade_api(
         stats["updated"] += partial["updated"]
 
     stats.update(refresh_outliers(cfg, repo))
+    # Carried up so a caller that paces itself does not have to reach into the
+    # collector. `fresh_ratio` is measured on search results, so it reports how
+    # much the market moved without a fetch having been spent to find out.
+    stats.update(
+        {k: v for k, v in collector.last_walk.items() if k != "cancelled"}
+    )
     # Reported rather than inferred from the count: a cancelled run and a run
     # that simply found little look identical in `inserted`, and only one of
     # them means the sample is missing whole slices of the stratification.
