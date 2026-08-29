@@ -75,6 +75,35 @@ _DEFAULTS: dict[str, Any] = {
         "hotkey_toggle": "ctrl+alt+i",
         "hotkey_analyze": "ctrl+alt+shift+a",
     },
+    # Watching your own instant-buyout listings: what you asked, how long it
+    # sat, and what that says the price should be. Off until POE_ACCOUNT_NAME is
+    # set, because there is nothing to poll without it.
+    "listing_tracker": {
+        "enabled": False,
+        "poll_interval_minutes": 15,
+        # A listing this new is polled on the fast cadence. Its first hour holds
+        # the fast-sale signal; a three-day-old map does not need a five-minute
+        # check to confirm it is still sitting.
+        "young_listing_minutes": 60,
+        "young_poll_interval_minutes": 5,
+        # A "sold" map that comes back this soon was never sold -- a sold map
+        # cannot return. Beyond the window it is treated as a different map.
+        "reappearance_window_hours": 6,
+        # Page filter: what counts as "sitting".
+        "stale_after_hours": 24,
+        # Seeds the fast mark until there are enough of your own sales to take
+        # quartiles from, which is when it is replaced by what your maps do.
+        "fast_sale_hours": 1,
+        # W in "sells within W": the window the fit is asked about, and the
+        # window the reprice recommendation aims at.
+        "target_window_hours": 24,
+        "target_sell_probability": 0.6,
+        "calibration": {"enabled": True, "min_sold": 20, "clamp": [0.8, 1.3]},
+        "ladder": {
+            "steps": [[24, 0.92], [72, 0.85], [168, 0.78]],
+            "floor_ratio": 0.75,
+        },
+    },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
 }
 

@@ -195,17 +195,17 @@ h3, [data-testid="stHeading"] h3 { font-size: 1.06rem; }
    arguing over one selection. Keyed on position, so the order in app.py's PAGES
    and these three selectors have to move together. */
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1),
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4),
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6) {
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5),
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7) {
   position: relative; margin-top: 1.45rem;
 }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1) { margin-top: .35rem; }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before { content: "Price"; }
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before { content: "Market"; }
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before { content: "Tool"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5)::before { content: "Market"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7)::before { content: "Tool"; }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before,
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before,
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before {
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5)::before,
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7)::before {
   position: absolute; top: -1.02rem; left: .62rem;
   font-family: var(--font-display); font-size: .62rem; font-weight: 500;
   text-transform: uppercase; letter-spacing: .2em; color: var(--ink-faint);
@@ -683,7 +683,9 @@ def latest_capture(version: int):
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
-def _multipliers(data_ver: int, model_stamp: int, divine_to_chaos: float):
+def _multipliers(
+    data_ver: int, model_stamp: int, divine_to_chaos: float, tracking_ver: int
+):
     """The expensive half of PricingService.build, on its own cache key.
 
     observed_multipliers() scores every recent in-scope listing with the model
@@ -691,13 +693,47 @@ def _multipliers(data_ver: int, model_stamp: int, divine_to_chaos: float):
     (data_ver), the model (model_stamp) and the chaos/divine rate that both are
     expressed in -- and on nothing else the user can touch, so it does not need
     recomputing when they open a tab.
+
+    `tracking_ver` is the fourth key because the personal calibration is applied
+    here, and it moves when the poller records something. The poller runs on a
+    background thread and must not touch session state, so unlike data_ver that
+    marker is read from the database.
+
+    This is the one place strategy multipliers are built for the app, which is
+    why the calibration is attached here: every page reaches prices through
+    get_service(), so there is no surface where the factor could apply on one
+    screen and not another.
     """
+    import os
+    from datetime import datetime, timezone
+
+    from src.tracking.calibration import CalibrationConfig, apply_calibration
+    from src.tracking.history import calibration_for_account
+
     cfg = get_config()
     base = multipliers_from_config(cfg.get("pricing.strategies", {}))
     predictor, _ = get_predictor()
     if predictor is None:
         return base
-    return observed_multipliers(cfg, get_repo(), predictor, base)
+    observed = observed_multipliers(cfg, get_repo(), predictor, base)
+
+    calibration = calibration_for_account(
+        get_repo(),
+        os.getenv("POE_ACCOUNT_NAME", "").strip(),
+        cfg.get("league"),
+        predictor.version,
+        CalibrationConfig(
+            min_sold=int(cfg.get("listing_tracker.calibration.min_sold") or 20),
+            clamp=tuple(cfg.get("listing_tracker.calibration.clamp") or (0.8, 1.3)),
+        ),
+        datetime.now(timezone.utc),
+    )
+    return apply_calibration(
+        observed,
+        calibration,
+        enabled=bool(cfg.get("listing_tracker.calibration.enabled", True)),
+        active_model_version=predictor.version,
+    )
 
 
 def get_service(require_model: bool = False) -> tuple[PricingService | None, str]:
@@ -719,6 +755,7 @@ def get_service(require_model: bool = False) -> tuple[PricingService | None, str
             data_version(),
             st.session_state.get("model_reload", 0),
             converter.divine_to_chaos,
+            repo.tracking_version(),
         ),
         get_formatter(cfg, converter),
     )
@@ -856,6 +893,20 @@ def sidebar_context() -> None:
         ("Flagged", f'<span class="v">{counts["outliers"]:,}</span>'),
         ("Model", model),
     ]
+    # Only shown when it is actually in force. A suggested price that has been
+    # scaled by your own sale history must say so wherever it appears, and this
+    # block is already the answer to "relative to what?" -- but a permanent
+    # "x1.00" row would be noise on every page for everyone who has no history.
+    personal = _multipliers(
+        data_version(),
+        st.session_state.get("model_reload", 0),
+        converter.divine_to_chaos,
+        repo.tracking_version(),
+    ).personal
+    if abs(personal - 1.0) > 1e-9:
+        rows.append(
+            ("Your prices", f'<span class="v ok">&times;{personal:.2f}</span>')
+        )
     body = "".join(
         f'<div class="row"><span class="k">{k}</span>{v}</div>' for k, v in rows
     )

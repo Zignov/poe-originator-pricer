@@ -24,6 +24,7 @@ PAGES = {
     # Price
     "Dashboard": "src.ui.dashboard",
     "Stash Pricer": "src.ui.stash_pricer",
+    "My Listings": "src.ui.my_listings",
     "Single Map": "src.ui.single_map",
     # Market
     "Market Data": "src.ui.market_data",

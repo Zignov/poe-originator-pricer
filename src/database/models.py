@@ -157,6 +157,113 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        3,
+        """
+        -- The account's own listings, tracked over time. One row per map, not
+        -- per price: a re-price mutates priced_at here and appends an event to
+        -- tracked_listing_events, so a map that wore three prices is one row and
+        -- three episodes.
+        --
+        -- There is deliberately no unique index. Identity is a judgement --
+        -- same trade id, or same reward fingerprint, or a twin that cannot be
+        -- told apart from its sibling -- and it belongs in a tested pure
+        -- function (src/tracking/reconcile.py), not in a constraint that would
+        -- refuse to insert the second of two genuinely identical live maps.
+        CREATE TABLE IF NOT EXISTS tracked_listings (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            account               TEXT NOT NULL,
+            league                TEXT NOT NULL,
+            trade_listing_id      TEXT,
+            fingerprint           TEXT NOT NULL,
+
+            name                  TEXT,
+            base_type             TEXT,
+            map_tier              INTEGER,
+            item_level            INTEGER,
+            corrupted             INTEGER DEFAULT 0,
+
+            quantity              INTEGER DEFAULT 0,
+            rarity                INTEGER DEFAULT 0,
+            pack_size             INTEGER DEFAULT 0,
+            more_currency         INTEGER DEFAULT 0,
+            more_maps             INTEGER DEFAULT 0,
+            more_scarabs          INTEGER DEFAULT 0,
+            more_divination_cards INTEGER DEFAULT 0,
+
+            price_amount          REAL,
+            price_currency        TEXT,
+            price_chaos           REAL,
+            price_type            TEXT,
+
+            -- Where the map physically is, straight from listing.stash in the
+            -- fetch result (src/market/bulk.py already reads these three). This
+            -- is what lets the overlay draw on a listed map without a separate
+            -- stash read, and without guessing which of two similar maps is
+            -- which.
+            stash_name            TEXT,
+            stash_x               INTEGER,
+            stash_y               INTEGER,
+
+            -- indexed_at is GGG's own listing.indexed. priced_at is when the
+            -- current price started, which is what the clock runs from: a map
+            -- dropped from 180c to 120c and sold ten minutes later is a
+            -- ten-minute sale at 120c, not a three-day sale.
+            indexed_at            TEXT,
+            priced_at             TEXT NOT NULL,
+            first_seen            TEXT NOT NULL,
+            last_seen             TEXT NOT NULL,
+            -- The upper bound of the sale interval: the first poll that did not
+            -- see it. With last_seen this brackets the sale instead of
+            -- pretending to time it.
+            gone_first_missing    TEXT,
+            status                TEXT NOT NULL DEFAULT 'live',
+
+            predicted_chaos       REAL,
+            suggested_chaos       REAL,
+            interval_low_chaos    REAL,
+            interval_high_chaos   REAL,
+            model_version         TEXT,
+
+            ambiguous             INTEGER DEFAULT 0,
+            exclude_from_learning INTEGER DEFAULT 0,
+            raw_data              TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tracked_identity
+            ON tracked_listings (account, league, fingerprint, status);
+        CREATE INDEX IF NOT EXISTS idx_tracked_status
+            ON tracked_listings (league, status, last_seen);
+
+        CREATE TABLE IF NOT EXISTS tracked_listing_events (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            listing_id      INTEGER NOT NULL
+                            REFERENCES tracked_listings(id) ON DELETE CASCADE,
+            at              TEXT NOT NULL,
+            event           TEXT NOT NULL,
+            old_price_chaos REAL,
+            new_price_chaos REAL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tracked_events_listing
+            ON tracked_listing_events (listing_id, at);
+
+        -- Every pass, including the ones that failed or came back partial.
+        -- Without this an app closed for eight hours and a poll that quietly
+        -- errored look identical, and both look like a quiet market.
+        CREATE TABLE IF NOT EXISTS listing_poll_runs (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at     TEXT NOT NULL,
+            finished_at    TEXT,
+            league         TEXT NOT NULL,
+            account        TEXT NOT NULL,
+            listings_seen  INTEGER DEFAULT 0,
+            total_reported INTEGER DEFAULT 0,
+            complete       INTEGER DEFAULT 0,
+            error          TEXT DEFAULT ''
+        );
+        """,
+    ),
 ]
 
 
