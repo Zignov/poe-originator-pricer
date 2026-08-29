@@ -201,6 +201,28 @@ overlay_inventory:
   # spends a stash read you did not ask for.
   hotkey_analyze: "ctrl+alt+shift+a"
 
+exalt:
+  # Whether a map is worth an Exalted Orb. These used to be one line -- "is the
+  # expectation bigger than the orb" -- which said yes to 92 of the 92 maps it
+  # was ever shown. Under these it says yes to 28 of them.
+  charge_every_open_slot: true  # two open slots is a two-orb decision
+  effort_chaos: 5.0             # listing, waiting, whispering, meeting. Flat,
+                                # because a trade costs the same few minutes
+                                # whatever the map is worth.
+  min_net_gain_fraction: 0.08   # net gain as a share of the map's own value
+  min_chance_of_profit: 0.40    # a guard for thinner models; does not currently bind
+  min_resolution_ratio: 1.0     # the net gain must clear the model's own 80%
+                                # upside band. This is the gate that does the
+                                # work: on the collected market 91 of 92
+                                # predicted gains were smaller than the band,
+                                # which means the model could not tell them
+                                # from zero.
+  require_training_floor: true  # no verdict at all under 30c, where the model
+                                # is not fitted and returns much the same
+                                # number for every map
+  samples: 200                  # sampled fills when the open block is too
+                                # large to enumerate exactly
+
 collection:
   passive:
     # Unattended collection while the app is open. One scan is roughly 400 maps

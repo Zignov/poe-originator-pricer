@@ -460,13 +460,17 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
   border-radius: 6px; background: var(--panel-lift); border: 1px solid var(--rule);
   color: var(--ink);
 }
-.exalt-yes, .exalt-no, .warn, .callout {
+.exalt-yes, .exalt-no, .exalt-unknown, .warn, .callout {
   padding: .6rem .85rem; border-radius: 6px; font-size: .85rem;
   border: 1px solid var(--rule); border-left-width: 3px; background: var(--panel);
   margin: .3rem 0 .7rem; color: var(--ink);
 }
 .exalt-yes { border-left-color: #4a9d74; }
 .exalt-no  { border-left-color: var(--ink-faint); color: var(--ink-dim); }
+/* A third answer, not a quieter "no": the model declined to judge this map at
+   all. Brass rather than either verdict colour, so it cannot be misread as a
+   recommendation in either direction. */
+.exalt-unknown { border-left-color: var(--brass); color: var(--ink-dim); }
 .warn      { border-left-color: var(--brass); }
 .callout   { border-left-color: var(--cyan); }
 

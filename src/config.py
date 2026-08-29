@@ -60,6 +60,18 @@ _DEFAULTS: dict[str, Any] = {
         "status": "online",
         "cache_path": "data/market_comparison_cache.json",
     },
+    # The bars an exalt has to clear. Preferences, so they live here rather
+    # than under `currency`, where exalted_to_chaos is a fetched fact.
+    # Defaults measured, not picked: see src/pricing/exalt.py.
+    "exalt": {
+        "charge_every_open_slot": True,
+        "effort_chaos": 5.0,
+        "min_net_gain_fraction": 0.08,
+        "min_chance_of_profit": 0.40,
+        "min_resolution_ratio": 1.0,
+        "require_training_floor": True,
+        "samples": 200,
+    },
     "pricing": {"strategies": {"quick_sell": 0.94, "market": 0.99, "patient": 1.06}},
     "scope": {"map_tier": 16, "require_uncorrupted": True},
     # The desktop overlay's calibration. No `screen` key by default, and that

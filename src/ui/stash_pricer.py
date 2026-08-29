@@ -260,7 +260,7 @@ def render() -> None:
     # a quarter of a second twice over for the same answers.
     verdicts = {id(p): verdict_for(p.item) for p in supported}
     exaltable = sum(
-        1 for p in supported if (v := verdicts[id(p)]) and v.available and v.worth_it
+        1 for p in supported if (v := verdicts[id(p)]) and v.worth_it
     )
     stat_rail(
         [

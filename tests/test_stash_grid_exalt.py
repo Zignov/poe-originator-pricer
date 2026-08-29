@@ -41,3 +41,26 @@ def test_a_missing_verdict_gets_no_ring():
 @pytest.mark.parametrize("net", [0.01, 1.0, 1000.0])
 def test_any_positive_net_counts_as_worth_it(net):
     assert exalt_class(_verdict(True, net=net)) == EXALT_YES_CLASS
+
+
+def test_the_grid_the_overlay_and_the_counter_all_read_one_rule():
+    """`worth_it` is the rule. Nothing else may re-derive it from the numbers.
+
+    It used to be spelled out inline in the grid's ring class, in the grid's
+    tooltip and in the Stash Pricer's counter, which is four places to change
+    and four chances for a tile, a ring and a count to disagree about one map.
+    A source scan rather than a behavioural test, because the failure is a
+    *copy* appearing, and a copy is correct right up until the rule moves.
+    """
+    import re
+    from pathlib import Path
+
+    for path in ("src/ui/stash_grid.py", "src/ui/stash_pricer.py", "src/overlay/state.py"):
+        source = Path(path).read_text()
+        for line in source.splitlines():
+            if "net_gain_chaos" not in line:
+                continue
+            assert not re.search(r"net_gain_chaos.*(>|<|>=|<=)\s*[\d(]", line), (
+                f"{path} re-implements the exalt rule instead of reading "
+                f"verdict.worth_it: {line.strip()}"
+            )

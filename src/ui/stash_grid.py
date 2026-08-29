@@ -115,7 +115,7 @@ def exalt_class(verdict: ExaltVerdict | None) -> str:
     """Which ring, if any, belongs on this tile."""
     if verdict is None or not verdict.available:
         return ""
-    return EXALT_YES_CLASS if (verdict.net_gain_chaos or 0.0) > 0 else EXALT_NO_CLASS
+    return EXALT_YES_CLASS if verdict.worth_it else EXALT_NO_CLASS
 
 
 #: The badge's geometry, written as inline style rather than as a rule in the
@@ -357,15 +357,9 @@ def _tooltip(
 
     if verdict is not None:
         lines.append("")
-        if not verdict.available:
-            lines.append(f"Exalt: {verdict.reason}")
-        else:
-            lines.append(
-                f"Exalt: {verdict.affix_label}, "
-                + (
-                    f"worth it (+{fmt.format(verdict.net_gain_chaos)} net)"
-                    if (verdict.net_gain_chaos or 0) > 0
-                    else f"not worth it ({fmt.format(verdict.net_gain_chaos)} net)"
-                )
-            )
+        # The same sentence the panel prints, from the same place, so a tile
+        # and the map behind it cannot give two different answers.
+        headline, why = verdict.headline()
+        lines.append(f"Exalt: {headline}")
+        lines.append(why)
     return "&#10;".join(lines).replace('"', "'")

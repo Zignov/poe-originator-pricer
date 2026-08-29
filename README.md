@@ -825,18 +825,59 @@ can be recovered from listings that show both their affixes and their totals. On
 R² 0.999 with a mean absolute error of 0.03 — this is inverting a genuinely
 additive system, not fitting a curve to it.
 
-So the estimate enumerates rather than samples. It takes every affix that could
-still roll — excluding those already on the map, and respecting a full prefix or
-suffix block — applies each one's exact contribution, prices the result with the
-same model that priced the map, and weights by how often that affix actually
-appears in the collected market:
+So the estimate for the *next* orb enumerates rather than samples. It takes every
+affix that could still roll — excluding those already on the map, and respecting
+a full prefix or suffix block — applies each one's exact contribution, prices the
+result with the same model that priced the map, and weights by how often that
+affix actually appears in the collected market. Filling *every* open slot is
+sampled instead: two open slots is some four thousand combinations and three is
+a hundred and twenty thousand, per map, on a page that prices sixty at once. The
+sample is seeded per map, so a verdict about spending currency does not change
+when you refresh the page.
 
 ```
-5/6 affixes  ·  1 open suffix  ·  orb costs 4c
-Worth exalting. Expected 189c after, a net gain of 85c once the orb is paid for.
-Likely range: 68c to 129c gain     Best case:  of Defiance — +129c
-Chance it beats the orb: 100%      Worst case: of Persistence — +68c
+5/6 affixes  ·  1 open suffix  ·  1 orb at 1.25c, plus 5c to list and trade it
+Worth exalting. Filling 1 open slot costs 6.25c and is expected to add 85c
+— a net +79c.
+Likely range: 68c to 129c gain     Bar to clear: 15c net
+Chance it beats the cost: 100%     Model can resolve: ±62c
 ```
+
+### Why it is not simply "is the gain bigger than the orb"
+
+It was, and it said yes to **every map it was ever shown** — 92 of 92 on the
+collected market, which is not a recommendation, it is a stuck needle. Four
+things were missing.
+
+**The orbs, plural.** A map with two open slots is a two-orb decision, and
+charging one orb prices a plan nobody carries out.
+
+**The trade.** Every gain has to be realised by listing the map, waiting,
+answering a whisper and meeting someone. That cost is flat — a trade takes the
+same few minutes whatever the map is worth — which is exactly why it bites
+hardest on the cheap maps this was saying yes to.
+
+**The model's own uncertainty, which is the one that matters.** The gain is a
+*difference between two predictions of the same model*, and on the collected
+market **91 of 92 of those differences were smaller than the model's own 80%
+conformal band on the very same map**. Acting on a difference the instrument
+cannot resolve is not a gamble, it is noise with a recommendation attached. So
+the net gain — what survives paying for the orbs and the trade — has to clear
+that whole band. Stated plainly: *keep more than the model admits it cannot
+measure.*
+
+**The floor.** Under 30c the model is not fitted at all; those listings are held
+out of training, and §11 is blunt that the number down there is not a cheap
+price but the absence of one. Maps below it now get **no verdict** rather than a
+cheerful one — a third answer, drawn in brass rather than as a quieter "no",
+because "we will not judge this" and "we judged it and the answer is no" are
+different things.
+
+Together these take 92 of 92 down to **28**. The result is stable at 28 for
+trade costs of 3c, 5c and 8c, which says the uncertainty gate is doing the work
+and the numbers are not tuned to one lucky value. All of it is in `exalt:` in
+`config.yaml`, and a rejected map still shows its range, its odds and the bar it
+missed — a rejection is exactly when those are worth reading.
 
 **Not every reward is affix-driven, and the catalogue refuses the ones that are
 not.** Each feature has to predict held-out data before it is modelled.
