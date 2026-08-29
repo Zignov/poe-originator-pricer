@@ -1293,9 +1293,12 @@ new price onto them where they physically are.
 
 ### How it watches
 
-With `POE_ACCOUNT_NAME` set and `listing_tracker.enabled` on, a background poller
-(`src/tracking/poller.py`) runs one account-scoped trade search — your own
-listings — while the app is open. It reconciles each poll against the last into
+With `POE_ACCOUNT_NAME` set, a **toggle on the My Listings page** starts a
+background poller (`src/tracking/poller.py`) running one account-scoped trade
+search — your own listings — while the app is open. The switch is on that page
+rather than in config because it is the page the tracker reports on, and turning
+it off cancels the running poller rather than only clearing a flag. The choice
+is written to `listing_tracker.enabled` so it survives a restart. It reconciles each poll against the last into
 events: a map appeared, a map is still sitting, a map is gone.
 
 The cadence is deliberately uneven. A listing's first hour is where the
@@ -1367,9 +1370,10 @@ before it will produce a number at all.
 
 ### Settings
 
-All under `listing_tracker:` in `config.yaml` — poll cadences, the reappearance
-window, what counts as stale, the target clearing window and probability, the
-calibration clamp, and the fallback ladder's steps and floor.
+On/off lives on the page itself. The rest is under `listing_tracker:` in
+`config.yaml` — poll cadences, the reappearance window, what counts as stale,
+the target clearing window and probability, the calibration clamp, and the
+fallback ladder's steps and floor.
 
 ---
 

@@ -222,3 +222,52 @@ def test_the_calibration_note_states_a_refusal_as_plainly_as_a_measurement():
     note = calibration_note(applied)
     assert "1.08" in note and "catboost-2026-08-24" in note
     assert "fair value is not" in note.lower()
+
+
+# ---------------------------------------------------------------------------
+# Turning the tracker on and off from the page it reports on
+# ---------------------------------------------------------------------------
+def test_the_tracker_is_switched_from_the_page_not_a_config_file():
+    """The one control for the feature used to be a key in config.yaml, in a
+    file the app never asks you to open."""
+    from pathlib import Path
+
+    page = Path("src/ui/my_listings.py").read_text()
+    assert "st.toggle(" in page
+    assert "listing_tracker.enabled" in page
+    assert "Turn on `listing_tracker.enabled` in config" not in page, (
+        "the instruction to hand-edit YAML should be gone, not sitting beside a toggle"
+    )
+
+
+def test_turning_it_off_cancels_the_running_poller():
+    """Off has to mean the thread stops. A flag flipped under a live poller
+    leaves it polling your account behind a screen that says it is not."""
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings._tracker_toggle)
+    assert "poller.cancel()" in source
+    assert 'st.session_state.pop("listing_poller"' in source
+
+
+def test_the_choice_is_persisted_so_it_survives_a_restart():
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings._tracker_toggle)
+    assert 'cfg.set("listing_tracker.enabled"' in source
+    assert "cfg.save()" in source
+
+
+def test_the_off_caption_says_what_is_lost_rather_than_only_that_it_is_off():
+    """Polling gaps widen the bracket on anything that sells meanwhile, and
+    that is the one thing a user cannot infer from an off switch."""
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings._tracker_toggle)
+    assert "bracket" in source

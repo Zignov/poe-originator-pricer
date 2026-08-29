@@ -338,6 +338,59 @@ def _fill_predictions(repo, rows, account: str, league: str) -> None:
     repo.save_tracked_predictions(payload)
 
 
+
+def _tracker_toggle(cfg, account: str, league: str) -> None:
+    """Start and stop the poller from the page it reports on.
+
+    It used to be `listing_tracker.enabled` in config.yaml and nothing else,
+    which meant the one control for the feature lived in a file the app never
+    asks you to open, and turning it on took a restart to notice.
+
+    Off is off, not merely un-flagged: the poller owns a thread and a database
+    connection, so the switch cancels the running one rather than leaving it
+    polling behind a false flag. Turning it back on starts a fresh one.
+
+    The choice is written to config.yaml because that is where the rest of the
+    tracker's settings already live, and one source of truth beats a flag here
+    and a value there.
+    """
+    enabled = bool(cfg.get("listing_tracker.enabled"))
+    chosen = st.toggle(
+        "Check my listings while the app is open",
+        value=enabled,
+        key="listing_tracker_enabled",
+        help=(
+            "Polls the trade search for your own account -- about twenty "
+            "requests an hour with forty maps listed, and more often during a "
+            "listing's first hour, which is where the fast-sale signal is. "
+            "It stops when you close the app."
+        ),
+    )
+
+    if chosen != enabled:
+        cfg.set("listing_tracker.enabled", chosen)
+        cfg.save()
+        if not chosen:
+            poller = st.session_state.pop("listing_poller", None)
+            if poller is not None:
+                poller.cancel()
+        st.rerun()
+
+    if chosen:
+        poller = _poller(cfg, account, league)
+        st.caption(
+            f"Watching **{account}** in {league}. Young listings every "
+            f"{cfg.get('listing_tracker.young_poll_interval_minutes') or 5} min, "
+            f"the rest every {cfg.get('listing_tracker.poll_interval_minutes') or 15} min."
+        )
+    else:
+        st.caption(
+            "Not checking. Nothing new is recorded while this is off, so the "
+            "gap becomes part of the bracket on anything that sells meanwhile. "
+            "Whatever was recorded before is still shown below."
+        )
+
+
 # ----------------------------------------------------------------------
 def render() -> None:
     cfg = get_config()
@@ -363,14 +416,7 @@ def render() -> None:
         )
         return
 
-    if cfg.get("listing_tracker.enabled"):
-        _poller(cfg, account, league)
-    else:
-        hint(
-            "The tracker is off. Turn on `listing_tracker.enabled` in config to "
-            "start checking your listings while the app is open. Anything "
-            "already recorded is shown below."
-        )
+    _tracker_toggle(cfg, account, league)
 
     run = repo.last_poll_run(account, league)
     live = repo.tracked_rows_for_page(account, league)
