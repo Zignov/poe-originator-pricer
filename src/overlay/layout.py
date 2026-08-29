@@ -20,7 +20,13 @@ from dataclasses import dataclass
 from src.market.comparables import percentile_bands, value_category
 from src.overlay.calibration import Calibration
 from src.overlay.state import EXALT_SKIP, EXALT_WORTH, OverlayState, OverlayTile
-from src.ui.palette import CONFIDENCE_TRACK, VALUE_COLOURS, confidence_fill
+from src.ui.palette import (
+    CONFIDENCE_TRACK,
+    DEFAULT_TEXT,
+    VALUE_COLOURS,
+    confidence_fill,
+    value_text_colour,
+)
 
 #: The ring colours, matching the web grid's. Cyan appears nowhere in
 #: VALUE_COLOURS, so "worth an exalt" stays readable on top of any band. The
@@ -34,13 +40,18 @@ RING_SKIP = "#b6b6bd"
 #: -- the entire reason to trust the thing -- becomes impossible to eyeball.
 TILE_OUTLINE = "#0e0f12"
 
-TEXT_COLOUR = "#ffffff"
+#: The default label colour. Kept as a name because the calibration grid and
+#: any future chrome want it; priced tiles carry their own in TileDraw.
+TEXT_COLOUR = DEFAULT_TEXT
 
 #: An unsupported map still gets a tile, in the "unknown" grey, showing "-".
 #: Drawing nothing would be worse: the map is in the tab, and a gap reads as
 #: "the overlay has not loaded" rather than "this one cannot be priced".
 MUTED_FILL = VALUE_COLOURS["unknown"]
 MUTED_LABEL = "-"
+#: Dimmer than a priced tile's label: the dash carries no information worth
+#: competing with the prices around it.
+MUTED_TEXT = "#9aa1ab"
 
 #: The confidence meter's geometry, as fractions of the tile it sits in.
 #:
@@ -98,6 +109,9 @@ class TileDraw:
     bottom: int
     fill: str
     text: str
+    #: Per tile rather than one constant, because the negligible band is drawn
+    #: to recede and a white price on it would be the loudest thing on screen.
+    text_fill: str = DEFAULT_TEXT
     ring: str = ""
     meter: MeterDraw | None = None
     tile: OverlayTile | None = None
@@ -124,6 +138,7 @@ class TileDraw:
             bottom=self.bottom - origin[1],
             fill=self.fill,
             text=self.text,
+            text_fill=self.text_fill,
             ring=self.ring,
             meter=self.meter.relative_to(origin) if self.meter else None,
             tile=self.tile,
@@ -188,10 +203,13 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
             tile.x, tile.y, tile.width, tile.height
         )
         if tile.supported and tile.price_chaos is not None:
-            fill = VALUE_COLOURS[value_category(tile.price_chaos, bands)]
+            category = value_category(tile.price_chaos, bands)
+            fill = VALUE_COLOURS[category]
+            text_fill = value_text_colour(category)
             text = tile.label
         else:
             fill = MUTED_FILL
+            text_fill = MUTED_TEXT
             text = MUTED_LABEL
         draws.append(
             TileDraw(
@@ -201,6 +219,7 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
                 bottom=bottom,
                 fill=fill,
                 text=text,
+                text_fill=text_fill,
                 ring=ring_colour(tile.exalt),
                 meter=meter_draw(tile, left, top, right, bottom),
                 tile=tile,

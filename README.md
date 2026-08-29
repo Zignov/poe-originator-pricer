@@ -366,8 +366,9 @@ You get:
   strategy drawn on each map's real `x`/`y` position — hover a tile for the
   fair value and the exalt call behind it — outlined by whether an Exalted Orb
   pays for itself (solid cyan yes, dashed no, no outline on a map that cannot
-  take one at all), colour-banded by value (percentiles of *this tab*, not hardcoded
-  league thresholds), with full details on hover, and a **confidence meter**
+  take one at all), colour-banded by value across six bands (percentiles of *this tab*, not
+  hardcoded league thresholds) with anything under 30c greyed out on a fixed
+  threshold so junk recedes instead of competing for attention, with full details on hover, and a **confidence meter**
   along the bottom edge of each tile — a short bar means the number above it is
   a rough estimate rather than a price, which is otherwise buried in a tooltip
   on the one tile you did not think to hover;
@@ -477,7 +478,7 @@ python -m src.cli price-item map.txt
 The stash grid in the browser still asks you to look away from the game and
 match a picture of your tab against the real one. The **desktop overlay** removes
 that step: it is a transparent, always-on-top, click-through window that draws
-the same tiles — same percentile colour bands, same suggested listing price, same
+the same tiles — same colour bands, same suggested listing price, same
 exalt rings, same confidence meter — directly on top of the real stash tab,
 aligned cell for cell.
 
@@ -1276,9 +1277,10 @@ The interface has one rule, and it is the reason it looks the way it does.
 verdict. Everything structural is slate and brass.** Nav, borders, buttons,
 labels, rules, the active tab -- none of them are allowed a signal colour.
 
-It is not decoration, it is legibility. The stash grid already spends four
-colours on percentile bands and a fifth on the exalt ring, and those five are
-the whole point of the page. Streamlit's default red primary button, its blue
+It is not decoration, it is legibility. The stash grid already spends six
+colours on value bands -- slate, teal, green, amber, rust, magenta, plus a
+near-black for anything under 30c -- and one more on the exalt ring, and those
+are the whole point of the page. Streamlit's default red primary button, its blue
 charts and its pastel alert blocks added three more hues that meant nothing, and
 they were the brightest things on screen. Demoting the accent to a muted brass
 is what lets a purple tile read as "this map is worth something" at a glance.
@@ -1291,7 +1293,7 @@ Three consequences worth knowing before editing a page:
   "26 maps found | 25 priceable | 1 unsupported | ..." in one grey line; every
   figure in it was worth reading and none could be found.
 - **A single-series chart uses `CHART_SERIES`**, which is deliberately none of
-  the five band colours -- a histogram of every listing is not a percentile band
+  the band colours -- a histogram of every listing is not a percentile band
   and must not claim to be one.
 
 `.streamlit/config.toml` carries the same palette, so the parts of Streamlit

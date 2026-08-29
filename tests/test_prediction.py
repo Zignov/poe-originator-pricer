@@ -229,11 +229,27 @@ def test_comparables_are_empty_when_nothing_matches(tmp_path):
 
 
 def test_percentile_bands_are_not_hardcoded():
-    cheap = percentile_bands([1, 2, 3, 4, 5])
+    cheap = percentile_bands([40, 50, 60, 70, 80])
     rich = percentile_bands([1000, 2000, 3000, 4000, 5000])
-    assert cheap["high"] < rich["low"]
-    assert value_category(5000, rich) == "very high"
+    assert cheap["exceptional"] < rich["modest"]
+    assert value_category(5000, rich) == "exceptional"
     assert value_category(1000, rich) == "low"
+
+
+def test_cheap_maps_are_negligible_however_the_tab_ranks_them():
+    """The dearest map in a tab of junk is still junk."""
+    junk = percentile_bands([1, 2, 3, 4, 29])
+    assert value_category(29, junk) == "negligible"
+    assert value_category(0.5, junk) == "negligible"
+    # And 30c exactly is the first price that gets a colour of its own.
+    assert value_category(30, junk) != "negligible"
+
+
+def test_junk_does_not_drag_the_bands_down():
+    """Bands are percentiles of the maps worth reading, not of every map."""
+    with_junk = percentile_bands([1, 2, 3, 100, 200, 400, 800])
+    without = percentile_bands([100, 200, 400, 800])
+    assert with_junk == without
 
 
 # ---------------------------------------------------------------------------

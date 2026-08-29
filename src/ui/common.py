@@ -22,11 +22,12 @@ from src.ui.palette import VALUE_COLOURS, confidence_fill  # noqa: F401
 
 #: The colour for a chart that carries one series and therefore no bands.
 #:
-#: Deliberately none of the five in VALUE_COLOURS. A histogram of every listing
-#: is not a percentile band, and painting it in the "high" amber or the "very
-#: high" purple would say it was one. Streamlit's default chart blue was worse
-#: still: it is the one hue on the page that means nothing at all, and it sat
-#: next to four that mean something specific.
+#: Deliberately none of the band colours. A histogram of every listing is not a
+#: percentile band, and painting it in the "high" amber or the "exceptional"
+#: magenta would say it was one. It is a lighter, bluer grey than the "low"
+#: slate for the same reason. Streamlit's default chart blue was worse still: it
+#: is the one hue on the page that means nothing at all, and it sat next to
+#: several that mean something specific.
 CHART_SERIES = "#6d8fb0"
 
 CSS = """
@@ -368,13 +369,21 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
   color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
   position: relative;
 }
+/* Below the negligible threshold. The near-black fill alone is not enough --
+   a white price on it is the brightest thing in the tab -- so the label drops
+   to a dim grey and the inset hairline almost off, leaving a tile the eye can
+   still find when it looks for it and skips when it does not. Not hidden
+   outright: the map is there, and a hole in the grid reads as a bug. */
+.stash-cell.filled.negligible {
+  color: #5b626d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+}
 /* The confidence meter. Absolutely positioned -- hence the positioning context
    on .filled above -- so it takes no part in the flex centring: the price stays
    in the middle of the cell whether or not there is a meter under it, which
    keeps a tab of mixed-confidence maps from looking like the numbers are
    jittering up and down. The track is opaque rather than a translucent white so
-   that the same score looks the same length and the same weight on all four
-   value bands. Inset 4px to clear the exalt outline. */
+   that the same score looks the same length and the same weight on every
+   value band. Inset 4px to clear the exalt outline. */
 .conf-meter {
   position: absolute; left: 4px; right: 4px; bottom: 4px; height: 4px;
   border-radius: 2px; background: #15181d; overflow: hidden;
@@ -385,7 +394,7 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
   margin-right: .35rem; vertical-align: 1px;
 }
 /* Exalt state. Cyan appears nowhere in VALUE_COLOURS, so the ring stays legible
-   on all four value backgrounds; solid vs dashed carries the same meaning again
+   on every value background; solid vs dashed carries the same meaning again
    for anyone who cannot separate the two colours. Drawn with outline rather than
    border so tile size and grid alignment are untouched. */
 .stash-cell.exalt-worth { outline: 2px solid var(--cyan); outline-offset: -2px; }
