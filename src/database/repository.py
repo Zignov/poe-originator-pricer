@@ -63,6 +63,26 @@ class Repository:
         self.db_path = Path(db_path)
         self.conn: sqlite3.Connection = init_db(self.db_path)
 
+    @classmethod
+    def read_only(cls, db_path: str | Path) -> "Repository":
+        """Open an existing database without migrating it or writing to it.
+
+        For the jobs that only read: exporting a dataset, inspecting one, or
+        reading a database that another process has open. The normal
+        constructor runs `init_db`, which creates the file if it is missing and
+        applies migrations -- neither of which belongs in a script whose whole
+        purpose is to look. SQLite enforces the read-only part itself, so a
+        stray write raises instead of quietly landing in someone's live data.
+        """
+        path = Path(db_path)
+        if not path.exists():
+            raise FileNotFoundError(path)
+        repo = cls.__new__(cls)
+        repo.db_path = path
+        repo.conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        repo.conn.row_factory = sqlite3.Row
+        return repo
+
     def close(self) -> None:
         self.conn.close()
 
@@ -153,6 +173,23 @@ class Repository:
             inserted += 1
         self.conn.commit()
         return {"inserted": inserted, "updated": updated}
+
+    def delete_listings_by_source(self, source: str, league: str | None = None) -> int:
+        """Remove every listing that arrived from one named source.
+
+        Narrow on purpose. The only caller is the first-run seed replacing its
+        own bundled sample with a newer one (`src/market/seed.py`), and the
+        source label is what keeps that from reaching a single row the user
+        collected or imported themselves.
+        """
+        sql = "DELETE FROM originator_listings WHERE source = ?"
+        params: list[Any] = [source]
+        if league:
+            sql += " AND league = ?"
+            params.append(league)
+        removed = self.conn.execute(sql, params).rowcount
+        self.conn.commit()
+        return removed
 
     def listing_rows(
         self,

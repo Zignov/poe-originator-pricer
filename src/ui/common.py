@@ -8,6 +8,7 @@ import streamlit as st
 from src.config import Config, load_config
 from src.database.repository import PRICING_COLUMNS, Repository
 from src.market.ingest import converter_for
+from src.market.seed import seed_bundled_sample
 from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.pricing.currency import CurrencyConverter
@@ -512,7 +513,15 @@ def get_config() -> Config:
 def get_repo() -> Repository:
     """One repository per Streamlit session. SQLite connections are not thread-safe."""
     if "repo" not in st.session_state:
-        st.session_state["repo"] = Repository(get_config().db_path)
+        cfg = get_config()
+        repo = Repository(cfg.db_path)
+        # First run of a download, and again after an upgrade ships a newer
+        # sample: load the market the bundled model was trained on, so that
+        # collecting adds to a dataset rather than starting one. Every other
+        # session finds the fingerprint already stored and returns immediately.
+        # See src/market/seed.py.
+        seed_bundled_sample(cfg, repo)
+        st.session_state["repo"] = repo
     return st.session_state["repo"]
 
 

@@ -272,10 +272,27 @@ gradient-boosting backends, which freezes to roughly 800 MB and breaks on every
 dependency bump, so a venv that `pip` can repair is the more honest package.
 
 The download ships with a **trained model already in it**, so prices work on the
-first stash tab you paste — no collection run needed to see something. What it
-does not ship is the listings database (33 MB, and one league's snapshot), so
-the Market Data and Model Analysis pages start empty until you either collect
-or import `data/originator_listings_allflame.csv` (§11).
+first stash tab you paste — no collection run needed to see something. The 33 MB
+listings database is not in the zip, but the rows that model was fitted on are:
+the first run imports `data/originator_listings_allflame.csv` into a fresh
+database, prints a line saying so, and does not do it again. That is what makes
+your first **Collect and retrain** add to **7,627 listings** of history rather
+than start over from the few hundred it just pulled — which used to mean trading
+the bundled model for a much thinner one without being told.
+
+Three consequences worth knowing:
+
+- **An upgrade brings the newer market with it.** The import is keyed to the
+  contents of the bundled file, not to the database being empty, so installing a
+  release that ships more listings loads them. Only rows the previous bundle put
+  there are replaced; anything you collected or imported yourself is untouched,
+  which is why those rows carry a source of their own (`bundled_sample`).
+- **It is one league's market** (`Allflame`). Set a different league in
+  `config.yaml` before the first run and the import is skipped rather than filed
+  under the wrong league's name — you start empty and collect.
+- **Retraining on much less data says so.** If a retrain would replace a model
+  fitted on more than twice the listings it is about to use, the training log
+  warns before overwriting it.
 
 Everything the launcher creates — `.venv`, `config.yaml`, `.env`, the database —
 stays inside that one folder. Deleting the folder uninstalls it completely.
@@ -339,13 +356,15 @@ In the browser:
 
 Two things do not survive the trip, both by design:
 
-* **The database is not in the repo** (`data/*.db`). A cloud instance therefore
-  starts with no listings, and Community Cloud's disk does not persist across
-  restarts. Collect from the Market Data page to fill it, or import a CSV
-  export. Treat a cloud instance as a demo; the real dataset lives on the
-  machine that collected it. The *model* does travel — `models/originator_model.pkl`
-  is tracked (§11), so a cloud instance prices maps from the first request even
-  though it can show you nothing about the market they were trained on.
+* **The database is not in the repo** (`data/*.db`), and Community Cloud's disk
+  does not persist across restarts. What travels instead is the pair that
+  rebuilds a usable one: `models/originator_model.pkl` is tracked (§11), so a
+  cloud instance prices maps from the first request, and
+  `data/originator_listings_allflame.csv` is seeded into the empty database on
+  each cold start, so the Market Data and Model Analysis pages have the market
+  that model was fitted on to show. Anything *you* collect there still dies with
+  the container: treat a cloud instance as a demo, and keep the real dataset on
+  the machine that collected it.
 * **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
   goes out as `you@example.com`, and GGG asks automated clients to identify
   themselves with a real address (see §13). `POE_LEAGUE` can be set the same way
@@ -1076,23 +1095,30 @@ there is no reason for each person to repeat it. A ready-made export lives in
 the repo:
 
 ```
-data/originator_listings_allflame.csv     # 4,102 listings, ~282 KB
+data/originator_listings_allflame.csv     # 7,629 listings, ~600 KB
 ```
 
-Import it on **Market Data → Import → CSV**, then retrain. It is the same
-format the export button produces, so anyone can share theirs the same way
+You do not have to do anything with it: the first run imports it (§6). It is
+also there to import by hand on **Market Data → Import → CSV**, and it is the
+same format the export button produces, so anyone can share theirs the same way
 (**Market Data → Inspect and export**, which offers an anonymised export).
+Rebuild it from your own database with `python scripts/export_sample.py --seed`.
 
 Three honest caveats:
 
-- **Seller and listing id are blank.** They are stripped on export, which is
-  what makes the file safe to publish. The cost is that two identical maps at
-  the same price can no longer be told apart, so a re-import merges a handful
-  of them.
+- **The account names are gone and the listing ids are blank.** Each account
+  becomes a label like `anon-0042` that means nothing outside the one file. The
+  labels are kept rather than blanked because the train/test split groups on
+  them: when a whole export shared the empty string it became one group, and
+  training on it produced a validation slice of three rows. Blank listing ids
+  are deliberate too — a live id would upsert over somebody's own collected row.
 - **It is a snapshot, not a feed.** Prices move through a league. An export from
   three weeks ago will train a model that prices a market that no longer exists.
-  The `indexed_at` column is preserved so age is at least visible.
-- **It is one league.** Rates and prices do not carry across leagues.
+  `indexed_at` and `captured_at` are both preserved, so age is visible and the
+  collection history survives — which is what lets the split below come out
+  chronological rather than treating three weeks of collecting as one sitting.
+- **It is one league.** Rates and prices do not carry across leagues, which is
+  why the first-run import declines when your league is not the sample's.
 
 What happens:
 
