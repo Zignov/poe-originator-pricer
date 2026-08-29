@@ -48,6 +48,31 @@ def seed_local_files() -> None:
             print(f"  created {real.name} from {example.name}")
 
 
+def seed_database() -> None:
+    """Load the market the bundled model was trained on into the database.
+
+    Runs on a first install and again after an upgrade that ships a newer
+    sample; every other run finds the fingerprint already stored and does
+    nothing. The app does this too, on the first page load -- but silently, and
+    after a 30-second cold start. Doing it here means the run it happens on says
+    so on the console, where a first-time downloader is already looking.
+
+    Imported inside the function because it pulls in the whole data stack.
+    """
+    # `python scripts/launch.py` puts scripts/ on the path, not the repo root,
+    # so `src` is not importable without this.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+
+    from src.config import load_config
+    from src.database.repository import Repository
+    from src.market.seed import seed_bundled_sample
+
+    cfg = load_config()
+    with Repository(cfg.db_path) as repo:
+        seed_bundled_sample(cfg, repo, log=lambda message: print(f"  {message}"))
+
+
 def port_is_taken(port: int) -> bool:
     """Is something already listening here?
 
@@ -99,6 +124,7 @@ def wait_until_serving(url: str, process: subprocess.Popen, timeout: float) -> b
 
 def main() -> int:
     seed_local_files()
+    seed_database()
 
     port = free_port()
     address = f"http://localhost:{port}"

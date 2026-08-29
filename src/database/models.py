@@ -157,6 +157,129 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        3,
+        """
+        -- The account's own listings, tracked over time. One row per map, not
+        -- per price: a re-price mutates priced_at here and appends an event to
+        -- tracked_listing_events, so a map that wore three prices is one row and
+        -- three episodes.
+        --
+        -- There is deliberately no unique index. Identity is a judgement --
+        -- same trade id, or same reward fingerprint, or a twin that cannot be
+        -- told apart from its sibling -- and it belongs in a tested pure
+        -- function (src/tracking/reconcile.py), not in a constraint that would
+        -- refuse to insert the second of two genuinely identical live maps.
+        CREATE TABLE IF NOT EXISTS tracked_listings (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            account               TEXT NOT NULL,
+            league                TEXT NOT NULL,
+            trade_listing_id      TEXT,
+            fingerprint           TEXT NOT NULL,
+
+            name                  TEXT,
+            base_type             TEXT,
+            map_tier              INTEGER,
+            item_level            INTEGER,
+            corrupted             INTEGER DEFAULT 0,
+
+            quantity              INTEGER DEFAULT 0,
+            rarity                INTEGER DEFAULT 0,
+            pack_size             INTEGER DEFAULT 0,
+            more_currency         INTEGER DEFAULT 0,
+            more_maps             INTEGER DEFAULT 0,
+            more_scarabs          INTEGER DEFAULT 0,
+            more_divination_cards INTEGER DEFAULT 0,
+
+            price_amount          REAL,
+            price_currency        TEXT,
+            price_chaos           REAL,
+            price_type            TEXT,
+
+            -- Where the map physically is, straight from listing.stash in the
+            -- fetch result (src/market/bulk.py already reads these three). This
+            -- is what lets the overlay draw on a listed map without a separate
+            -- stash read, and without guessing which of two similar maps is
+            -- which.
+            stash_name            TEXT,
+            stash_x               INTEGER,
+            stash_y               INTEGER,
+
+            -- indexed_at is GGG's own listing.indexed. priced_at is when the
+            -- current price started, which is what the clock runs from: a map
+            -- dropped from 180c to 120c and sold ten minutes later is a
+            -- ten-minute sale at 120c, not a three-day sale.
+            indexed_at            TEXT,
+            priced_at             TEXT NOT NULL,
+            first_seen            TEXT NOT NULL,
+            last_seen             TEXT NOT NULL,
+            -- The upper bound of the sale interval: the first poll that did not
+            -- see it. With last_seen this brackets the sale instead of
+            -- pretending to time it.
+            gone_first_missing    TEXT,
+            status                TEXT NOT NULL DEFAULT 'live',
+
+            predicted_chaos       REAL,
+            suggested_chaos       REAL,
+            interval_low_chaos    REAL,
+            interval_high_chaos   REAL,
+            model_version         TEXT,
+
+            ambiguous             INTEGER DEFAULT 0,
+            exclude_from_learning INTEGER DEFAULT 0,
+            raw_data              TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tracked_identity
+            ON tracked_listings (account, league, fingerprint, status);
+        CREATE INDEX IF NOT EXISTS idx_tracked_status
+            ON tracked_listings (league, status, last_seen);
+
+        CREATE TABLE IF NOT EXISTS tracked_listing_events (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            listing_id      INTEGER NOT NULL
+                            REFERENCES tracked_listings(id) ON DELETE CASCADE,
+            at              TEXT NOT NULL,
+            event           TEXT NOT NULL,
+            old_price_chaos REAL,
+            new_price_chaos REAL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tracked_events_listing
+            ON tracked_listing_events (listing_id, at);
+
+        -- Every pass, including the ones that failed or came back partial.
+        -- Without this an app closed for eight hours and a poll that quietly
+        -- errored look identical, and both look like a quiet market.
+        CREATE TABLE IF NOT EXISTS listing_poll_runs (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at     TEXT NOT NULL,
+            finished_at    TEXT,
+            league         TEXT NOT NULL,
+            account        TEXT NOT NULL,
+            listings_seen  INTEGER DEFAULT 0,
+            total_reported INTEGER DEFAULT 0,
+            complete       INTEGER DEFAULT 0,
+            error          TEXT DEFAULT ''
+        );
+        """,
+    ),
+    (
+        4,
+        """
+        -- Answering "have we already got this listing, and how recently did we
+        -- see it" for a page of up to 100 search results, before deciding
+        -- whether to spend a fetch on them.
+        --
+        -- A trade search returns 100 ids for one request; a fetch costs one
+        -- request per ten. Without this filter the dear call was being spent
+        -- re-reading rows already stored -- 61% of all fetch requests, measured
+        -- over a six-cycle run. The lookup is per collection slice, so it wants
+        -- an index rather than 100 table scans.
+        CREATE INDEX IF NOT EXISTS idx_listings_listing_id
+            ON originator_listings (listing_id, last_seen);
+        """,
+    ),
 ]
 
 
@@ -171,6 +294,16 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
+    # Five seconds of waiting for a write lock instead of an immediate
+    # "database is locked". Since collection moved to a worker thread there are
+    # genuinely two connections against this file -- the page's and the
+    # collector's (see src/market/collect_job.py) -- and WAL only lets a reader
+    # and a writer coexist, not two writers. Without this a background flush
+    # landing at the same moment as a rate refresh raises OperationalError and
+    # loses the batch; with it, one of them waits a few milliseconds. Five
+    # seconds is far beyond any write this app makes and still short enough to
+    # surface a genuine deadlock rather than hang the UI on it.
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 

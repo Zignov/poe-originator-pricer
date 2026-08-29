@@ -13,8 +13,9 @@ from src.market.collectors.manual_import import (
     csv_template,
     listing_rows_to_csv,
 )
+from src.market.collect_job import CollectJob
 from src.market.currency_source import ExchangeRateError, fetch_rate_quote
-from src.market.ingest import collect_from_trade_api, converter_for, refresh_outliers, store
+from src.market.ingest import converter_for, refresh_outliers, store
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
     CHART_SERIES,
@@ -62,16 +63,70 @@ def render() -> None:
         ]
     )
 
-    collect_tab, import_tab, inspect_tab = st.tabs(
-        ["Collect", "Import", "Inspect and export"]
+    collect_tab, passive_tab, import_tab, inspect_tab = st.tabs(
+        ["Collect", "Passive", "Import", "Inspect and export"]
     )
 
     with collect_tab:
         _collect(cfg, repo)
+    with passive_tab:
+        _passive(cfg)
     with import_tab:
         _import(cfg, repo)
     with inspect_tab:
         _inspect(cfg, repo, fmt)
+
+
+#: How often the collection panel redraws itself while a run is in flight.
+#: Lifted from the live-run panel on the Stash Pricer, and for the same reason:
+#: fast enough that Cancel feels like a button rather than a form submission,
+#: slow enough not to redraw a page for every frame of a progress bar.
+COLLECT_REFRESH_SECONDS = 1.5
+
+
+def collect_headline(update, already: int) -> tuple[float, str]:
+    """The progress bar's fraction and its one-line summary.
+
+    Module-level because two things draw it now -- the inline path this page
+    used to have, and the fragment that polls a worker thread -- and a headline
+    that says "4,102 maps indexed" in one place and something subtly different
+    in the other is a needless way to make the same run look like two runs.
+
+    Reads its fields with getattr: collectors emit a `ProgressUpdate`, which
+    stringifies to the old plain message, so a collector that only sends text
+    still renders here rather than raising.
+    """
+    fraction = float(getattr(update, "fraction", 0.0) or 0.0)
+    collected = getattr(update, "collected", 0)
+    target = getattr(update, "target", 0)
+    slice_index = getattr(update, "slice_index", 0)
+    slice_count = getattr(update, "slice_count", 0)
+    skipped = getattr(update, "skipped_as_bulk", 0)
+    headline = (
+        f"{already + collected} maps indexed  "
+        f"({collected} of {target} this run"
+        + (f", query {min(slice_index + 1, slice_count)}/{slice_count}" if slice_count else "")
+        + (f", {skipped} skipped as bulk" if skipped else "")
+        + ")"
+    )
+    return min(max(fraction, 0.0), 1.0), headline
+
+
+def should_retrain_after(stats: dict | None, requested: bool) -> bool:
+    """Whether the retrain half of "Collect and retrain" should still run.
+
+    It should not, if the collection was cancelled. Cancelling means "stop
+    calling the trade API", and answering that by starting a training run the
+    user is now waiting on is the opposite of stopping. The stated workflow is
+    cancel, look at what landed, then press "Retrain on stored data" when you
+    want it -- so the decision lives here, in one testable place, rather than
+    inside a fragment that only exists while a browser is open.
+
+    A run that errored out is excluded for a plainer reason: there is nothing
+    new to train on.
+    """
+    stats = stats or {}
+    return bool(requested) and not stats.get("cancelled") and not stats.get("error")
 
 
 def _collect(cfg, repo) -> None:
@@ -80,10 +135,27 @@ def _collect(cfg, repo) -> None:
         "rate-limit policy GGG returns in its own response headers. Nothing is scraped "
         "and no access control is bypassed. See `docs/data-access.md`."
     )
+
+    job = st.session_state.get("collect_job")
+    if job is not None and job.running:
+        # A run is in flight on a worker thread. Everything below -- the size
+        # box, the three buttons -- would start a second one, so the panel takes
+        # the tab for as long as it lasts.
+        _collect_panel(cfg)
+        st.markdown("---")
+        _orb_prices(cfg, repo)
+        return
+
     limit = st.number_input("How many listings to collect", 50, 5000, 500, step=50)
     already = listing_counts(cfg.get("league"), data_version())["total"]
 
-    buttons = st.columns(2)
+    # The run ended -- finished, cancelled or thrown. Retire the handle, say
+    # what came of it, and (unless it was cancelled) do the retrain half of the
+    # button that started it.
+    if job is not None:
+        _report_finished_collection(cfg, repo, job, already)
+
+    buttons = st.columns(3)
     collect_only = buttons[0].button("Collect from trade API")
     # The pairing exists because collecting on its own changes no price. The
     # model is a separate artefact and nothing retrains it on a timer, so
@@ -93,56 +165,333 @@ def _collect(cfg, repo) -> None:
         "Collect and retrain", type="primary",
         help="Collect, re-run outlier detection, then retrain on the result.",
     )
+    # The third button exists because the second one cannot be reached after a
+    # cancel. A collection that is stopped part way has still written every
+    # listing it read -- ingest flushes to SQLite every fifty rows -- but the
+    # retrain half of "Collect and retrain" is deliberately skipped, because a
+    # cancel means "stop calling the API", not "start a training run I did not
+    # ask for". That leaves exactly the state this app spends most of its prose
+    # warning about: newer data underneath older prices. This button is the way
+    # out of it, and it costs no requests at all.
+    train_only = buttons[2].button(
+        "Retrain on stored data",
+        help="Trains on everything already in the database -- including whatever "
+        "a cancelled collection left behind -- without calling the trade API.",
+    )
+
+    if train_only:
+        _retrain(cfg)
 
     if collect_only or collect_and_train:
-        bar = st.progress(0.0, text="Starting...")
-        detail = st.empty()
-
-        def on_progress(update) -> None:
-            # Collectors emit a ProgressUpdate; it stringifies to the old plain
-            # message, so guard on the attribute rather than the type and the
-            # page still works against a collector that only sends text.
-            fraction = getattr(update, "fraction", 0.0)
-            collected = getattr(update, "collected", 0)
-            target = getattr(update, "target", 0)
-            slice_index = getattr(update, "slice_index", 0)
-            slice_count = getattr(update, "slice_count", 0)
-            skipped = getattr(update, "skipped_as_bulk", 0)
-            headline = (
-                f"{already + collected} maps indexed  "
-                f"({collected} of {target} this run"
-                + (f", query {min(slice_index + 1, slice_count)}/{slice_count}" if slice_count else "")
-                + (f", {skipped} skipped as bulk" if skipped else "")
-                + ")"
-            )
-            bar.progress(fraction, text=headline)
-            detail.caption(str(update))
-
-        with st.spinner("Collecting -- this pauses when GGG's rate limit says to."):
-            stats = collect_from_trade_api(
-                cfg, repo, limit=int(limit), progress=on_progress
-            )
-        if stats.get("error"):
-            bar.empty()
-            st.error(stats["error"])
-            return
-
-        # Rows were just written, so the cached reads have to be dropped before
-        # anything reads a count again -- this one included.
-        invalidate_data()
-        total = repo.count_listings(cfg.get("league"))["total"]
-        bar.progress(1.0, text=f"{total} maps indexed")
-        detail.empty()
-        st.success(
-            f"Inserted {stats['inserted']}, refreshed {stats['updated']}, "
-            f"flagged {stats.get('flagged', 0)} outliers. "
-            f"{total} maps indexed in total (was {already})."
-        )
-        if collect_and_train:
-            _retrain(cfg)
+        st.session_state["collect_job"] = CollectJob.start(cfg, limit=int(limit))
+        st.session_state["collect_train_after"] = bool(collect_and_train)
+        st.session_state["collect_baseline"] = already
+        # Straight back into the branch above, so the Cancel button is on screen
+        # before the first request goes out rather than after the run ends. The
+        # run itself is on a worker thread; this thread's only remaining job is
+        # to draw.
+        st.rerun()
 
     st.markdown("---")
     _orb_prices(cfg, repo)
+
+
+@st.fragment(run_every=COLLECT_REFRESH_SECONDS)
+def _collect_panel(cfg) -> None:
+    """Progress, a Cancel button, and a way to look at what has landed.
+
+    A fragment rather than the page, for the reason the Stash Pricer's live-run
+    panel is one: this redraws a progress bar every second and a half instead of
+    redrawing the stat rail, the three tabs and both orb prices.
+
+    "Show what has landed" is not decoration either. ingest commits every fifty
+    listings, so a run twenty minutes in has most of its haul already in the
+    database -- the charts and the export on the Inspect tab can read it without
+    the run having to finish first.
+    """
+    job = st.session_state.get("collect_job")
+    if job is None:
+        return
+
+    if job.finished:
+        # Rows were written by another thread, so the session's cached reads are
+        # stale by definition. Drop them, then hand the page back to the full
+        # script, which reports the outcome and retrains if it was asked to.
+        invalidate_data()
+        st.rerun()
+
+    already = int(st.session_state.get("collect_baseline", 0))
+    if job.progress is not None:
+        fraction, headline = collect_headline(job.progress, already)
+        st.progress(fraction, text=headline)
+        st.caption(str(job.progress))
+    elif job.waiting_for_lock:
+        st.progress(0.0, text="Waiting for the passive scan to finish")
+        st.caption(
+            "Only one collection reads the market at a time -- two would each "
+            "obey GGG's policy while together breaking it."
+        )
+    else:
+        st.progress(0.0, text="Starting…")
+        st.caption("waiting on the first response from the trade API")
+
+    columns = st.columns([1, 1, 2])
+    if job.cancelling:
+        columns[0].button(
+            "Stopping…",
+            disabled=True,
+            key="collect_cancel",
+            help="The request already in flight has to finish. A rate-limit "
+            "wait does not: that is cut short.",
+        )
+    elif columns[0].button(
+        "Cancel collection",
+        key="collect_cancel",
+        help="Stops at the next slice or fetch boundary. Every listing already "
+        "read is kept, and no retrain follows -- press 'Retrain on stored "
+        "data' when you want one.",
+    ):
+        job.cancel()
+        st.rerun(scope="fragment")
+
+    if columns[1].button(
+        "Show what has landed",
+        key="collect_peek",
+        help="Redraws the page with everything written so far. The run keeps "
+        "going.",
+    ):
+        invalidate_data()
+        st.rerun()
+
+
+def _report_finished_collection(cfg, repo, job, already: int) -> None:
+    """Say what the run came to, then retire it.
+
+    The handle is dropped first and unconditionally. `_retrain` ends in
+    `st.rerun()`, and a job still sitting in session state at that point would
+    be reported, and retrained on, once per rerun forever.
+    """
+    st.session_state.pop("collect_job", None)
+    train_after = bool(st.session_state.pop("collect_train_after", False))
+    baseline = int(st.session_state.pop("collect_baseline", already))
+    stats = job.stats or {}
+
+    if job.error:
+        st.error(f"The collection stopped on an error: {job.error}")
+        return
+    if stats.get("error"):
+        st.error(stats["error"])
+        return
+
+    total = repo.count_listings(cfg.get("league"))["total"]
+    summary = (
+        f"Inserted {stats.get('inserted', 0)}, refreshed {stats.get('updated', 0)}, "
+        f"flagged {stats.get('flagged', 0)} outliers. "
+        f"{total} maps indexed in total (was {baseline})."
+    )
+    if stats.get("cancelled"):
+        # Said out loud, because it is the one outcome where the sample is
+        # incomplete in a way that matters: a cancelled walk stopped part way
+        # through the stratification, so it is weighted towards the slices it
+        # reached.
+        st.warning(
+            f"Collection cancelled. Everything it had already read was kept: "
+            f"{summary} The model has not been retrained -- press **Retrain on "
+            f"stored data** when you want these listings priced with."
+        )
+    else:
+        st.success(summary)
+
+    if should_retrain_after(stats, train_after):
+        _retrain(cfg)
+
+
+#: How often the passive panel redraws. Slower than the collect panel: nothing
+#: on it needs to feel like a button, and a countdown ticking every two seconds
+#: is as legible as one ticking every one.
+PASSIVE_REFRESH_SECONDS = 2.0
+
+
+def _passive(cfg) -> None:
+    """The unattended collector: a switch, four settings, and what it is doing.
+
+    A mode rather than an action, which is why it is a tab of its own and not a
+    fourth button next to Collect. See `src/market/passive.py` for why the loop
+    lives in a process-global rather than in session state, and why the switch
+    is deliberately not remembered between launches.
+    """
+    from src.market.passive import PassiveSettings, controller
+
+    control = controller()
+    st.markdown(
+        "Collects on a loop for as long as this app is open: one scan, then a "
+        "quiet period long enough for the rate limit to reset, then another. "
+        "**It stops when you close the app and does not restart itself.**"
+    )
+
+    settings = PassiveSettings.from_config(cfg)
+    on = st.toggle(
+        "Passive collection",
+        value=control.running,
+        help="Starts a background scan loop. The manual Collect buttons stay "
+        "usable -- a manual run simply waits for any scan in flight to finish.",
+    )
+    if on and not control.running:
+        control.start(cfg, settings)
+        st.rerun()
+    elif not on and control.running:
+        control.stop()
+        st.rerun()
+
+    if control.running:
+        _passive_panel(cfg)
+    else:
+        state = control.state
+        if state.scans_done:
+            st.caption(
+                f"Last session: {state.scans_done} scans, "
+                f"{state.listings_total:,} listings. {state.stopped_reason}."
+            )
+        _passive_settings(cfg, settings)
+
+    _publish_passive_model(control)
+
+
+def _passive_settings(cfg, settings) -> None:
+    """The four knobs. Editable only while the loop is off, because changing
+    the cooldown under a sleeping worker would not take effect until the sleep
+    it is already in has finished -- a setting that appears to do nothing."""
+    st.markdown("##### Settings")
+    left, right = st.columns(2)
+    maps = left.number_input(
+        "Maps per scan", 50, 2000, int(settings.maps_per_scan), step=50,
+        help="About one request per ten maps, plus one per query slice. 400 "
+        "maps is roughly 56 requests -- well inside what GGG's policy allows.",
+    )
+    cooldown = right.number_input(
+        "Shortest gap (minutes)", 1, 360, int(settings.cooldown_minutes), step=1,
+        help="Where the gap starts, and the closest together two scans can get. "
+        "The gap is adaptive: a scan that comes back mostly listings we already "
+        "have means the market has not turned over, so it waits longer next "
+        "time. This is politeness and efficiency, not safety -- the rate limiter "
+        "obeys GGG's own headers whatever this says.",
+    )
+    max_cooldown = right.number_input(
+        "Longest gap (minutes)", 5, 720, int(settings.max_cooldown_minutes), step=5,
+        help="The ceiling the backoff stops at, so a quiet league still gets "
+        "looked at a few times a day rather than never again.",
+    )
+    auto_off = left.number_input(
+        "Switch off after (hours)", 0, 48, int(settings.auto_off_after_hours),
+        help="0 runs until you close the app.",
+    )
+    retrain = right.checkbox(
+        "Retrain automatically", value=settings.auto_retrain,
+        help="Otherwise the model quietly falls behind the data it is being "
+        "shown over, which is the one failure state that is invisible.",
+    )
+    every = right.number_input(
+        "Retrain every N scans", 1, 50, int(settings.retrain_every_scans),
+        disabled=not retrain,
+    )
+    if st.button("Save settings"):
+        cfg.set("collection.passive.maps_per_scan", int(maps))
+        cfg.set("collection.passive.cooldown_minutes", int(cooldown))
+        cfg.set("collection.passive.max_cooldown_minutes", int(max_cooldown))
+        cfg.set("collection.passive.auto_off_after_hours", int(auto_off))
+        cfg.set("collection.passive.auto_retrain", bool(retrain))
+        cfg.set("collection.passive.retrain_every_scans", int(every))
+        cfg.save()
+        flash("success", "Passive collection settings saved.")
+        st.rerun()
+
+
+@st.fragment(run_every=PASSIVE_REFRESH_SECONDS)
+def _passive_panel(cfg) -> None:
+    from src.market.passive import COOLING, SCANNING, TRAINING, WAITING, controller
+
+    control = controller()
+    if not control.running:
+        # The loop ended between renders. Hand the tab back to the full page so
+        # the settings and the toggle come back, and stop this fragment ticking.
+        st.rerun()
+        return
+
+    state = control.state
+    labels = {
+        WAITING: "waiting for the manual collector to finish",
+        SCANNING: "scanning",
+        TRAINING: "retraining on everything collected so far",
+        COOLING: "cooling down",
+    }
+    st.markdown(f"**{labels.get(state.phase, state.phase).capitalize()}**")
+
+    if state.phase == COOLING:
+        remaining = state.seconds_until_next_scan()
+        window = max(1.0, (state.cooldown_minutes or 1.0) * 60.0)
+        st.progress(
+            1.0 - min(1.0, remaining / window),
+            text=f"Next scan in {int(remaining // 60)}m {int(remaining % 60)}s",
+        )
+    elif state.phase == SCANNING:
+        st.caption(f"{state.listings_this_scan:,} listings this scan")
+
+    stat_rail(
+        [
+            ("Scans", f"{state.scans_done:,}", "this session"),
+            ("Collected", f"{state.listings_total:,}", "listings"),
+            ("Model", f"v+{state.model_generation}", "retrains"),
+        ]
+    )
+
+    # The pacing, said out loud. A gap that moves on its own looks broken
+    # otherwise -- the number in the settings is a floor, not what it is doing.
+    if state.fresh_ratio is not None:
+        gap = state.cooldown_minutes or 0.0
+        st.caption(
+            f"{state.fresh_ratio:.0%} of the last scan's search results were new, "
+            f"so the gap is {gap:.0f} min"
+            + (
+                f". {state.skipped_repeats:,} repeats were skipped before they cost a fetch"
+                if state.skipped_repeats
+                else ""
+            )
+        )
+    if state.last_error:
+        st.warning(state.last_error)
+
+    if st.button("Stop passive collection"):
+        control.stop()
+        st.rerun()
+
+
+def _cooldown_seconds(cfg) -> float:
+    """The configured floor, for callers that need it before a scan has run.
+
+    Once one has, the live gap is on `PassiveState.cooldown_minutes` instead --
+    the controller moves it, so this number is where it starts, not where it is.
+    """
+    from src.market.passive import PassiveSettings
+
+    return PassiveSettings.from_config(cfg).cooldown_minutes * 60.0
+
+
+def _publish_passive_model(control) -> None:
+    """Drop the model caches when the worker has retrained behind our back.
+
+    The worker cannot do this for itself: `invalidate_model_cache` touches
+    `st.session_state` and calls `.clear()` on `@st.cache_resource` objects,
+    and neither is legal off the script thread. So it bumps a counter and this
+    runs the Streamlit half on the next render that notices.
+    """
+    generation = control.state.model_generation
+    if st.session_state.get("passive_model_generation", 0) == generation:
+        return
+    st.session_state["passive_model_generation"] = generation
+    if generation:
+        invalidate_model_cache()
+        flash("success", "Passive collection retrained the model. Prices are new.")
+        st.rerun()
 
 
 def _retrain(cfg) -> None:

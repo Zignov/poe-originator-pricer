@@ -200,6 +200,64 @@ manual imports alone — CSV, a saved trade JSON response, or a copied item plus
 price. See **[docs/data-access.md](docs/data-access.md)** for exactly what was
 verified, what was not, and why.
 
+### Two ways to run it
+
+**Active** is the manual button on the Market Data page: pick a size, press
+Collect, watch the progress bar. It runs on a worker thread, so **Cancel is a
+real button** rather than a decoration — the flag is checked inside the
+rate-limit wait, not after it, which matters because GGG's search policy can
+impose a half-hour penalty and a cancel that has to wait one out is not a
+cancel. Everything collected before the stop is already committed; ingest
+flushes every fifty listings. A separate **Retrain on stored data** button then
+trains on whatever landed, including a cancelled run's partial haul, without
+calling the API at all.
+
+**Passive** is a toggle that collects on a loop for as long as the app is open:
+one scan of ~400 maps (about 56 requests), then a quiet period long enough for
+the rate limit to reset, then another. Scan size, cooldown, an optional
+switch-off timer and automatic retraining are all configurable.
+
+Two things worth being explicit about:
+
+- **The cooldown is politeness, not safety.** The rate limiter obeys GGG's own
+  response headers unconditionally and would allow this far more often. The
+  cooldown is there so the traffic looks like what it is.
+- **It stops when you close the app, and never restarts itself.** The switch is
+  deliberately not remembered between launches, even though the settings are. A
+  background collector running because a config file said so — while you believe
+  it is stopped — is exactly what gets a User-Agent blocked.
+
+The two modes share one lock, so they never read the market at the same time.
+Two concurrent collections would be two rate limiters neither of which can see
+the other's requests, each individually convinced it is obeying a policy they
+are together doubling.
+
+### Not paying twice for the same listing
+
+A search hands back 100 ids for one request; a fetch costs one request per ten.
+The fetch is therefore **ten times dearer per listing**, and it used to be spent
+re-reading rows already in the database — measured over a six-cycle run, 61% of
+every fetch request came back with something already stored.
+
+Two filters now run before anything is fetched: ids already taken this run
+(every slice sorts newest-first, so a map matching two slices sat near the top
+of both), and ids stored and seen inside `market.refetch_after_hours`. That
+second one is a window rather than "already stored" on purpose — a seller who
+marks a map down is publishing real information, and an id never re-read would
+freeze at its first asking price.
+
+Measured on a 150-listing scan afterwards: 508 repeats skipped before they cost
+anything, and **97% of what was fetched was new, against 26% before.**
+
+That also changes what paces passive mode. The useful gap between scans is not
+set by the rate limit — the limiter already obeys GGG's headers — but by how
+fast the market turns over, which measured at roughly 190 new listings every 18
+minutes. So the gap is a controller rather than a constant: it starts at
+`cooldown_minutes`, stretches when a scan comes back mostly repeats, and pulls
+back in when it does not, up to `max_cooldown_minutes`. The signal is the share
+of *search results* that were new — never the share of fetched rows, which now
+that repeats are filtered would read 100% for ever and never back off.
+
 **Instant Buyout** is not a separate feed. It is the `sale_type` filter on the
 same search, and omitting the filter selects "Buyout or Fixed Price" — which is
 what the collector does. Each listing's `~b/o` vs `~price` type is stored anyway,
@@ -272,10 +330,27 @@ gradient-boosting backends, which freezes to roughly 800 MB and breaks on every
 dependency bump, so a venv that `pip` can repair is the more honest package.
 
 The download ships with a **trained model already in it**, so prices work on the
-first stash tab you paste — no collection run needed to see something. What it
-does not ship is the listings database (33 MB, and one league's snapshot), so
-the Market Data and Model Analysis pages start empty until you either collect
-or import `data/originator_listings_allflame.csv` (§11).
+first stash tab you paste — no collection run needed to see something. The 19 MB
+listings database is not in the zip, but the rows that model was fitted on are:
+the first run imports `data/originator_listings_allflame.csv` into a fresh
+database, prints a line saying so, and does not do it again. That is what makes
+your first **Collect and retrain** add to **15,691 listings** of history rather
+than start over from the few hundred it just pulled — which used to mean trading
+the bundled model for a much thinner one without being told.
+
+Three consequences worth knowing:
+
+- **An upgrade brings the newer market with it.** The import is keyed to the
+  contents of the bundled file, not to the database being empty, so installing a
+  release that ships more listings loads them. Only rows the previous bundle put
+  there are replaced; anything you collected or imported yourself is untouched,
+  which is why those rows carry a source of their own (`bundled_sample`).
+- **It is one league's market** (`Allflame`). Set a different league in
+  `config.yaml` before the first run and the import is skipped rather than filed
+  under the wrong league's name — you start empty and collect.
+- **Retraining on much less data says so.** If a retrain would replace a model
+  fitted on more than twice the listings it is about to use, the training log
+  warns before overwriting it.
 
 Everything the launcher creates — `.venv`, `config.yaml`, `.env`, the database —
 stays inside that one folder. Deleting the folder uninstalls it completely.
@@ -339,16 +414,18 @@ In the browser:
 
 Two things do not survive the trip, both by design:
 
-* **The database is not in the repo** (`data/*.db`). A cloud instance therefore
-  starts with no listings, and Community Cloud's disk does not persist across
-  restarts. Collect from the Market Data page to fill it, or import a CSV
-  export. Treat a cloud instance as a demo; the real dataset lives on the
-  machine that collected it. The *model* does travel — `models/originator_model.pkl`
-  is tracked (§11), so a cloud instance prices maps from the first request even
-  though it can show you nothing about the market they were trained on.
+* **The database is not in the repo** (`data/*.db`), and Community Cloud's disk
+  does not persist across restarts. What travels instead is the pair that
+  rebuilds a usable one: `models/originator_model.pkl` is tracked (§11), so a
+  cloud instance prices maps from the first request, and
+  `data/originator_listings_allflame.csv` is seeded into the empty database on
+  each cold start, so the Market Data and Model Analysis pages have the market
+  that model was fitted on to show. Anything *you* collect there still dies with
+  the container: treat a cloud instance as a demo, and keep the real dataset on
+  the machine that collected it.
 * **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
   goes out as `you@example.com`, and GGG asks automated clients to identify
-  themselves with a real address (see §13). `POE_LEAGUE` can be set the same way
+  themselves with a real address (see §14). `POE_LEAGUE` can be set the same way
   to override the league without editing config.
 
 POESESSID is deliberately *not* something to put in cloud secrets — it is a
@@ -366,11 +443,16 @@ You get:
   strategy drawn on each map's real `x`/`y` position — hover a tile for the
   fair value and the exalt call behind it — outlined by whether an Exalted Orb
   pays for itself (solid cyan yes, dashed no, no outline on a map that cannot
-  take one at all), colour-banded by value (percentiles of *this tab*, not hardcoded
-  league thresholds), with full details on hover, and a **confidence meter**
+  take one at all), colour-banded by value across six bands (percentiles of *this tab*, not
+  hardcoded league thresholds) with anything under 30c greyed out on a fixed
+  threshold so junk recedes instead of competing for attention, with full details on hover, and a **confidence meter**
   along the bottom edge of each tile — a short bar means the number above it is
   a rough estimate rather than a price, which is otherwise buried in a tooltip
-  on the one tile you did not think to hover;
+  on the one tile you did not think to hover — and **one white dot per free
+  affix slot** in the top-right corner, because how many slots are left decides
+  whether an orb can touch the map at all and used to be reachable only by
+  opening it. No dots means no slots left; a map whose affixes could not be read
+  shows nothing rather than a misleading zero;
 - a **sortable table** — by value, by any reward, by pack size, by confidence, or
   by stash position;
 - **filters** — minimum value, high confidence only, or only maps carrying a
@@ -477,7 +559,7 @@ python -m src.cli price-item map.txt
 The stash grid in the browser still asks you to look away from the game and
 match a picture of your tab against the real one. The **desktop overlay** removes
 that step: it is a transparent, always-on-top, click-through window that draws
-the same tiles — same percentile colour bands, same suggested listing price, same
+the same tiles — same colour bands, same suggested listing price, same
 exalt rings, same confidence meter — directly on top of the real stash tab,
 aligned cell for cell.
 
@@ -723,7 +805,7 @@ Five things keep that from being unbounded:
    cache is on disk, so it continues across restarts too.
 
 Rate limiting is never bypassed. This mode goes through the same client, the
-same `RateLimiter` and the same 429 back-off as everything else in §13.
+same `RateLimiter` and the same 429 back-off as everything else in §14.
 
 ### Confidence, and how it degrades
 
@@ -805,25 +887,88 @@ can be recovered from listings that show both their affixes and their totals. On
 R² 0.999 with a mean absolute error of 0.03 — this is inverting a genuinely
 additive system, not fitting a curve to it.
 
-So the estimate enumerates rather than samples. It takes every affix that could
-still roll — excluding those already on the map, and respecting a full prefix or
-suffix block — applies each one's exact contribution, prices the result with the
-same model that priced the map, and weights by how often that affix actually
-appears in the collected market:
+So the estimate for the *next* orb enumerates rather than samples. It takes every
+affix that could still roll — excluding those already on the map, and respecting
+a full prefix or suffix block — applies each one's exact contribution, prices the
+result with the same model that priced the map, and weights by how often that
+affix actually appears in the collected market. Filling *every* open slot is
+sampled instead: two open slots is some four thousand combinations and three is
+a hundred and twenty thousand, per map, on a page that prices sixty at once. The
+sample is seeded per map, so a verdict about spending currency does not change
+when you refresh the page.
 
 ```
-5/6 affixes  ·  1 open suffix  ·  orb costs 4c
-Worth exalting. Expected 189c after, a net gain of 85c once the orb is paid for.
-Likely range: 68c to 129c gain     Best case:  of Defiance — +129c
-Chance it beats the orb: 100%      Worst case: of Persistence — +68c
+5/6 affixes  ·  1 open suffix  ·  1 orb at 1.25c, plus 5c to list and trade it
+Worth exalting. Filling 1 open slot costs 6.25c and is expected to add 85c
+— a net +79c.
+Likely range: 68c to 129c gain     Bar to clear: 15c net
+Chance it beats the cost: 100%     Model can resolve: ±62c
 ```
+
+### Why it is not simply "is the gain bigger than the orb"
+
+It was, and it said yes to **every map it was ever shown** — 700 of 700 on the
+collected market, which is not a recommendation, it is a stuck needle. Four
+things were missing.
+
+**The orbs, plural.** A map with two open slots is a two-orb decision, and
+charging one orb prices a plan nobody carries out.
+
+**The trade.** Every gain has to be realised by listing the map, waiting,
+answering a whisper and meeting someone. That cost is flat — a trade takes the
+same few minutes whatever the map is worth — which is exactly why it bites
+hardest on the cheap maps this was saying yes to.
+
+**The model's own uncertainty, which is the one that matters.** The gain is a
+*difference between two predictions of the same model*, and on the collected
+market **85% of those differences were smaller than the model's own 80%
+conformal band on the very same map**. Acting on a difference the instrument
+cannot resolve is not a gamble, it is noise with a recommendation attached. So
+the net gain — what survives paying for the orbs and the trade — has to clear
+that whole band. Stated plainly: *keep more than the model admits it cannot
+measure.*
+
+**The floor.** Under 30c the model is not fitted at all; those listings are held
+out of training, and §11 is blunt that the number down there is not a cheap
+price but the absence of one. Maps below it now get **no verdict** rather than a
+cheerful one — a third answer, drawn in brass rather than as a quieter "no",
+because "we will not judge this" and "we judged it and the answer is no" are
+different things.
+
+Together these take 700 of 700 down to **106 of 555** — the denominator shrinks
+because maps under the floor now get no verdict rather than a bad one. The share
+held steady across a full model retrain (35% then, 28% now), and across trade
+costs of 3c, 5c and 8c, which says the uncertainty gate is doing the work and
+the numbers are not tuned to one lucky value. All of it is in `exalt:` in
+`config.yaml`, and a rejected map still shows its range, its odds and the bar it
+missed — a rejection is exactly when those are worth reading.
 
 **Not every reward is affix-driven, and the catalogue refuses the ones that are
 not.** Each feature has to predict held-out data before it is modelled.
-`more_divination_cards` scores a held-out R² near zero because it comes from the
-Originator memory rather than a rolled affix — so exalting is never credited with
-adding any, where a less careful version would have invented value on every
-estimate. Which rewards passed is printed when the model trains.
+`more_divination_cards` scores a held-out R² near zero, so exalting is never
+credited with adding any, where a less careful version would have invented value
+on every estimate. Which rewards passed is printed when the model trains.
+
+The reason it fails that test is worth stating, because an earlier version of
+this section guessed wrong and blamed the Originator memory. **It is a chisel.**
+On 1,925 freshly collected listings, `More Divination Cards` and
+`Quality (Divination Cards)` co-occur perfectly — 111 maps carry both, and not
+one map carries either alone — and the value is always exactly `+50%`, never
+anything else. So the feature is not a reward roll at all; it is a binary record
+of a crafting decision somebody made, which is precisely why no affix predicts
+it.
+
+It is still worth keeping, and by a wide margin. Fitted on a seller-grouped
+random split so the held-out slice carries the feature at its real rate (77 of
+1,042 maps), dropping it takes overall MAE from 42.5c to 46.1c and R² from 0.545
+to 0.480 — and on the maps that actually carry the flag, error nearly doubles,
+from 39c to 76c. Those maps sell for about 3.3x the median despite carrying
+*fewer* of the other rewards, and nothing else in the feature set knows that.
+
+Four more chisel properties are visible in the same payloads and are currently
+read by nothing: `Quality (Currency)` on 73 maps, `Quality (Scarabs)` on 34,
+`Quality (Pack Size)` on 5 and `Quality (Rarity)` on 3. Whether they carry
+signal the way the divination-card one does is untested.
 
 The orb price is fetched from the same source as the divine rate, on the Market
 Data page, and stored alongside it, because it is the entire right-hand side of
@@ -1027,16 +1172,21 @@ python -m src.cli train --tune-weights # also search recency-weight schedules
 
 or **Collect and retrain** on the Market Data page, which does both in one go
 and is the button to reach for by default — collecting without retraining is
-what leaves the app showing old numbers over new data. **Retrain model** in
-Settings trains without collecting.
+what leaves the app showing old numbers over new data. **Retrain on stored
+data**, beside it, trains on everything already in the database — including
+whatever a cancelled collection left behind — without calling the API.
+**Retrain model** in Settings does the same thing from the other page.
 
-> `model.retrain_interval_hours` in the config is **not** a schedule. It is
-> stored and shown in Settings, but no code path acts on it. Treat it as a note
-> to yourself until it does something.
+> Passive collection (§4) can retrain on its own, every N scans and only when
+> the scans actually inserted rows — a quiet league returns the same listings,
+> and refitting them spends minutes to produce the model already loaded.
+> `model.retrain_interval_hours` used to sit in the config as a schedule that
+> nothing acted on; it is gone, and `collection.passive.retrain_every_scans` is
+> the honest version of it.
 
 Because that is easy to lose track of, the **Dashboard** compares the two and
-says which state you are in — either *"Model is current: trained on 4,102 of
-4,102 usable listings"* or a warning naming the gap and pointing at Retrain.
+says which state you are in — either *"Model is current: trained on 9,085 of
+9,085 usable listings"* or a warning naming the gap and pointing at Retrain.
 Check there after a collection run.
 
 ### The trained model ships with the repo
@@ -1075,23 +1225,34 @@ there is no reason for each person to repeat it. A ready-made export lives in
 the repo:
 
 ```
-data/originator_listings_allflame.csv     # 4,102 listings, ~282 KB
+data/originator_listings_allflame.csv     # 15,695 listings, ~1.6 MB
 ```
 
-Import it on **Market Data → Import → CSV**, then retrain. It is the same
-format the export button produces, so anyone can share theirs the same way
+You do not have to do anything with it: the first run imports it (§6). It is
+also there to import by hand on **Market Data → Import → CSV**, and it is the
+same format the export button produces, so anyone can share theirs the same way
 (**Market Data → Inspect and export**, which offers an anonymised export).
+Rebuild it from your own database with `python scripts/export_sample.py --seed`.
+That also records the new file as already loaded in the database it came from,
+so the next launch does not helpfully re-import your own rows on top of
+themselves — which is worth a sentence because it happened, and took a database
+from 9,552 rows to 11,472 before anyone noticed.
 
 Three honest caveats:
 
-- **Seller and listing id are blank.** They are stripped on export, which is
-  what makes the file safe to publish. The cost is that two identical maps at
-  the same price can no longer be told apart, so a re-import merges a handful
-  of them.
+- **The account names are gone and the listing ids are blank.** Each account
+  becomes a label like `anon-0042` that means nothing outside the one file. The
+  labels are kept rather than blanked because the train/test split groups on
+  them: when a whole export shared the empty string it became one group, and
+  training on it produced a validation slice of three rows. Blank listing ids
+  are deliberate too — a live id would upsert over somebody's own collected row.
 - **It is a snapshot, not a feed.** Prices move through a league. An export from
   three weeks ago will train a model that prices a market that no longer exists.
-  The `indexed_at` column is preserved so age is at least visible.
-- **It is one league.** Rates and prices do not carry across leagues.
+  `indexed_at` and `captured_at` are both preserved, so age is visible and the
+  collection history survives — which is what lets the split below come out
+  chronological rather than treating three weeks of collecting as one sitting.
+- **It is one league.** Rates and prices do not carry across leagues, which is
+  why the first-run import declines when your league is not the sample's.
 
 What happens:
 
@@ -1123,7 +1284,104 @@ interesting reward interactions, and the history of every training run.
 
 ---
 
-## 12. Current limitations
+## 12. Tracking what you listed, and learning what actually sells
+
+Everything else in this tool is fitted on **asks** — what sellers wanted. Your
+own listings are the one place it can see what a buyer actually paid, and that
+makes them worth tracking on their own terms.
+
+The **My Listings** page answers one question — *which of my maps are sitting* —
+and then makes the answer actionable in the two places that help: a stash search
+regex that lights the stale maps up in game, and an overlay export that puts the
+new price onto them where they physically are.
+
+### How it watches
+
+With `POE_ACCOUNT_NAME` set, a **toggle on the My Listings page** starts a
+background poller (`src/tracking/poller.py`) running one account-scoped trade
+search — your own listings — while the app is open. The switch is on that page
+rather than in config because it is the page the tracker reports on, and turning
+it off cancels the running poller rather than only clearing a flag. The choice
+is written to `listing_tracker.enabled` so it survives a restart. It reconciles each poll against the last into
+events: a map appeared, a map is still sitting, a map is gone.
+
+The cadence is deliberately uneven. A listing's first hour is where the
+fast-sale signal lives — the difference between "sold in eleven minutes" and
+"sold in three hours" is most of what the learning half has to work with, and a
+fifteen-minute poll blurs it. A map that has sat for three days does not need a
+five-minute check to confirm it is still sitting. So young listings are polled
+every five minutes and old ones every fifteen, which spends requests where they
+buy information. A markdown makes a listing young again, because a new price is
+a new question.
+
+The poller runs on its own thread with its own database connection, and it stops
+when you close the app. It never restarts itself. §14 has the request cost.
+
+### What it can and cannot know
+
+**The stale half is exact.** A map still listed after sixty-two hours has been
+listed for sixty-two hours whatever the polling gaps, so every "sitting for N
+hours" figure on the page is a measurement.
+
+**The sold half is bracketed.** Polling stops when the app closes, so a map that
+sold overnight is known only to have sold *somewhere inside* a nine-hour window.
+The code treats these as **interval- and right-censored observations**
+(`src/tracking/censoring.py`) rather than throwing them away or pretending the
+midpoint is the answer — discarding them would bias what is left toward whoever
+happens to leave the app running. A Turnbull-style EM fit
+(`src/tracking/survival.py`) turns that censored history into: *if I list at this
+ratio to the model's estimate, what are the odds it clears within W hours?*
+
+A map that vanishes and comes back within `reappearance_window_hours` was never
+sold — someone else's search index blinked, or you relisted it.
+
+### What it does with the answer
+
+- **Re-price recommendations.** Until there is enough of your own history to fit
+  the real thing, a fixed fallback ladder walks a stale map down by staleness
+  (8% at 24h, 15% at 72h, 22% at a week) with a hard floor at 75% of the
+  estimate. Left alone, a ladder walks a map nobody wants down until it is being
+  given away — each markdown producing more evidence that the price is still too
+  high, which is exactly what a ladder reacts to. Every recommendation carries a
+  `source` and the page prints it: **a fallback labelled as a measurement is
+  worse than no number at all.**
+- **Alerts**, but only when the data is decisive. An alert fires only when the
+  *whole* bracket sits on one side of the threshold — a map that sold somewhere
+  between twenty minutes and nine hours might have sold fast or slowly, and the
+  overnight gap that produced that bracket is not a licence to guess.
+- **A personal calibration factor** — how far your listings actually clear from
+  what the model says — applied as a multiplier on the **suggested listing
+  price**, never on the fair-value estimate.
+
+That factor is the most dangerous number in the app, because it silently moves
+every price you are shown. So it is guarded the same way the observed-spread
+multipliers are:
+
+- **Evidence on both sides, or nothing.** Fast sales bracket the clearing ratio
+  from below, stale listings bracket it from above. With only one side there is
+  no bracket, just a direction — and a direction is not a factor.
+- **Clamped to 0.8–1.3, and it says on the page when it clamped.**
+- **A measurement outside 0.5–2.0 is refused, not clamped.** A factor of 0.25
+  does not mean sell at a quarter price, it means the model is miscalibrated,
+  and quietly scaling by 0.25 would hide the one thing worth seeing.
+- **Bound to a model version.** The model's known underpricing is a hedging
+  artefact with its own fix, and this factor is measured *on top of* whatever the
+  active model already does. Carry it across a retrain and the two corrections
+  stack, the second fitted on prices the first already moved.
+
+It needs `listing_tracker.calibration.min_sold` (default 20) resolved sales
+before it will produce a number at all.
+
+### Settings
+
+On/off lives on the page itself. The rest is under `listing_tracker:` in
+`config.yaml` — poll cadences, the reappearance window, what counts as stale,
+the target clearing window and probability, the calibration clamp, and the
+fallback ladder's steps and floor.
+
+---
+
+## 13. Current limitations
 
 Read this part.
 
@@ -1136,10 +1394,10 @@ Read this part.
   it.** On a clean sample, `more_currency` and `quantity` carry most of the
   signal (correlations with log price around +0.6), `pack_size` follows (+0.44),
   and `rarity`, `more_maps` and `more_scarabs` are close to flat on their own.
-  On 1696 usable listings, held-out R² lands around 0.66 with a median error of
-  ~13 chaos against a 45-chaos median price. Predictions are a good ballpark,
-  not a quote — the comparable listings shown beside every estimate are doing
-  genuine work, not decoration.
+  On the 9,085 listings the shipped model is fitted to, held-out R² lands around
+  0.58 on a chronological split with a median error of ~24 chaos. Predictions
+  are a good ballpark, not a quote — the comparable listings shown beside every
+  estimate are doing genuine work, not decoration.
 
 - **The model is constrained so that more reward can never mean a lower price.**
   All seven reward features are monotonically non-decreasing, enforced in every
@@ -1207,9 +1465,18 @@ Read this part.
 - **Single league, single tier at a time.** Both are config values, not
   hardcoded, but a model is trained for one scope.
 
+- **Your own sale times are bracketed, not observed.** The listing tracker (§12)
+  only polls while the app is open, so a map that sold overnight is known to
+  have sold somewhere inside a nine-hour window. The censored fit handles that
+  honestly rather than guessing a midpoint, but it means the clearing-speed
+  numbers get sharper the more you leave the app running, and the personal
+  calibration factor refuses to produce anything at all until 20 sales have
+  resolved. It is also the only number here fitted on outcomes rather than
+  asks — which is exactly why it is clamped and why it says when it clamped.
+
 ---
 
-## 13. GGG and API compliance
+## 14. GGG and API compliance
 
 - All market data comes from GGG's own endpoints, unauthenticated, at a
   self-limiting rate driven by the rate-limit policy GGG returns in its own
@@ -1231,7 +1498,7 @@ are in **[docs/data-access.md](docs/data-access.md)**.
 
 ---
 
-## 14. Project layout
+## 15. Project layout
 
 ```
 app.py                     Streamlit entry point
@@ -1250,6 +1517,9 @@ src/
                            affix_catalogue -- per-affix reward contributions
   pricing/                 currency, sell_strategy, fair_value, exalt
                            market_comparison -- live mode wired to PricedMap
+  tracking/                your own listings: reconcile (poll -> events),
+                           censoring + survival -- bracketed sale times, fitted
+                           honestly; reprice, alerts, calibration, poller
   overlay/                 the desktop overlay: state (the JSON contract),
                            calibration, layout -- and window, the only module
                            that imports tkinter
@@ -1263,7 +1533,7 @@ docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     671 tests, including live-render checks of every page
+tests/                     937 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
@@ -1276,9 +1546,10 @@ The interface has one rule, and it is the reason it looks the way it does.
 verdict. Everything structural is slate and brass.** Nav, borders, buttons,
 labels, rules, the active tab -- none of them are allowed a signal colour.
 
-It is not decoration, it is legibility. The stash grid already spends four
-colours on percentile bands and a fifth on the exalt ring, and those five are
-the whole point of the page. Streamlit's default red primary button, its blue
+It is not decoration, it is legibility. The stash grid already spends six
+colours on value bands -- slate, teal, green, amber, rust, magenta, plus a
+near-black for anything under 30c -- and one more on the exalt ring, and those
+are the whole point of the page. Streamlit's default red primary button, its blue
 charts and its pastel alert blocks added three more hues that meant nothing, and
 they were the brightest things on screen. Demoting the accent to a muted brass
 is what lets a purple tile read as "this map is worth something" at a glance.
@@ -1291,7 +1562,7 @@ Three consequences worth knowing before editing a page:
   "26 maps found | 25 priceable | 1 unsupported | ..." in one grey line; every
   figure in it was worth reading and none could be found.
 - **A single-series chart uses `CHART_SERIES`**, which is deliberately none of
-  the five band colours -- a histogram of every listing is not a percentile band
+  the band colours -- a histogram of every listing is not a percentile band
   and must not claim to be one.
 
 `.streamlit/config.toml` carries the same palette, so the parts of Streamlit
@@ -1299,7 +1570,7 @@ that CSS cannot reach start from the same ground.
 
 ---
 
-## 15. Tests
+## 16. Tests
 
 ```bash
 python -m pytest

@@ -198,8 +198,25 @@ The position taken here:
 - keep the whole thing behind `MarketCollector`, so the app remains fully
   functional on manual imports alone if this path ever becomes inappropriate.
 
-**Not done, deliberately:** no continuous background polling, no distributed
-collection, no attempt to enumerate the full 10,000-result cap on every query.
+**Not done, deliberately:** no distributed collection, no attempt to enumerate
+the full 10,000-result cap on every query.
+
+**Polling, changed 2026-08-28.** This section previously also said "no
+continuous background polling". That is no longer true, and the change is worth
+stating plainly rather than quietly dropping the line.
+
+The listing tracker (`src/tracking/`) polls **one account-scoped query — your
+own listings — while the app is open**: `POST /api/trade/search` with
+`trade_filters.account` set to your account name, then one fetch per ten
+results. On a fifteen-minute cadence with forty maps listed that is about twenty
+requests an hour, against a search policy whose binding rule is thirty per five
+minutes. Listings under an hour old are polled every five minutes instead,
+because that is where the information is; older ones are not.
+
+What has not changed: the cadence is driven by GGG's own response headers
+through the same `RateLimiter`, a 429 is backed off rather than retried, the
+client is identified honestly, and nothing about any other account is collected
+or stored. Nothing polls with the app closed.
 
 ---
 

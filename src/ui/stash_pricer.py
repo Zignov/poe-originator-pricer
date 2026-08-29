@@ -22,12 +22,13 @@ from src.overlay.state import (
     SOURCE_MANUAL,
     SOURCE_STASH,
     OverlaySource,
+    free_affix_slots,
     state_from_priced,
     state_path_for,
     write_state,
 )
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
-from src.stash.base import StashSource
+from src.stash.base import StashSource, grid_size_for
 from src.stash.clipboard_import import ClipboardStashSource
 from src.stash.highlight_regex import build_highlight_batches
 from src.stash.json_import import JsonStashSource, parse_csv
@@ -88,6 +89,28 @@ class SourcePlan:
     #: read your inventory, which is exactly how the inventory source came to
     #: look like it had no button at all.
     label: str = "Analyze"
+    #: The tabs this plan would read, when the source has any. Carried so the
+    #: grid can be drawn at the tab's real size: a character inventory is 12x5,
+    #: and padding it out to a stash tab's 12x12 puts seven empty rows under
+    #: your backpack and reads as "the overlay has not loaded the rest yet".
+    tabs: list | None = None
+
+
+def _grid_for(tabs, items) -> tuple[int, int] | None:
+    """The grid to draw for these tabs, or None to let the renderer guess.
+
+    `grid_size_for` already answers this per tab -- it prefers the size GGG
+    reported, falls back to quad detection, and only then looks at where the
+    items sit. It had no caller in `src/` until now, which is why a 12x5
+    character inventory was being drawn as a 12x12 stash tab.
+
+    Several tabs analysed together are drawn on one board, so the answer is the
+    largest of them; a quad tab beside a normal one has to fit both.
+    """
+    if not tabs:
+        return None
+    sizes = [grid_size_for(tab, items or []) for tab in tabs]
+    return max(w for w, _ in sizes), max(h for _, h in sizes)
 
 
 def render() -> None:
@@ -157,6 +180,11 @@ def render() -> None:
         # stash overlay is the sort of default that gets prices drawn in the
         # wrong half of the screen.
         st.session_state["stash_source_key"] = source_key
+        # Sized from the tab rather than from where the maps happen to sit: an
+        # inventory with nothing below row two is still five rows tall, and
+        # guessing from the contents would redraw the grid a different size
+        # every time a map moved.
+        st.session_state["stash_grid"] = _grid_for(plan.tabs, items)
         # The expander's label and open state were decided at the top of this
         # run, before these items existed, so without a second pass the picker
         # stays open saying "choose a source" over a tab it has already loaded.
@@ -232,7 +260,7 @@ def render() -> None:
     # a quarter of a second twice over for the same answers.
     verdicts = {id(p): verdict_for(p.item) for p in supported}
     exaltable = sum(
-        1 for p in supported if (v := verdicts[id(p)]) and v.available and v.worth_it
+        1 for p in supported if (v := verdicts[id(p)]) and v.worth_it
     )
     stat_rail(
         [
@@ -264,7 +292,13 @@ def render() -> None:
             "means an Exalted Orb pays for itself; a dashed one means it does "
             "not. Hover a tile for fair value and the reasoning."
         )
-        render_grid(priced, fmt, verdicts=verdicts)
+        grid = st.session_state.get("stash_grid")
+        render_grid(
+            priced,
+            fmt,
+            verdicts=verdicts,
+            **({"width": grid[0], "height": grid[1]} if grid else {}),
+        )
 
     with table_col:
         section("Maps", f"{len(visible)} shown")
@@ -426,7 +460,7 @@ def _from_session(cfg):
                 st.error(str(exc))
                 return None
 
-    return SourcePlan(run=run)
+    return SourcePlan(run=run, tabs=chosen)
 
 
 def _from_inventory(cfg):
@@ -498,7 +532,7 @@ def _from_inventory(cfg):
             return None
         return items
 
-    return SourcePlan(run=run, label=READ_INVENTORY)
+    return SourcePlan(run=run, label=READ_INVENTORY, tabs=[chosen])
 
 
 def _from_json(cfg):
@@ -1532,11 +1566,21 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
     # stash overlay draws it in the wrong half of the screen and looks, from the
     # game, exactly like a miscalibration.
     profiles = [STASH_PROFILE, INVENTORY_PROFILE]
-    default_index = 1 if st.session_state.get("stash_source_key") == "inventory" else 0
+    wanted = INVENTORY_PROFILE if st.session_state.get("stash_source_key") == "inventory" else STASH_PROFILE
+    # Written into session state rather than passed as `index=`, because
+    # Streamlit ignores `index` once the widget's key already holds a value.
+    # Open this panel on a stash read, then switch the source to the inventory,
+    # and the radio stayed on "Stash tab" while the caption above it said the
+    # maps came from a backpack -- so "Send to the stash overlay" wrote the
+    # inventory's maps into the stash state file at 12x12 and painted them over
+    # the wrong half of the screen. Only follow the source when it has actually
+    # changed, so a deliberate override survives the next rerun.
+    if st.session_state.get("overlay_profile_source") != st.session_state.get("stash_source_key"):
+        st.session_state["overlay_profile_source"] = st.session_state.get("stash_source_key")
+        st.session_state["overlay_profile"] = wanted
     profile = st.radio(
         "Draw over",
         profiles,
-        index=default_index,
         format_func=lambda p: p.label,
         horizontal=True,
         key="overlay_profile",
@@ -1563,6 +1607,11 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
     columns = st.columns([1.1, 1, 2])
     if columns[0].button(f"Send to the {profile.label.lower()} overlay", type="primary"):
         tab_names = sorted({p.item.stash_tab_name for p in positioned if p.item.stash_tab_name})
+        # Read here rather than off the verdicts, which only exist for the
+        # priceable maps and only on a machine with a trained model. The free
+        # slots need neither, and the overlay's dots have to match the browser's
+        # on the same tab -- so both read them through `affixes_for`.
+        open_affixes = {id(p): free_affix_slots(affixes_for(p.item)) for p in priced}
         path = write_state(
             state_from_priced(
                 priced,
@@ -1572,6 +1621,7 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
                 league=cfg.get("league"),
                 tab_names=tab_names,
                 verdicts=verdicts,
+                open_affixes=open_affixes,
                 source=source,
             ),
             state_path_for(profile),

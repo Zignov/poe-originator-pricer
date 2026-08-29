@@ -8,6 +8,7 @@ import streamlit as st
 from src.config import Config, load_config
 from src.database.repository import PRICING_COLUMNS, Repository
 from src.market.ingest import converter_for
+from src.market.seed import seed_bundled_sample
 from src.ml.affix_catalogue import CATALOGUE_NAME, AffixCatalogue
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.pricing.currency import CurrencyConverter
@@ -22,11 +23,12 @@ from src.ui.palette import VALUE_COLOURS, confidence_fill  # noqa: F401
 
 #: The colour for a chart that carries one series and therefore no bands.
 #:
-#: Deliberately none of the five in VALUE_COLOURS. A histogram of every listing
-#: is not a percentile band, and painting it in the "high" amber or the "very
-#: high" purple would say it was one. Streamlit's default chart blue was worse
-#: still: it is the one hue on the page that means nothing at all, and it sat
-#: next to four that mean something specific.
+#: Deliberately none of the band colours. A histogram of every listing is not a
+#: percentile band, and painting it in the "high" amber or the "exceptional"
+#: magenta would say it was one. It is a lighter, bluer grey than the "low"
+#: slate for the same reason. Streamlit's default chart blue was worse still: it
+#: is the one hue on the page that means nothing at all, and it sat next to
+#: several that mean something specific.
 CHART_SERIES = "#6d8fb0"
 
 CSS = """
@@ -193,17 +195,17 @@ h3, [data-testid="stHeading"] h3 { font-size: 1.06rem; }
    arguing over one selection. Keyed on position, so the order in app.py's PAGES
    and these three selectors have to move together. */
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1),
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4),
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6) {
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5),
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7) {
   position: relative; margin-top: 1.45rem;
 }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1) { margin-top: .35rem; }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before { content: "Price"; }
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before { content: "Market"; }
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before { content: "Tool"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5)::before { content: "Market"; }
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7)::before { content: "Tool"; }
 [data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(1)::before,
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(4)::before,
-[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(6)::before {
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(5)::before,
+[data-testid="stSidebar"] [role="radiogroup"] > *:nth-child(7)::before {
   position: absolute; top: -1.02rem; left: .62rem;
   font-family: var(--font-display); font-size: .62rem; font-weight: 500;
   text-transform: uppercase; letter-spacing: .2em; color: var(--ink-faint);
@@ -368,13 +370,21 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
   color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
   position: relative;
 }
+/* Below the negligible threshold. The near-black fill alone is not enough --
+   a white price on it is the brightest thing in the tab -- so the label drops
+   to a dim grey and the inset hairline almost off, leaving a tile the eye can
+   still find when it looks for it and skips when it does not. Not hidden
+   outright: the map is there, and a hole in the grid reads as a bug. */
+.stash-cell.filled.negligible {
+  color: #5b626d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+}
 /* The confidence meter. Absolutely positioned -- hence the positioning context
    on .filled above -- so it takes no part in the flex centring: the price stays
    in the middle of the cell whether or not there is a meter under it, which
    keeps a tab of mixed-confidence maps from looking like the numbers are
    jittering up and down. The track is opaque rather than a translucent white so
-   that the same score looks the same length and the same weight on all four
-   value bands. Inset 4px to clear the exalt outline. */
+   that the same score looks the same length and the same weight on every
+   value band. Inset 4px to clear the exalt outline. */
 .conf-meter {
   position: absolute; left: 4px; right: 4px; bottom: 4px; height: 4px;
   border-radius: 2px; background: #15181d; overflow: hidden;
@@ -385,7 +395,7 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
   margin-right: .35rem; vertical-align: 1px;
 }
 /* Exalt state. Cyan appears nowhere in VALUE_COLOURS, so the ring stays legible
-   on all four value backgrounds; solid vs dashed carries the same meaning again
+   on every value background; solid vs dashed carries the same meaning again
    for anyone who cannot separate the two colours. Drawn with outline rather than
    border so tile size and grid alignment are untouched. */
 .stash-cell.exalt-worth { outline: 2px solid var(--cyan); outline-offset: -2px; }
@@ -450,13 +460,17 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
   border-radius: 6px; background: var(--panel-lift); border: 1px solid var(--rule);
   color: var(--ink);
 }
-.exalt-yes, .exalt-no, .warn, .callout {
+.exalt-yes, .exalt-no, .exalt-unknown, .warn, .callout {
   padding: .6rem .85rem; border-radius: 6px; font-size: .85rem;
   border: 1px solid var(--rule); border-left-width: 3px; background: var(--panel);
   margin: .3rem 0 .7rem; color: var(--ink);
 }
 .exalt-yes { border-left-color: #4a9d74; }
 .exalt-no  { border-left-color: var(--ink-faint); color: var(--ink-dim); }
+/* A third answer, not a quieter "no": the model declined to judge this map at
+   all. Brass rather than either verdict colour, so it cannot be misread as a
+   recommendation in either direction. */
+.exalt-unknown { border-left-color: var(--brass); color: var(--ink-dim); }
 .warn      { border-left-color: var(--brass); }
 .callout   { border-left-color: var(--cyan); }
 
@@ -503,7 +517,15 @@ def get_config() -> Config:
 def get_repo() -> Repository:
     """One repository per Streamlit session. SQLite connections are not thread-safe."""
     if "repo" not in st.session_state:
-        st.session_state["repo"] = Repository(get_config().db_path)
+        cfg = get_config()
+        repo = Repository(cfg.db_path)
+        # First run of a download, and again after an upgrade ships a newer
+        # sample: load the market the bundled model was trained on, so that
+        # collecting adds to a dataset rather than starting one. Every other
+        # session finds the fingerprint already stored and returns immediately.
+        # See src/market/seed.py.
+        seed_bundled_sample(cfg, repo)
+        st.session_state["repo"] = repo
     return st.session_state["repo"]
 
 
@@ -665,7 +687,9 @@ def latest_capture(version: int):
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
-def _multipliers(data_ver: int, model_stamp: int, divine_to_chaos: float):
+def _multipliers(
+    data_ver: int, model_stamp: int, divine_to_chaos: float, tracking_ver: int
+):
     """The expensive half of PricingService.build, on its own cache key.
 
     observed_multipliers() scores every recent in-scope listing with the model
@@ -673,13 +697,47 @@ def _multipliers(data_ver: int, model_stamp: int, divine_to_chaos: float):
     (data_ver), the model (model_stamp) and the chaos/divine rate that both are
     expressed in -- and on nothing else the user can touch, so it does not need
     recomputing when they open a tab.
+
+    `tracking_ver` is the fourth key because the personal calibration is applied
+    here, and it moves when the poller records something. The poller runs on a
+    background thread and must not touch session state, so unlike data_ver that
+    marker is read from the database.
+
+    This is the one place strategy multipliers are built for the app, which is
+    why the calibration is attached here: every page reaches prices through
+    get_service(), so there is no surface where the factor could apply on one
+    screen and not another.
     """
+    import os
+    from datetime import datetime, timezone
+
+    from src.tracking.calibration import CalibrationConfig, apply_calibration
+    from src.tracking.history import calibration_for_account
+
     cfg = get_config()
     base = multipliers_from_config(cfg.get("pricing.strategies", {}))
     predictor, _ = get_predictor()
     if predictor is None:
         return base
-    return observed_multipliers(cfg, get_repo(), predictor, base)
+    observed = observed_multipliers(cfg, get_repo(), predictor, base)
+
+    calibration = calibration_for_account(
+        get_repo(),
+        os.getenv("POE_ACCOUNT_NAME", "").strip(),
+        cfg.get("league"),
+        predictor.version,
+        CalibrationConfig(
+            min_sold=int(cfg.get("listing_tracker.calibration.min_sold") or 20),
+            clamp=tuple(cfg.get("listing_tracker.calibration.clamp") or (0.8, 1.3)),
+        ),
+        datetime.now(timezone.utc),
+    )
+    return apply_calibration(
+        observed,
+        calibration,
+        enabled=bool(cfg.get("listing_tracker.calibration.enabled", True)),
+        active_model_version=predictor.version,
+    )
 
 
 def get_service(require_model: bool = False) -> tuple[PricingService | None, str]:
@@ -701,6 +759,7 @@ def get_service(require_model: bool = False) -> tuple[PricingService | None, str
             data_version(),
             st.session_state.get("model_reload", 0),
             converter.divine_to_chaos,
+            repo.tracking_version(),
         ),
         get_formatter(cfg, converter),
     )
@@ -838,6 +897,20 @@ def sidebar_context() -> None:
         ("Flagged", f'<span class="v">{counts["outliers"]:,}</span>'),
         ("Model", model),
     ]
+    # Only shown when it is actually in force. A suggested price that has been
+    # scaled by your own sale history must say so wherever it appears, and this
+    # block is already the answer to "relative to what?" -- but a permanent
+    # "x1.00" row would be noise on every page for everyone who has no history.
+    personal = _multipliers(
+        data_version(),
+        st.session_state.get("model_reload", 0),
+        converter.divine_to_chaos,
+        repo.tracking_version(),
+    ).personal
+    if abs(personal - 1.0) > 1e-9:
+        rows.append(
+            ("Your prices", f'<span class="v ok">&times;{personal:.2f}</span>')
+        )
     body = "".join(
         f'<div class="row"><span class="k">{k}</span>{v}</div>' for k, v in rows
     )

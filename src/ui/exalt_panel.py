@@ -11,9 +11,9 @@ import streamlit as st
 
 from src.parsing.affixes import AffixSet, extract_affixes
 from src.pricing.display import PriceFormatter
-from src.pricing.exalt import ExaltVerdict, evaluate_exalt
+from src.pricing.exalt import ExaltPolicy, ExaltVerdict, evaluate_exalt
 from src.schema import NormalizedMap
-from src.ui.common import get_catalogue, get_exalt_cost, get_predictor
+from src.ui.common import get_catalogue, get_config, get_exalt_cost, get_predictor
 
 
 def affixes_for(item: NormalizedMap) -> AffixSet:
@@ -46,6 +46,7 @@ def verdict_for(item: NormalizedMap, divine_to_chaos: float | None = None) -> Ex
         predictor,
         cost_chaos=get_exalt_cost(),
         divine_to_chaos=divine_to_chaos,
+        policy=ExaltPolicy.from_config(get_config()),
     )
 
 
@@ -54,41 +55,42 @@ def render_verdict(verdict: ExaltVerdict, fmt: PriceFormatter) -> None:
     st.markdown("**Exalting this map**")
 
     if not verdict.available:
-        label = verdict.affix_label
-        st.caption(f"{label} — {verdict.reason}.")
+        headline, why = verdict.headline()
+        st.caption(f"{verdict.affix_label} — {verdict.reason}.")
+        # Amber rather than the yes/no colours: "we will not judge this" is a
+        # third answer, and dressing it as a refusal would read as "no".
+        st.markdown(
+            f'<div class="exalt-unknown"><b>{headline}</b> {why}</div>',
+            unsafe_allow_html=True,
+        )
         return
 
     affixes = verdict.affixes
-    headline = (
-        f"{affixes.label()}  ·  {verdict.slot_label()}  ·  "
-        f"orb costs {fmt.format(verdict.cost_chaos)}"
+    st.caption(
+        f"{affixes.label()}  ·  {verdict.slot_label()}  ·  {verdict.cost_label()}"
     )
-    st.caption(headline)
 
-    if verdict.worth_it:
-        st.markdown(
-            f'<div class="exalt-yes"><b>Worth exalting.</b> Expected '
-            f"{fmt.format(verdict.expected_value_chaos)} after, a net gain of "
-            f"<b>{fmt.format(verdict.net_gain_chaos)}</b> once the orb is paid for."
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f'<div class="exalt-no"><b>Not worth the orb.</b> Expected gain '
-            f"{fmt.format(verdict.expected_gain_chaos)} against a "
-            f"{fmt.format(verdict.cost_chaos)} orb."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    headline, why = verdict.headline()
+    css = "exalt-yes" if verdict.worth_it else "exalt-no"
+    st.markdown(
+        f'<div class="{css}"><b>{headline}</b> {why}</div>', unsafe_allow_html=True
+    )
 
+    # Deliberately drawn whether the verdict passed or failed. A rejection is
+    # exactly the case where the range and the odds are worth reading, and the
+    # panel used to show *less* on the maps it had just told you not to touch.
     left, right = st.columns(2)
     with left:
         st.markdown(
             f"**Likely range:** {fmt.format(verdict.low_gain_chaos)} to "
             f"{fmt.format(verdict.high_gain_chaos)} gain  \n"
-            f"**Chance it beats the orb:** {verdict.chance_of_profit:.0%}  \n"
-            f"**Outcomes considered:** {len(verdict.outcomes)}"
+            f"**Chance it beats the cost:** {verdict.chance_of_profit:.0%}  \n"
+            f"**Bar to clear:** {fmt.format(verdict.required_gain_chaos)} net"
+            + (
+                f"  \n**Model can resolve:** ±{fmt.format(verdict.resolution_chaos)}"
+                if verdict.resolution_chaos
+                else ""
+            )
         )
     with right:
         st.markdown(
@@ -98,7 +100,20 @@ def render_verdict(verdict: ExaltVerdict, fmt: PriceFormatter) -> None:
             f"{fmt.format(verdict.worst.gain_chaos)}"
         )
 
-    with st.expander(f"Every affix that could roll ({len(verdict.outcomes)})"):
+    if verdict.sampled:
+        st.caption(
+            f"The verdict above prices all {verdict.orbs} slots, over "
+            f"{verdict.sample_count} sampled fills -- enumerating every "
+            "combination of that many affixes is out of reach. The table below "
+            "is the next orb alone, and is exact."
+        )
+
+    label = (
+        "What the next orb alone could roll"
+        if verdict.orbs > 1
+        else "Every affix that could roll"
+    )
+    with st.expander(f"{label} ({len(verdict.outcomes)})"):
         frame = pd.DataFrame(
             [
                 {

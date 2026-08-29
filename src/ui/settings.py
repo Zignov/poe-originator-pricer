@@ -14,6 +14,7 @@ from src.ui.common import (
     flash,
     get_config,
     get_exalt_cost,
+    get_predictor,
     get_repo,
     invalidate_data,
     invalidate_model_cache,
@@ -117,6 +118,35 @@ def _credential_buttons() -> None:
         "persist -- it does not encrypt it. POESESSID expires on its own; when GGG "
         "starts answering 403, paste a fresh one."
     )
+
+
+def _calibration_status(cfg) -> str:
+    """What the personal factor currently reads, refusals included."""
+    import os
+    from datetime import datetime, timezone
+
+    from src.tracking.calibration import CalibrationConfig
+    from src.tracking.history import calibration_for_account
+    from src.ui.my_listings import calibration_note
+
+    predictor, _ = get_predictor()
+    if predictor is None:
+        return "No model is trained, so there is nothing to calibrate against yet."
+    try:
+        calibration = calibration_for_account(
+            get_repo(),
+            os.getenv("POE_ACCOUNT_NAME", "").strip(),
+            cfg.get("league"),
+            predictor.version,
+            CalibrationConfig(
+                min_sold=int(cfg.get("listing_tracker.calibration.min_sold") or 20),
+                clamp=tuple(cfg.get("listing_tracker.calibration.clamp") or (0.8, 1.3)),
+            ),
+            datetime.now(timezone.utc),
+        )
+    except Exception as exc:  # noqa: BLE001 - a settings caption must never blank the page
+        return f"Could not read your listing history: {exc}"
+    return calibration_note(calibration)
 
 
 def render() -> None:
@@ -255,10 +285,32 @@ def render() -> None:
             value=cfg.get("http.user_agent_contact", ""),
         )
         st.caption("GGG asks automated clients to identify themselves with a real address.")
+
+        st.divider()
+        track = st.checkbox(
+            "Watch my own listings while the app is open",
+            value=bool(cfg.get("listing_tracker.enabled", False)),
+        )
+        st.caption(
+            "One trade search for your own account every 5-15 minutes, so My "
+            "Listings can show what has not sold. Needs your account name above."
+        )
+        calibrate = st.checkbox(
+            "Let my own sales adjust suggested prices",
+            value=bool(cfg.get("listing_tracker.calibration.enabled", True)),
+        )
+        # The number this switch controls is the only one in the app that moves
+        # prices for reasons not present in the market data, so the current
+        # reading is printed next to it -- including the refusals. Turning it off
+        # should be an informed choice, not a guess about what it is doing.
+        st.caption(_calibration_status(cfg))
+
         if st.button("Apply", key="apply_market"):
             cfg.set("market.max_age_days", float(max_age))
             cfg.set("http.min_request_interval_seconds", float(interval))
             cfg.set("http.user_agent_contact", contact)
+            cfg.set("listing_tracker.enabled", bool(track))
+            cfg.set("listing_tracker.calibration.enabled", bool(calibrate))
             st.success("Applied for this session.")
 
     with model_tab:
@@ -292,14 +344,9 @@ def render() -> None:
             "Search recency-weight schedules",
             help="Tries several age-weighting schedules and keeps the best on validation.",
         )
-        retrain_hours = st.number_input(
-            "Retraining interval (hours)", 1, 240, int(cfg.get("model.retrain_interval_hours", 24))
-        )
-
         if st.button("Retrain model", type="primary"):
             cfg.set("model.backends", chosen)
             cfg.set("model.target", target)
-            cfg.set("model.retrain_interval_hours", int(retrain_hours))
             log_area = st.empty()
             lines: list[str] = []
 

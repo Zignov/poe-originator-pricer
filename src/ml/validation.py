@@ -82,11 +82,24 @@ def grouped_split(
         empty = frame.index[:0]
         return empty, empty, empty
 
-    keys = (
-        frame[group_column].fillna("<unknown>")
-        if group_column in frame.columns
-        else pd.Series(frame.index.astype(str), index=frame.index)
-    )
+    if group_column in frame.columns:
+        keys = frame[group_column]
+        # An unrecorded seller means the identity is unknown, not that the rows
+        # share one. Collapsing them into a single "<unknown>" group is the
+        # difference between a working split and no split at all on an
+        # anonymised import: the bundled sample has its seller column blanked,
+        # so all ~4,100 of its rows became one group, went to whichever side the
+        # shuffle sent it, and left validation with a handful of rows and an
+        # R2 of nan. Blank and missing both get a key of their own here, which
+        # is the honest reading and the one that keeps the slices usable.
+        # `.fillna` alone does not do it -- an anonymised export writes an empty
+        # string, which is not null.
+        anonymous = keys.isna() | (keys.astype("string").fillna("").str.strip() == "")
+        keys = keys.astype("string").mask(
+            anonymous, pd.Series(frame.index.astype(str), index=frame.index)
+        )
+    else:
+        keys = pd.Series(frame.index.astype(str), index=frame.index)
 
     # Too few distinct groups and the split degenerates -- with one group,
     # everything lands on one side and training gets nothing. Fall back to a

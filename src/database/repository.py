@@ -63,6 +63,26 @@ class Repository:
         self.db_path = Path(db_path)
         self.conn: sqlite3.Connection = init_db(self.db_path)
 
+    @classmethod
+    def read_only(cls, db_path: str | Path) -> "Repository":
+        """Open an existing database without migrating it or writing to it.
+
+        For the jobs that only read: exporting a dataset, inspecting one, or
+        reading a database that another process has open. The normal
+        constructor runs `init_db`, which creates the file if it is missing and
+        applies migrations -- neither of which belongs in a script whose whole
+        purpose is to look. SQLite enforces the read-only part itself, so a
+        stray write raises instead of quietly landing in someone's live data.
+        """
+        path = Path(db_path)
+        if not path.exists():
+            raise FileNotFoundError(path)
+        repo = cls.__new__(cls)
+        repo.db_path = path
+        repo.conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        repo.conn.row_factory = sqlite3.Row
+        return repo
+
     def close(self) -> None:
         self.conn.close()
 
@@ -75,6 +95,41 @@ class Repository:
     # ------------------------------------------------------------------
     # Market listings
     # ------------------------------------------------------------------
+    def listing_ids_seen_since(
+        self, listing_ids: Sequence[str], since: datetime
+    ) -> set[str]:
+        """Which of these ids are stored and were last seen at or after `since`.
+
+        The filter in front of the expensive call. A trade search returns 100
+        ids for one request and a fetch costs one request per ten, so re-reading
+        a listing already in the database is ten times the price of noticing
+        that it is.
+
+        `since` rather than "is it stored at all", because a re-read is not pure
+        waste: a seller who marks a map down republishes real information, and
+        an id never re-read again would freeze at its first asking price. The
+        window is the trade-off -- long enough that a scan does not keep paying
+        for the same rows, short enough that a markdown is picked up on the next
+        pass rather than never.
+        """
+        ids = [i for i in listing_ids if i]
+        if not ids:
+            return set()
+        cutoff = since.astimezone(timezone.utc).isoformat()
+        found: set[str] = set()
+        # Chunked because SQLite caps host parameters (999 by default) and a
+        # caller is free to hand over more ids than that.
+        for start in range(0, len(ids), 400):
+            chunk = ids[start : start + 400]
+            placeholders = ",".join("?" * len(chunk))
+            rows = self.conn.execute(
+                f"SELECT listing_id FROM originator_listings "
+                f"WHERE listing_id IN ({placeholders}) AND last_seen >= ?",
+                (*chunk, cutoff),
+            ).fetchall()
+            found.update(r["listing_id"] for r in rows)
+        return found
+
     def upsert_listings(self, listings: Iterable[MarketListing]) -> dict[str, int]:
         """Insert new listings, refresh last_seen on ones already stored.
 
@@ -153,6 +208,23 @@ class Repository:
             inserted += 1
         self.conn.commit()
         return {"inserted": inserted, "updated": updated}
+
+    def delete_listings_by_source(self, source: str, league: str | None = None) -> int:
+        """Remove every listing that arrived from one named source.
+
+        Narrow on purpose. The only caller is the first-run seed replacing its
+        own bundled sample with a newer one (`src/market/seed.py`), and the
+        source label is what keeps that from reaching a single row the user
+        collected or imported themselves.
+        """
+        sql = "DELETE FROM originator_listings WHERE source = ?"
+        params: list[Any] = [source]
+        if league:
+            sql += " AND league = ?"
+            params.append(league)
+        removed = self.conn.execute(sql, params).rowcount
+        self.conn.commit()
+        return removed
 
     def listing_rows(
         self,
@@ -522,3 +594,249 @@ class Repository:
             "ORDER BY id ASC",
             (snapshot_id,),
         ).fetchall()
+
+    # ------------------------------------------------------------------
+    # Listing tracker
+    # ------------------------------------------------------------------
+    def _tracked_row(self, row: sqlite3.Row) -> "TrackedRow":
+        from src.tracking.reconcile import TrackedRow
+
+        return TrackedRow(
+            id=row["id"],
+            trade_listing_id=row["trade_listing_id"],
+            fingerprint=row["fingerprint"],
+            price_chaos=row["price_chaos"],
+            priced_at=_parse_iso(row["priced_at"]),
+            first_seen=_parse_iso(row["first_seen"]),
+            last_seen=_parse_iso(row["last_seen"]),
+            status=row["status"],
+            gone_first_missing=_parse_iso(row["gone_first_missing"]),
+            ambiguous=bool(row["ambiguous"]),
+            exclude_from_learning=bool(row["exclude_from_learning"]),
+        )
+
+    def tracking_version(self) -> int:
+        """Highest event id, as a cheap "has anything been polled since?" stamp.
+
+        The multiplier cache is keyed on this. Listing writes bump a session
+        counter, but the poller runs on a background thread and must not touch
+        Streamlit state, so the marker has to live in the database.
+        """
+        row = self.conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM tracked_listing_events"
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+    def live_tracked_rows(self, account: str, league: str) -> list["TrackedRow"]:
+        rows = self.conn.execute(
+            "SELECT * FROM tracked_listings WHERE account = ? AND league = ? "
+            "AND status = 'live' ORDER BY priced_at",
+            (account, league),
+        ).fetchall()
+        return [self._tracked_row(r) for r in rows]
+
+    def recent_gone_rows(
+        self, account: str, league: str, since: datetime
+    ) -> list["TrackedRow"]:
+        rows = self.conn.execute(
+            "SELECT * FROM tracked_listings WHERE account = ? AND league = ? "
+            "AND status = 'gone' AND gone_first_missing >= ? "
+            "ORDER BY gone_first_missing DESC",
+            (account, league, _iso(since)),
+        ).fetchall()
+        return [self._tracked_row(r) for r in rows]
+
+    @staticmethod
+    def _tracked_insert_params(account: str, league: str, row) -> tuple:
+        item = row.listing.item if row.listing else None
+        listing = row.listing
+        # listing.stash is where GGG says the item physically is. It rides in
+        # raw_data because MarketListing has no field for it -- it is of no
+        # interest to the market collector, and of every interest here, because
+        # it is what lets the overlay draw on a listed map without a stash read.
+        raw = getattr(listing, "raw_data", {}) or {}
+        stash = (raw.get("listing") or {}).get("stash") or {}
+        return (
+            account,
+            league,
+            row.trade_listing_id,
+            row.fingerprint,
+            getattr(item, "name", None),
+            getattr(item, "base_type", None),
+            getattr(item, "map_tier", None),
+            getattr(item, "item_level", None),
+            int(getattr(item, "corrupted", False) or False),
+            getattr(item, "quantity", 0),
+            getattr(item, "rarity", 0),
+            getattr(item, "pack_size", 0),
+            getattr(item, "more_currency", 0),
+            getattr(item, "more_maps", 0),
+            getattr(item, "more_scarabs", 0),
+            getattr(item, "more_divination_cards", 0),
+            getattr(listing, "price_amount", None),
+            getattr(listing, "price_currency", None),
+            row.price_chaos,
+            getattr(listing, "price_type", None),
+            stash.get("name") or None,
+            stash.get("x"),
+            stash.get("y"),
+            _iso(getattr(listing, "indexed_at", None)),
+            _iso(row.priced_at),
+            _iso(row.first_seen),
+            _iso(row.last_seen),
+            "live",
+            int(row.ambiguous),
+            json.dumps(raw),
+        )
+
+    def apply_reconciliation(self, account: str, league: str, result) -> dict[str, int]:
+        """Write one reconciled poll: rows first, then the events that explain them.
+
+        Events carry a listing id, so a freshly inserted row has to exist before
+        its own `appeared` event can point at it. Hence two passes rather than
+        one, and a fingerprint-to-id map to bridge them.
+        """
+        inserted = updated = 0
+        by_fingerprint: dict[str, int] = {}
+
+        for row in result.live:
+            if row.id is None:
+                cur = self.conn.execute(
+                    "INSERT INTO tracked_listings (account, league, trade_listing_id, "
+                    "fingerprint, name, base_type, map_tier, item_level, corrupted, "
+                    "quantity, rarity, pack_size, more_currency, more_maps, "
+                    "more_scarabs, more_divination_cards, price_amount, "
+                    "price_currency, price_chaos, price_type, stash_name, stash_x, "
+                    "stash_y, indexed_at, priced_at, first_seen, last_seen, status, "
+                    "ambiguous, raw_data) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    self._tracked_insert_params(account, league, row),
+                )
+                by_fingerprint[row.fingerprint] = int(cur.lastrowid)
+                inserted += 1
+            else:
+                self.conn.execute(
+                    "UPDATE tracked_listings SET trade_listing_id = ?, "
+                    "price_amount = ?, price_currency = ?, price_chaos = ?, "
+                    "priced_at = ?, last_seen = ?, status = 'live', "
+                    "gone_first_missing = NULL, ambiguous = ? WHERE id = ?",
+                    (
+                        row.trade_listing_id,
+                        row.listing.price_amount if row.listing else None,
+                        row.listing.price_currency if row.listing else None,
+                        row.price_chaos,
+                        _iso(row.priced_at),
+                        _iso(row.last_seen),
+                        int(row.ambiguous),
+                        row.id,
+                    ),
+                )
+                by_fingerprint[row.fingerprint] = row.id
+                updated += 1
+
+        for row in result.gone:
+            self.conn.execute(
+                "UPDATE tracked_listings SET status = 'gone', gone_first_missing = ? "
+                "WHERE id = ?",
+                (_iso(row.gone_first_missing), row.id),
+            )
+            by_fingerprint[row.fingerprint] = row.id
+
+        for event in result.events:
+            listing_id = event.row_id or by_fingerprint.get(event.fingerprint)
+            if listing_id is None:
+                continue
+            self.conn.execute(
+                "INSERT INTO tracked_listing_events (listing_id, at, event, "
+                "old_price_chaos, new_price_chaos) VALUES (?,?,?,?,?)",
+                (
+                    listing_id,
+                    _iso(event.at),
+                    event.event,
+                    event.old_price_chaos,
+                    event.new_price_chaos,
+                ),
+            )
+
+        self.conn.commit()
+        return {"inserted": inserted, "updated": updated, "gone": len(result.gone)}
+
+    def record_poll_run(
+        self,
+        started_at: datetime,
+        finished_at: datetime | None,
+        league: str,
+        account: str,
+        listings_seen: int,
+        total_reported: int,
+        complete: bool,
+        error: str = "",
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO listing_poll_runs (started_at, finished_at, league, account, "
+            "listings_seen, total_reported, complete, error) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                _iso(started_at),
+                _iso(finished_at),
+                league,
+                account,
+                listings_seen,
+                total_reported,
+                int(complete),
+                error,
+            ),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def last_poll_run(self, account: str, league: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM listing_poll_runs WHERE account = ? AND league = ? "
+            "ORDER BY started_at DESC LIMIT 1",
+            (account, league),
+        ).fetchone()
+
+    def tracked_rows_for_page(
+        self, account: str, league: str, status: str = "live"
+    ) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM tracked_listings WHERE account = ? AND league = ? "
+            "AND status = ? ORDER BY priced_at",
+            (account, league, status),
+        ).fetchall()
+
+    def tracked_events(self, listing_ids: Sequence[int]) -> list[sqlite3.Row]:
+        if not listing_ids:
+            return []
+        marks = ",".join("?" for _ in listing_ids)
+        return self.conn.execute(
+            f"SELECT * FROM tracked_listing_events WHERE listing_id IN ({marks}) "
+            "ORDER BY listing_id, at, id",
+            tuple(listing_ids),
+        ).fetchall()
+
+    def set_exclude_from_learning(self, listing_id: int, excluded: bool) -> None:
+        self.conn.execute(
+            "UPDATE tracked_listings SET exclude_from_learning = ? WHERE id = ?",
+            (int(excluded), listing_id),
+        )
+        self.conn.commit()
+
+    def save_tracked_predictions(self, rows: Sequence[dict[str, Any]]) -> int:
+        """Store the model's number alongside the ask, so the page can compare."""
+        for row in rows:
+            self.conn.execute(
+                "UPDATE tracked_listings SET predicted_chaos = ?, suggested_chaos = ?, "
+                "interval_low_chaos = ?, interval_high_chaos = ?, model_version = ? "
+                "WHERE id = ?",
+                (
+                    row["predicted_chaos"],
+                    row["suggested_chaos"],
+                    row["interval_low_chaos"],
+                    row["interval_high_chaos"],
+                    row["model_version"],
+                    row["id"],
+                ),
+            )
+        self.conn.commit()
+        return len(rows)

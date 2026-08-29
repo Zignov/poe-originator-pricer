@@ -34,8 +34,18 @@ class StrategyMultipliers:
     market: float
     patient: float
     source: str  # "config" or "observed-spread"
+    #: Measured from your own listings: what your maps actually clear at, against
+    #: what the model says they are worth. 1.0 means not applied. It scales the
+    #: *listing price* and never the fair-value estimate -- fair value is a claim
+    #: about the market, this is a claim about your selling, and blurring the two
+    #: would put a personal number where a market number is expected. See
+    #: src/tracking/calibration.py for how it is measured and guarded.
+    personal: float = 1.0
+    personal_source: str = ""
 
     def get(self, strategy: str) -> float:
+        if strategy not in STRATEGIES:
+            raise ValueError(f"unknown strategy {strategy!r}")
         return getattr(self, strategy)
 
     def as_dict(self) -> dict[str, Any]:
@@ -44,6 +54,8 @@ class StrategyMultipliers:
             "market": self.market,
             "patient": self.patient,
             "source": self.source,
+            "personal": self.personal,
+            "personal_source": self.personal_source,
         }
 
 
@@ -114,7 +126,11 @@ def estimate_multipliers(
 def suggested_price(fair_value: float, strategy: str, multipliers: StrategyMultipliers) -> float:
     if strategy not in STRATEGIES:
         raise ValueError(f"unknown strategy {strategy!r}")
-    return fair_value * multipliers.get(strategy)
+    # The personal factor multiplies the listing price, not the fair value it is
+    # derived from. Applying it earlier would move the estimate itself, and the
+    # estimate is supposed to be a statement about the market rather than about
+    # how the person holding the map tends to sell.
+    return fair_value * multipliers.get(strategy) * multipliers.personal
 
 
 def round_for_listing(divine: float) -> float:

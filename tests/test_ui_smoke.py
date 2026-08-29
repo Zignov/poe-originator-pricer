@@ -18,6 +18,7 @@ AppTest = st_testing.AppTest
 PAGES = [
     "Dashboard",
     "Stash Pricer",
+    "My Listings",
     "Single Map",
     "Market Data",
     "Bulk Buy",
@@ -240,6 +241,46 @@ def test_every_priced_tile_carries_a_confidence_meter():
     filled = html.count("stash-cell filled ")
     assert filled, "no filled tiles"
     assert html.count('<span class="conf-meter">') == filled
+
+
+def test_every_tile_says_how_many_affix_slots_it_has_open():
+    """The dots cannot tell "full" from "unreadable"; the tooltip has to.
+
+    Both draw an empty corner, which is safe -- neither invites an Exalted Orb --
+    but it leaves the tile unable to say which it is, so every tile carries the
+    answer in words as well.
+    """
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    html = _grid_html(app)
+    assert html, "no grid rendered"
+    filled = html.count("stash-cell filled ")
+    assert filled, "no filled tiles"
+    assert html.count("Free affix slots:") >= filled
+
+
+def test_the_free_affix_legend_appears_exactly_when_a_badge_does():
+    """A key for a mark nobody can see is one more thing to read past.
+
+    Most stash payloads carry no affix structure at all, so on those tabs every
+    tile is badgeless -- and the legend has to stay away rather than explaining
+    dots that are not there.
+    """
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    html = _grid_html(app)
+    assert html, "no grid rendered"
+    drew_a_badge = 'class="free-affix"' in html
+    explained = any("One dot per affix slot" in str(c.value) for c in app.caption)
+    assert explained == drew_a_badge
 
 
 def test_the_legend_explains_the_confidence_meter():
@@ -495,3 +536,32 @@ def test_the_page_never_offers_cancel_when_nothing_is_running():
     labels = [str(b.label) for b in app.button]
     assert "Cancel run" not in labels, labels
     assert "Price from live listings" in labels, labels
+
+
+def test_the_nav_group_headings_sit_on_the_right_rows():
+    """app.py's PAGES order and common.py's nth-child selectors must agree.
+
+    The group headings are drawn by CSS keyed on position rather than by
+    splitting the picker into three radios, so inserting a page shifts every
+    heading below it. app.py says so in a comment; this makes the comment fail
+    the build instead of being read after the fact.
+    """
+    import re
+
+    from app import PAGES as ORDER
+
+    root = Path(__file__).resolve().parent.parent
+    css = (root / "src" / "ui" / "common.py").read_text(encoding="utf-8")
+    headings = dict(
+        (int(pos), label)
+        for pos, label in re.findall(
+            r'nth-child\((\d+)\)::before \{ content: "([^"]+)"', css
+        )
+    )
+    names = list(ORDER)
+    expected = {
+        names.index("Dashboard") + 1: "Price",
+        names.index("Market Data") + 1: "Market",
+        names.index("Model Analysis") + 1: "Tool",
+    }
+    assert headings == expected

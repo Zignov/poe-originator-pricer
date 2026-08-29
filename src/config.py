@@ -28,7 +28,26 @@ _DEFAULTS: dict[str, Any] = {
         "directory": "models",
         "backends": ["catboost", "catboost_mae", "lightgbm", "lightgbm_mae", "xgboost", "sklearn_hgb"],
         "target": "log1p",
-        "retrain_interval_hours": 24,
+    },
+    "collection": {
+        # Passive mode: scan, go quiet long enough for the rate limit to forget
+        # the scan, scan again. See src/market/passive.py. The cooldown is
+        # politeness, not safety -- RateLimiter obeys GGG's own headers
+        # unconditionally and would allow this far more often.
+        "passive": {
+            "maps_per_scan": 400,
+            # The floor and ceiling of an adaptive gap, not a fixed wait. The
+            # controller stretches it when a scan comes back mostly repeats and
+            # pulls it back in when the market is moving.
+            "cooldown_minutes": 12,
+            "max_cooldown_minutes": 90,
+            "auto_off_after_hours": 0,
+            "auto_retrain": True,
+            "retrain_every_scans": 4,
+            "low_fresh_ratio": 0.15,
+            "high_fresh_ratio": 0.50,
+            "backoff_factor": 1.6,
+        }
     },
     "display": {"currency": "chaos"},
     "currency": {"divine_to_chaos": 210.0, "exalted_to_chaos": 1.25},
@@ -47,6 +66,18 @@ _DEFAULTS: dict[str, Any] = {
         "max_listing_age_hours": 48,
         "status": "online",
         "cache_path": "data/market_comparison_cache.json",
+    },
+    # The bars an exalt has to clear. Preferences, so they live here rather
+    # than under `currency`, where exalted_to_chaos is a fetched fact.
+    # Defaults measured, not picked: see src/pricing/exalt.py.
+    "exalt": {
+        "charge_every_open_slot": True,
+        "effort_chaos": 5.0,
+        "min_net_gain_fraction": 0.08,
+        "min_chance_of_profit": 0.40,
+        "min_resolution_ratio": 1.0,
+        "require_training_floor": True,
+        "samples": 200,
     },
     "pricing": {"strategies": {"quick_sell": 0.94, "market": 0.99, "patient": 1.06}},
     "scope": {"map_tier": 16, "require_uncorrupted": True},
@@ -74,6 +105,35 @@ _DEFAULTS: dict[str, Any] = {
         "monitor": 0,
         "hotkey_toggle": "ctrl+alt+i",
         "hotkey_analyze": "ctrl+alt+shift+a",
+    },
+    # Watching your own instant-buyout listings: what you asked, how long it
+    # sat, and what that says the price should be. Off until POE_ACCOUNT_NAME is
+    # set, because there is nothing to poll without it.
+    "listing_tracker": {
+        "enabled": False,
+        "poll_interval_minutes": 15,
+        # A listing this new is polled on the fast cadence. Its first hour holds
+        # the fast-sale signal; a three-day-old map does not need a five-minute
+        # check to confirm it is still sitting.
+        "young_listing_minutes": 60,
+        "young_poll_interval_minutes": 5,
+        # A "sold" map that comes back this soon was never sold -- a sold map
+        # cannot return. Beyond the window it is treated as a different map.
+        "reappearance_window_hours": 6,
+        # Page filter: what counts as "sitting".
+        "stale_after_hours": 24,
+        # Seeds the fast mark until there are enough of your own sales to take
+        # quartiles from, which is when it is replaced by what your maps do.
+        "fast_sale_hours": 1,
+        # W in "sells within W": the window the fit is asked about, and the
+        # window the reprice recommendation aims at.
+        "target_window_hours": 24,
+        "target_sell_probability": 0.6,
+        "calibration": {"enabled": True, "min_sold": 20, "clamp": [0.8, 1.3]},
+        "ladder": {
+            "steps": [[24, 0.92], [72, 0.85], [168, 0.78]],
+            "floor_ratio": 0.75,
+        },
     },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
 }

@@ -38,3 +38,8 @@ catboost_info/
 
 # Release zips built by scripts/package_release.py.
 dist/
+
+# Overlay state for the inventory profile: one player's character contents,
+# rewritten on every "Send to overlay". The stash profile's file is tracked as a
+# fixture; this one names a character and has no business in the repository.
+data/overlay_inventory_state.json

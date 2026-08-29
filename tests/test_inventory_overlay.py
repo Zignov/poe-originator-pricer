@@ -363,3 +363,97 @@ def test_a_map_in_the_last_inventory_cell_lands_inside_the_window():
         origin=(1400, 700), cell_px=47.5, grid=(12, 5), profile=INVENTORY_PROFILE.key
     )
     assert cal.cell_rect(11, 4)[2:] == cal.grid_rect()[2:]
+
+
+# ---------------------------------------------------------------------------
+# The grid the browser draws, and the window the overlay opens
+# ---------------------------------------------------------------------------
+def _tab(**kwargs):
+    from src.stash.base import StashTab
+
+    defaults = dict(id="t", name="t", index=0)
+    defaults.update(kwargs)
+    return StashTab(**defaults)
+
+
+def test_a_character_inventory_is_drawn_five_rows_tall_not_twelve():
+    """The browser grid used to pad every tab out to a stash tab's 12x12.
+
+    `render_grid` takes width and height and then only ever *grows* them, so a
+    12x5 backpack came out as a 12x12 board with seven empty rows under it --
+    on a page whose own caption says it reads the 12x5 inventory.
+    """
+    from src.ui.stash_pricer import _grid_for
+
+    inventory = _tab(id="Bowzerker", name="Bowzerker", type="character",
+                     grid_width=12, grid_height=5)
+    assert _grid_for([inventory], []) == (12, 5)
+
+
+def test_a_quad_tab_still_grows_the_grid_past_the_default():
+    """Sizing from the tab must not cap a quad tab at 12x12."""
+    from src.ui.stash_pricer import _grid_for
+
+    assert _grid_for([_tab(type="QuadStash")], []) == (24, 24)
+
+
+def test_two_tabs_on_one_board_are_drawn_at_the_larger_of_the_two():
+    from src.ui.stash_pricer import _grid_for
+
+    both = [_tab(type="QuadStash"), _tab(id="n", name="n", type="NormalStash")]
+    assert _grid_for(both, []) == (24, 24)
+
+
+def test_a_source_with_no_tabs_leaves_the_renderer_to_guess():
+    """A CSV or clipboard paste has no tab behind it and must not be forced."""
+    from src.ui.stash_pricer import _grid_for
+
+    assert _grid_for(None, []) is None
+    assert _grid_for([], []) is None
+
+
+def test_the_overlay_window_grows_to_hold_a_grid_wider_than_the_calibration():
+    """OverlayState.grid was written, read back, and used by nothing that drew.
+
+    A quad tab sent to a 12x12 calibration had every tile past column twelve
+    fall outside the window -- present in the draw list, absent from the screen.
+    """
+    from src.overlay.layout import window_geometry
+    from src.overlay.state import OverlayState
+
+    cal = Calibration(origin=(100, 200), cell_px=50.0, grid=(12, 12),
+                      profile=STASH_PROFILE.key)
+    quad = OverlayState(tiles=(), grid=(24, 24))
+    assert window_geometry(cal) == (600, 600, 100, 200)
+    assert window_geometry(cal, quad) == (1200, 1200, 100, 200)
+
+
+def test_a_grid_the_calibration_was_not_made_for_is_named_rather_than_drawn_silently():
+    """The one failure that looks like success: every tile lands on *a* cell."""
+    from src.overlay.layout import grid_mismatch
+    from src.overlay.state import OverlayState
+
+    cal = Calibration(origin=(1400, 700), cell_px=50.0, grid=(12, 5),
+                      profile=INVENTORY_PROFILE.key)
+    assert grid_mismatch(cal, OverlayState(tiles=(), grid=(12, 5))) == ""
+
+    warning = grid_mismatch(cal, OverlayState(tiles=(), grid=(12, 12)))
+    assert "12x12" in warning and "12x5" in warning
+
+
+def test_a_hidden_profile_is_told_apart_from_a_character_that_is_gone():
+    """`list_tabs` returns [] for both, and the wrong one sends you hunting."""
+    from src.overlay.analyze import AnalyzeError, _tabs_to_fetch
+    from src.overlay.state import SOURCE_INVENTORY, SOURCE_STASH, OverlaySource
+
+    inventory = OverlaySource(kind=SOURCE_INVENTORY, names=("Bowzerker",),
+                              league="Allflame")
+    with pytest.raises(AnalyzeError) as caught:
+        _tabs_to_fetch(inventory, [])
+    assert "hidden" in str(caught.value).lower()
+
+    # A stash tab that really is gone keeps the original sentence.
+    stash = OverlaySource(kind=SOURCE_STASH, names=("Maps",), league="Allflame")
+    with pytest.raises(AnalyzeError) as caught:
+        _tabs_to_fetch(stash, [])
+    assert "not in Allflame any more" in str(caught.value)

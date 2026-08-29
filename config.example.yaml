@@ -13,7 +13,6 @@ model:
   # Falls back to sklearn_hgb, which is always available.
   backends: [catboost, catboost_mae, lightgbm, lightgbm_mae, xgboost, sklearn_hgb]
   target: log1p          # "log1p" or "raw" -- see docs/architecture.md
-  retrain_interval_hours: 24
 
 display:
   # Unit prices are shown in. Everything is stored and modelled in chaos; this
@@ -38,6 +37,14 @@ currency:
 market:
   # Listings older than this are excluded from training by default.
   max_age_days: 7
+  # Do not spend a fetch re-reading a listing seen this recently. A search
+  # returns 100 ids for one request; a fetch costs one request per ten, so
+  # re-reading a stored row is ten times the price of noticing it is stored.
+  # Measured before this existed: 61% of all fetch requests came back with rows
+  # already in the database. Not "never re-read" -- a seller who marks a map
+  # down publishes real information, and this window is how long that takes to
+  # get picked up. Set to 0 to fetch everything, as releases before 0.5.0 did.
+  refetch_after_hours: 12
   # Absolute sanity bounds in chaos. Anything outside is flagged as an outlier.
   # Observed 3.29 uncorrupted T16 spread on 820 collected listings: median ~40c,
   # 90th ~300c, 95th ~460c, 99th ~920c, 99.5th ~1150c, max 69000c. The bulk of
@@ -202,6 +209,70 @@ overlay_inventory:
   # spends a stash read you did not ask for.
   hotkey_analyze: "ctrl+alt+shift+a"
 
+exalt:
+  # Whether a map is worth an Exalted Orb. These used to be one line -- "is the
+  # expectation bigger than the orb" -- which said yes to 92 of the 92 maps it
+  # was ever shown. Under these it says yes to 28 of them.
+  charge_every_open_slot: true  # two open slots is a two-orb decision
+  effort_chaos: 5.0             # listing, waiting, whispering, meeting. Flat,
+                                # because a trade costs the same few minutes
+                                # whatever the map is worth.
+  min_net_gain_fraction: 0.08   # net gain as a share of the map's own value
+  min_chance_of_profit: 0.40    # a guard for thinner models; does not currently bind
+  min_resolution_ratio: 1.0     # the net gain must clear the model's own 80%
+                                # upside band. This is the gate that does the
+                                # work: on the collected market 91 of 92
+                                # predicted gains were smaller than the band,
+                                # which means the model could not tell them
+                                # from zero.
+  require_training_floor: true  # no verdict at all under 30c, where the model
+                                # is not fitted and returns much the same
+                                # number for every map
+  samples: 200                  # sampled fills when the open block is too
+                                # large to enumerate exactly
+
+collection:
+  passive:
+    # Unattended collection while the app is open. One scan is roughly 400 maps
+    # for about 56 requests (one search per query slice, one fetch per ten
+    # results), which GGG's published policy would allow far more often than
+    # this -- the cooldown is politeness, not safety. RateLimiter obeys the
+    # server's own headers regardless of what is set here.
+    maps_per_scan: 400
+    # The gap between scans is adaptive, not fixed. It starts at the floor and
+    # stretches when a scan comes back mostly repeats -- because that means the
+    # visible window has not turned over yet, and the answer is to wait rather
+    # than keep asking. Measured over a six-cycle run: about 190 genuinely new
+    # listings enter the window every 18 minutes.
+    cooldown_minutes: 12       # floor, and where it starts
+    max_cooldown_minutes: 90   # ceiling, so a dead league is still checked
+    low_fresh_ratio: 0.15      # under this share of new search results, back off
+    high_fresh_ratio: 0.50     # over it, scan sooner
+    backoff_factor: 1.6        # multiplicative both ways
+    auto_off_after_hours: 0   # 0 = run until the app closes
+    auto_retrain: true
+    retrain_every_scans: 4    # 4 scans is ~1600 listings; training is minutes
+
+listing_tracker:
+  enabled: false                 # stays off until POE_ACCOUNT_NAME is set
+  poll_interval_minutes: 15
+  young_listing_minutes: 60      # a listing this new is polled on the fast cadence
+  young_poll_interval_minutes: 5
+  reappearance_window_hours: 6   # a sold map returning this soon was never sold
+  stale_after_hours: 24          # page filter: what counts as sitting
+  fast_sale_hours: 1             # seeds the fast mark before you have quartiles
+  target_window_hours: 24        # how fast you want a map to clear. Same number
+                                 # as stale_after_hours by default, but a
+                                 # different question -- one filters the page,
+                                 # the other is the fit's target.
+  target_sell_probability: 0.6
+  calibration:
+    enabled: true
+    min_sold: 20
+    clamp: [0.8, 1.3]
+  ladder:
+    steps: [[24, 0.92], [72, 0.85], [168, 0.78]]
+    floor_ratio: 0.75
 http:
   # GGG publishes rate limits in response headers; the client obeys whatever the
   # server reports. These are only the initial conservative guesses.

@@ -134,6 +134,10 @@ class FakeEngine:
     def verdicts(self, priced):
         return {}
 
+    def open_affixes(self, priced):
+        """No affix structure, which is what a fake payload honestly has."""
+        return {}
+
     def close(self):
         self.closed = True
 
@@ -181,7 +185,11 @@ def test_a_version_one_export_is_refused_rather_than_analysed(tmp_path):
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(OverlayStateError):
         read_state(path)
-    assert OVERLAY_STATE_VERSION == 2
+    # Version 1 is not merely "not the current one": it predates the source
+    # block outright, so no amount of leniency could give Analyze something to
+    # repeat. The current version has moved on since (3, the free-affix count);
+    # what is asserted is that 1 is behind it, not that it is behind by one.
+    assert OVERLAY_STATE_VERSION > 1
 
 
 def test_a_manual_import_is_not_repeatable_and_says_so(cfg, tmp_path):
@@ -318,6 +326,77 @@ def test_an_unavailable_credential_is_reported_in_words_a_user_can_act_on(
         analyze(cfg, before, path=tmp_path / "s.json", engine=FakeEngine())
     assert "POESESSID" in str(exc.value)
     assert "Settings" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# The free-affix dots, which must not be a by-product of having a model
+# ---------------------------------------------------------------------------
+def _engine_without_a_model(cfg):
+    """An `_Engine` wound to the state a machine with no trained model is in.
+
+    Set directly rather than by pointing the config at an empty model directory:
+    `_load` is what decides there is no predictor, and the thing under test is
+    what happens *after* it decides, on a developer box where a real model is
+    sitting on disk and would otherwise be found.
+    """
+    from src.overlay.analyze import _Engine
+
+    engine = _Engine(cfg)
+    engine._predictor = None
+    engine._catalogue = None
+    engine._loaded = True
+    return engine
+
+
+def _map_with_two_prefixes(x: int = 0, y: int = 0) -> NormalizedMap:
+    """A map whose payload names its affixes, as the trade API returns them."""
+    item = _item(x, y)
+    item.raw_item_data = {
+        "corrupted": False,
+        "explicitMods": [
+            {"mods": [{"name": "Overlord's", "tier": "P1"}]},
+            {"mods": [{"name": "Bountiful", "tier": "P2"}]},
+        ],
+    }
+    return item
+
+
+def test_the_free_slot_count_needs_no_predictor_the_way_the_exalt_rings_do(cfg):
+    """Counting open slots reads the payload; judging an exalt needs a model.
+
+    Deriving the dots from the verdicts made them share the model's fate, so on
+    a machine with no trained model the overlay's re-analyse chord quietly
+    dropped every badge -- which looks exactly like a tab of full maps rather
+    than like a missing model.
+    """
+    engine = _engine_without_a_model(cfg)
+    priced = FakeService(100.0).price_many([_map_with_two_prefixes()])
+
+    assert engine.verdicts(priced) == {}
+    assert engine.open_affixes(priced) == {id(priced[0]): 4}
+
+
+def test_a_payload_with_no_affix_structure_counts_as_unknown_not_as_full(cfg):
+    engine = _engine_without_a_model(cfg)
+    priced = FakeService(100.0).price_many([_item(0, 0)])
+    assert engine.open_affixes(priced) == {id(priced[0]): None}
+
+
+def test_the_dots_reach_the_state_file_a_re_analysis_writes(cfg, tmp_path, monkeypatch):
+    """End to end: no model, and the tiles still come out carrying their counts."""
+    adapter = FakeAdapter([StashTab(id="tab-1", name="Maps")], [_map_with_two_prefixes(2, 3)])
+    monkeypatch.setattr("src.overlay.analyze.source_adapter", lambda *_a: adapter)
+
+    class ModellessEngine(FakeEngine):
+        def open_affixes(self, priced):
+            return _engine_without_a_model(cfg).open_affixes(priced)
+
+    before = _state(
+        OverlaySource(kind=SOURCE_STASH, league="Allflame", names=("Maps",), ids=("tab-1",))
+    )
+    path = tmp_path / "s.json"
+    analyze(cfg, before, path=path, engine=ModellessEngine())
+    assert read_state(path).tiles[0].open_affixes == 4
 
 
 # ---------------------------------------------------------------------------
