@@ -112,6 +112,13 @@ def _tabs_to_fetch(source: OverlaySource, available: list[StashTab]) -> list[Sta
     By id first and name second. A tab can be renamed between two analyses and
     its id cannot, but the ids of a re-opened snapshot may predate a league
     reset -- so both are tried before giving up, and giving up is explicit.
+
+    An inventory source gets its own sentence when the account lists nothing at
+    all. `list_tabs` returns an empty list both for a character that is gone and
+    for an account whose characters are hidden on the profile -- and the second
+    is far more common than the first, because it is the default for a new
+    account. Telling someone their character is "not in the league any more"
+    when it is standing in front of them sends them looking in the wrong place.
     """
     wanted_ids = {i for i in source.ids if i}
     wanted_names = {n for n in source.names if n}
@@ -120,6 +127,12 @@ def _tabs_to_fetch(source: OverlaySource, available: list[StashTab]) -> list[Sta
         matched = [t for t in available if t.name in wanted_names]
     if not matched:
         had = ", ".join(sorted(wanted_names)) or "the exported tab"
+        if source.kind == SOURCE_INVENTORY and not available:
+            raise AnalyzeError(
+                f"No characters visible in {source.league}. Either {had} is gone, "
+                "or your characters are hidden on your pathofexile.com profile -- "
+                "the privacy setting has to allow them for this to read one."
+            )
         raise AnalyzeError(f"{had} is not in {source.league} any more. Re-price it in the app.")
     return matched
 

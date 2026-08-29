@@ -372,16 +372,46 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
     return draws
 
 
-def window_geometry(calibration: Calibration) -> tuple[int, int, int, int]:
+def window_geometry(
+    calibration: Calibration, state: OverlayState | None = None
+) -> tuple[int, int, int, int]:
     """(width, height, x, y) for the overlay window, covering the whole grid.
 
     Sized to the grid rather than to the screen so that the transparent window
     is no larger than it has to be: a full-screen layered window is a full
     screen of per-pixel compositing on every redraw, and this one redraws on a
     timer.
+
+    The state's grid widens the calibration's when they disagree. They disagree
+    whenever the tab that was priced is not the tab that was calibrated -- a
+    quad tab sent to a 12x12 calibration is the common one -- and the old
+    behaviour was to size the window to the calibration and let every tile past
+    column twelve fall outside it. Tiles vanishing without explanation is the
+    exact failure `grid_mismatch` exists to name, so the window grows to hold
+    them and the strip says why they are not where they should be.
     """
-    left, top, right, bottom = calibration.grid_rect()
+    grid = calibration.grid
+    if state is not None:
+        grid = (max(grid[0], state.grid[0]), max(grid[1], state.grid[1]))
+    left, top, right, bottom = calibration.cell_rect(0, 0, grid[0], grid[1])
     return (max(1, right - left), max(1, bottom - top), left, top)
+
+
+def grid_mismatch(calibration: Calibration, state: OverlayState) -> str:
+    """The warning for a state whose grid the calibration was not made for.
+
+    Returns "" when they agree. `src/overlay/calibration.py` names a plausible
+    but wrong grid as the thing to avoid above all, because it is the one
+    failure that looks like correct output: every tile lands on *a* cell, just
+    not the cell the map is in, and there is nothing on screen to say so.
+    """
+    if tuple(state.grid) == tuple(calibration.grid):
+        return ""
+    return (
+        f"These maps came from a {state.grid[0]}x{state.grid[1]} grid, but this "
+        f"overlay is calibrated for {calibration.grid[0]}x{calibration.grid[1]}. "
+        "Re-calibrate, or send the tab to the other overlay."
+    )
 
 
 def geometry_string(width: int, height: int, x: int, y: int) -> str:

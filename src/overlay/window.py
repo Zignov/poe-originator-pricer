@@ -42,6 +42,7 @@ from src.overlay.layout import (
     build_draw_list,
     font_size_for,
     geometry_string,
+    grid_mismatch,
     window_geometry,
 )
 from src.overlay.analyze import AnalyzeWorker
@@ -220,12 +221,16 @@ class OverlayWindow:
         # interpreter that no longer exists and Tcl reports it on stderr as an
         # "invalid command name", which looks like a crash on the way out.
         self._timers: dict[str, str] = {}
+        #: Reported once. A chord that could not be registered will not start
+        #: working, so repeating the warning every poll would bury the state
+        #: summary the strip exists to show.
+        self._hotkey_errors_shown = False
         self._timers["state"] = self.root.after(0, self._poll_state)
         self._timers["hotkeys"] = self.root.after(HOTKEY_POLL_MS, self._poll_hotkeys)
 
     # -- placement and drawing -------------------------------------------
     def _place(self) -> None:
-        width, height, x, y = window_geometry(self.calibration)
+        width, height, x, y = window_geometry(self.calibration, self.state)
         self.window.geometry(geometry_string(width, height, x, y))
         self.window.attributes("-alpha", self.calibration.opacity)
 
@@ -291,8 +296,15 @@ class OverlayWindow:
 
         state = self.watcher.poll()
         if state is not None:
+            grew = self.state is None or tuple(state.grid) != tuple(self.state.grid)
             self.state = state
-            self.strip.report(self._analysis_note or state.summary())
+            if grew:
+                # Before the redraw, not after: a tab wider than the
+                # calibration is drawn into whatever the window currently is,
+                # and the tiles past its edge are simply not on screen.
+                self._place()
+            mismatch = grid_mismatch(self.calibration, state)
+            self.strip.report(mismatch or self._analysis_note or state.summary())
             self._analysis_note = ""
             self.redraw()
         elif self.watcher.error:
@@ -312,6 +324,14 @@ class OverlayWindow:
 
     # -- controls ----------------------------------------------------------
     def _poll_hotkeys(self) -> None:
+        # Registration happens after start() returns, so the list fills in
+        # asynchronously and has to be polled rather than read once. Until this
+        # ran, a chord another application already owned -- ctrl+alt+i is
+        # commonly taken -- failed silently: the key did nothing and nothing
+        # anywhere said why, which is indistinguishable from a broken overlay.
+        if self.hotkeys.errors and not self._hotkey_errors_shown:
+            self._hotkey_errors_shown = True
+            self.strip.report("hotkey unavailable -- " + "; ".join(self.hotkeys.errors))
         for name in self.hotkeys.poll():
             if name == "toggle":
                 self.toggle()
