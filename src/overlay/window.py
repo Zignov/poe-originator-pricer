@@ -262,6 +262,11 @@ class OverlayWindow:
                     box.meter.left, box.meter.top, box.meter.fill_right, box.meter.bottom,
                     fill=box.meter.fill, outline="",
                 )
+            if box.dots:
+                # No outline: a 6px circle with a 1px border is a ring, and a
+                # ring in the corner of a tile already means something else here.
+                for dot in box.dots.dots:
+                    self.canvas.create_oval(*dot, fill=box.dots.fill, outline="")
             self.canvas.create_text(
                 (box.left + box.right) / 2,
                 (box.top + box.bottom) / 2,

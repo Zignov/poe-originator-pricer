@@ -70,6 +70,45 @@ METER_MIN_HEIGHT = 2
 METER_MIN_CELL = 22
 
 
+#: The free-affix badge: one white dot per open affix slot, in the tile's
+#: top-right corner.
+#:
+#: The corner is the last free piece of a tile. The ring owns the border, the
+#: meter owns the bottom edge and the price owns the middle, so the badge takes
+#: the one region none of them reach -- and is inset by the same 4px the meter
+#: is, which is what clears the 2px ring drawn 2px in.
+DOTS_INSET = METER_INSET
+
+#: A dot's *diameter* as a fraction of the cell, not its radius: six of them
+#: have to sit in the top-right quadrant of a 46px cell without crowding the
+#: price, and a dot a quarter of the cell across leaves room for one.
+DOTS_SIZE_RATIO = 0.13
+DOTS_MIN_RADIUS = 1
+#: Whitespace between two dots. Fixed rather than scaled: below about two pixels
+#: a row of dots reads as one dash, and that is a property of eyes rather than
+#: of the cell size.
+DOTS_GAP = 2
+
+#: The badge stops here even when more slots are open. Six is the uncorrupted
+#: ceiling, and the two extra slots a corrupted map can carry cannot take an orb
+#: anyway -- so a seventh dot would grow the badge to buy information nobody can
+#: act on.
+DOTS_MAX = 6
+
+#: Same idea as METER_MIN_CELL, same reason. Under this many pixels the dots
+#: stop being countable and become texture, and texture in the corner of a tile
+#: reads as a rendering artefact rather than as a number.
+DOTS_MIN_CELL = 22
+
+#: White on every band, the negligible one included. That band's fill is
+#: near-black and its *price* is deliberately dimmed to recede -- but the dots
+#: are not a value judgement, they are structure, and "two slots open" has to
+#: mean the same thing and be equally findable on a 12c map as on a 900c one.
+#: White is also the only colour that stays legible across all seven fills
+#: without a second lookup table to maintain.
+DOTS_FILL = "#ffffff"
+
+
 @dataclass(frozen=True)
 class MeterDraw:
     """The two rectangles of one confidence meter: the track, and the fill in it.
@@ -100,6 +139,29 @@ class MeterDraw:
 
 
 @dataclass(frozen=True)
+class DotsDraw:
+    """The free-affix badge: one bounding box per dot, in whole pixels.
+
+    Bounding boxes rather than centres and a radius, for the same reason
+    `MeterDraw` carries two rectangles rather than a fraction: `create_oval`
+    takes a box, and turning a centre into one is a rounding decision. All of
+    those live in this module.
+    """
+
+    dots: tuple[tuple[int, int, int, int], ...] = ()
+    fill: str = DOTS_FILL
+
+    def relative_to(self, origin: tuple[int, int]) -> DotsDraw:
+        return DotsDraw(
+            dots=tuple(
+                (left - origin[0], top - origin[1], right - origin[0], bottom - origin[1])
+                for left, top, right, bottom in self.dots
+            ),
+            fill=self.fill,
+        )
+
+
+@dataclass(frozen=True)
 class TileDraw:
     """One rectangle and its label, in screen pixels."""
 
@@ -114,6 +176,10 @@ class TileDraw:
     text_fill: str = DEFAULT_TEXT
     ring: str = ""
     meter: MeterDraw | None = None
+    #: None when the map's affixes could not be read, when it has no free slot,
+    #: and when the cell is too small to hold the badge. All three draw nothing,
+    #: and only the first of them is a claim about the map.
+    dots: DotsDraw | None = None
     tile: OverlayTile | None = None
 
     @property
@@ -141,6 +207,7 @@ class TileDraw:
             text_fill=self.text_fill,
             ring=self.ring,
             meter=self.meter.relative_to(origin) if self.meter else None,
+            dots=self.dots.relative_to(origin) if self.dots else None,
             tile=self.tile,
         )
 
@@ -189,6 +256,77 @@ def meter_draw(
     )
 
 
+def dots_draw(
+    tile: OverlayTile,
+    left: int,
+    top: int,
+    right: int,
+    bottom: int,
+    meter: MeterDraw | None = None,
+) -> DotsDraw | None:
+    """The free-affix badge for one tile, or None if it should not have one.
+
+    Three separate Nones, and only one of them says anything about the map:
+
+    - `open_affixes is None` -- the source could not read the affix block, so
+      there is no count to draw. Drawing zero dots here would be a claim that
+      the map is full, and a full map is precisely the thing nobody should waste
+      an Exalted Orb on;
+    - zero open slots -- the map genuinely is full, and zero dots is the honest
+      drawing of zero;
+    - a cell too small to hold the badge, on the same reasoning as
+      `METER_MIN_CELL`.
+
+    Laid out right-to-left from the top-right inner corner, wrapping down a row
+    when the next dot would cross the tile's horizontal midpoint. Right-to-left
+    because the anchor is the corner: a badge that grew leftward from a fixed
+    left edge would sit in a different place on every tile, and the eye scanning
+    a tab for open slots is looking at the corners.
+
+    The badge is dropped rather than truncated if the rows it needs would reach
+    the confidence meter. Two readings overlapping is worse than one missing,
+    and the meter is the older of the two.
+    """
+    count = tile.open_affixes
+    if count is None or count <= 0:
+        return None
+    if (right - left) < DOTS_MIN_CELL or (bottom - top) < DOTS_MIN_CELL:
+        return None
+
+    cell = min(right - left, bottom - top)
+    radius = max(DOTS_MIN_RADIUS, round(cell * DOTS_SIZE_RATIO / 2))
+    pitch = 2 * radius + DOTS_GAP
+
+    # The badge's own box: in from the right and the top by the ring's clearance,
+    # and never left of the tile's midpoint, which is what keeps it a corner
+    # badge rather than a banner across the top of the tile.
+    outer_right = right - DOTS_INSET
+    outer_top = top + DOTS_INSET
+    midpoint = left + (right - left) // 2
+    # n dots span n*pitch - DOTS_GAP: the trailing gap is between dots, not
+    # after the last one, and forgetting it costs a whole dot per row on a
+    # small cell.
+    per_row = max(1, (outer_right - midpoint + DOTS_GAP) // pitch)
+
+    count = min(count, DOTS_MAX)
+    per_row = min(per_row, count)
+    rows = -(-count // per_row)  # ceiling division
+
+    # The floor the badge must stay above: the meter when there is one, the
+    # tile's own inner edge when there is not.
+    floor = meter.top if meter is not None else bottom - DOTS_INSET
+    if outer_top + rows * pitch - DOTS_GAP > floor:
+        return None
+
+    boxes: list[tuple[int, int, int, int]] = []
+    for index in range(count):
+        row, column = divmod(index, per_row)
+        dot_right = outer_right - column * pitch
+        dot_top = outer_top + row * pitch
+        boxes.append((dot_right - 2 * radius, dot_top, dot_right, dot_top + 2 * radius))
+    return DotsDraw(dots=tuple(boxes))
+
+
 def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileDraw]:
     """The rectangles for one priced tab, in screen coordinates.
 
@@ -211,6 +349,7 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
             fill = MUTED_FILL
             text_fill = MUTED_TEXT
             text = MUTED_LABEL
+        meter = meter_draw(tile, left, top, right, bottom)
         draws.append(
             TileDraw(
                 left=left,
@@ -221,7 +360,12 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
                 text=text,
                 text_fill=text_fill,
                 ring=ring_colour(tile.exalt),
-                meter=meter_draw(tile, left, top, right, bottom),
+                meter=meter,
+                # Handed the meter rather than recomputing it: the badge has to
+                # stop short of whatever the meter took, and two independent
+                # derivations of the same rectangle is how they would come to
+                # disagree by a pixel.
+                dots=dots_draw(tile, left, top, right, bottom, meter),
                 tile=tile,
             )
         )

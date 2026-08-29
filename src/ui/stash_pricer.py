@@ -22,6 +22,7 @@ from src.overlay.state import (
     SOURCE_MANUAL,
     SOURCE_STASH,
     OverlaySource,
+    free_affix_slots,
     state_from_priced,
     state_path_for,
     write_state,
@@ -1563,6 +1564,11 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
     columns = st.columns([1.1, 1, 2])
     if columns[0].button(f"Send to the {profile.label.lower()} overlay", type="primary"):
         tab_names = sorted({p.item.stash_tab_name for p in positioned if p.item.stash_tab_name})
+        # Read here rather than off the verdicts, which only exist for the
+        # priceable maps and only on a machine with a trained model. The free
+        # slots need neither, and the overlay's dots have to match the browser's
+        # on the same tab -- so both read them through `affixes_for`.
+        open_affixes = {id(p): free_affix_slots(affixes_for(p.item)) for p in priced}
         path = write_state(
             state_from_priced(
                 priced,
@@ -1572,6 +1578,7 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
                 league=cfg.get("league"),
                 tab_names=tab_names,
                 verdicts=verdicts,
+                open_affixes=open_affixes,
                 source=source,
             ),
             state_path_for(profile),

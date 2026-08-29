@@ -243,6 +243,46 @@ def test_every_priced_tile_carries_a_confidence_meter():
     assert html.count('<span class="conf-meter">') == filled
 
 
+def test_every_tile_says_how_many_affix_slots_it_has_open():
+    """The dots cannot tell "full" from "unreadable"; the tooltip has to.
+
+    Both draw an empty corner, which is safe -- neither invites an Exalted Orb --
+    but it leaves the tile unable to say which it is, so every tile carries the
+    answer in words as well.
+    """
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    html = _grid_html(app)
+    assert html, "no grid rendered"
+    filled = html.count("stash-cell filled ")
+    assert filled, "no filled tiles"
+    assert html.count("Free affix slots:") >= filled
+
+
+def test_the_free_affix_legend_appears_exactly_when_a_badge_does():
+    """A key for a mark nobody can see is one more thing to read past.
+
+    Most stash payloads carry no affix structure at all, so on those tabs every
+    tile is badgeless -- and the legend has to stay away rather than explaining
+    dots that are not there.
+    """
+    app = AppTest.from_file(APP, default_timeout=240)
+    app.session_state["stash_items"] = _demo_items()
+    app.run()
+    app.sidebar.radio[0].set_value("Stash Pricer").run()
+    assert not app.exception, f"{[str(e) for e in app.exception]}"
+
+    html = _grid_html(app)
+    assert html, "no grid rendered"
+    drew_a_badge = 'class="free-affix"' in html
+    explained = any("One dot per affix slot" in str(c.value) for c in app.caption)
+    assert explained == drew_a_badge
+
+
 def test_the_legend_explains_the_confidence_meter():
     app = AppTest.from_file(APP, default_timeout=240)
     app.session_state["stash_items"] = _demo_items()

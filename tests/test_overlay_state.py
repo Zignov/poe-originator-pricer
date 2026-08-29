@@ -20,11 +20,13 @@ from src.overlay.state import (
     OverlayStateError,
     StateWatcher,
     exalt_state,
+    free_affix_slots,
     read_state,
     state_from_priced,
     tile_price,
     write_state,
 )
+from src.parsing.affixes import Affix, AffixSet
 from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
@@ -88,6 +90,53 @@ def test_an_unprofitable_exalt_is_marked_skip():
 def test_a_map_that_cannot_take_an_orb_gets_no_state_at_all():
     assert exalt_state(ExaltVerdict(available=False)) == EXALT_NONE
     assert exalt_state(None) == EXALT_NONE
+
+
+# -- free affix slots -------------------------------------------------------
+def _affixes(count: int, corrupted: bool = False, known: bool = True) -> AffixSet:
+    """An affix set holding `count` affixes, filled the way the game fills them.
+
+    Prefixes first and then suffixes, up to each slot's own limit, because
+    `open_slots` is the sum of two independently-capped halves -- six affixes
+    all in the prefix slot would leave three suffixes open on a map the parser
+    would have refused to read in the first place.
+    """
+    max_prefixes = 4 if corrupted else 3
+    slots = ["prefix"] * min(count, max_prefixes)
+    slots += ["suffix"] * (count - len(slots))
+    return AffixSet(
+        affixes=tuple(
+            Affix(name=f"Mod{i}", tier=f"{'P' if slot == 'prefix' else 'S'}{i}", slot=slot)
+            for i, slot in enumerate(slots)
+        ),
+        known=known,
+        corrupted=corrupted,
+    )
+
+
+def test_a_readable_affix_set_reports_the_slots_it_has_left():
+    assert free_affix_slots(_affixes(2)) == 4
+
+
+def test_an_unreadable_affix_set_reports_nothing_rather_than_zero():
+    """`open_slots` is 0 whenever `known` is False, and 0 means "full" on a tile.
+
+    Letting that through would turn "this payload has no affix structure" into a
+    confident "this map cannot take another affix", which is exactly the reading
+    that stops someone using an orb that would have paid for itself.
+    """
+    assert free_affix_slots(AffixSet(known=False)) is None
+    assert AffixSet(known=False).open_slots == 0  # the trap this guards
+    assert free_affix_slots(None) is None
+
+
+def test_a_full_map_reports_zero_which_is_a_different_thing_from_nothing():
+    assert free_affix_slots(_affixes(6)) == 0
+
+
+def test_a_corrupted_map_counts_against_its_own_raised_ceiling():
+    """Eight affixes, not six -- and the badge is what a corrupted 8-mod map has."""
+    assert free_affix_slots(_affixes(2, corrupted=True)) == 6
 
 
 # -- projection -------------------------------------------------------------
@@ -167,6 +216,53 @@ def test_a_state_survives_a_round_trip_through_json(tmp_path):
     path = write_state(original, tmp_path / "overlay_state.json")
     restored = read_state(path)
     assert restored == original
+
+
+def test_the_free_slot_count_survives_a_state_file_round_trip(tmp_path):
+    """The dots are drawn in another process, so the count has to cross the file."""
+    full, open_two, unreadable = _priced(x=0), _priced(x=1), _priced(x=2)
+    verdicts = {
+        id(full): ExaltVerdict(available=False, affixes=_affixes(6)),
+        id(open_two): ExaltVerdict(available=True, net_gain_chaos=9.0, affixes=_affixes(4)),
+        id(unreadable): ExaltVerdict(available=False, affixes=AffixSet(known=False)),
+    }
+    original = state_from_priced([full, open_two, unreadable], FMT, verdicts=verdicts)
+    assert [t.open_affixes for t in original.tiles] == [0, 2, None]
+
+    restored = read_state(write_state(original, tmp_path / "state.json"))
+    assert [t.open_affixes for t in restored.tiles] == [0, 2, None]
+    assert restored == original
+
+
+def test_the_count_comes_off_verdicts_that_could_not_be_judged_at_all():
+    """`evaluate_exalt` attaches the affix set to its `available=False` returns too.
+
+    Most maps in a real tab are corrupted or full, so if the count only survived
+    on exaltable maps the badge would be missing from nearly every tile.
+    """
+    entry = _priced()
+    verdict = ExaltVerdict(
+        available=False, reason="corrupted maps cannot be modified",
+        affixes=_affixes(3, corrupted=True),
+    )
+    state = state_from_priced([entry], FMT, verdicts={id(entry): verdict})
+    assert state.tiles[0].open_affixes == 5
+
+
+def test_an_explicit_count_wins_over_the_one_the_verdicts_carry():
+    """The overlay's re-analysis has a model-free count and no verdicts at all."""
+    entry = _priced()
+    state = state_from_priced(
+        [entry],
+        FMT,
+        verdicts={id(entry): ExaltVerdict(available=False, affixes=_affixes(6))},
+        open_affixes={id(entry): 3},
+    )
+    assert state.tiles[0].open_affixes == 3
+
+
+def test_a_tab_with_no_affix_information_at_all_carries_no_counts():
+    assert state_from_priced([_priced()], FMT).tiles[0].open_affixes is None
 
 
 def test_a_tile_carries_the_confidence_score_the_meter_is_drawn_from():

@@ -34,6 +34,7 @@ from typing import Any
 
 from src.config import ROOT
 from src.overlay.profiles import DEFAULT_PROFILE, OverlayProfile, profile_for
+from src.parsing.affixes import AffixSet
 from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
@@ -46,7 +47,13 @@ from src.pricing.fair_value import PricedMap
 #: file. A version-1 file has no way to say what it came from, so it is refused
 #: with the usual "re-export the tab" rather than being drawn with a dead
 #: Analyze button on top of it.
-OVERLAY_STATE_VERSION = 2
+#:
+#: 3 added `open_affixes`, the free-slot dots. A version-2 file carries no such
+#: field, and `from_dict` would read the absence as `None` -- which is exactly
+#: the value that means "we could not tell", and would therefore draw nothing on
+#: every tile of an old file. That is not wrong, but it is indistinguishable from
+#: a tab of genuinely full maps, so the file is refused and re-exported instead.
+OVERLAY_STATE_VERSION = 3
 
 #: Where the state files live: under data/ because they are regenerated output,
 #: not configuration.
@@ -100,6 +107,35 @@ def exalt_state(verdict: ExaltVerdict | None) -> str:
     if verdict is None or not verdict.available:
         return EXALT_NONE
     return EXALT_WORTH if verdict.worth_it else EXALT_SKIP
+
+
+def free_affix_slots(affixes: AffixSet | None) -> int | None:
+    """How many affix slots are open, or None when the source could not tell.
+
+    The one place this translation is written down. `AffixSet.open_slots` is an
+    `int` that answers 0 for an unreadable map as readily as for a full one, and
+    every renderer that draws the count has to make the same distinction -- so
+    it is made once, here, rather than three times with one of them eventually
+    forgetting to check `.known` first.
+
+    Read against `.known` and not against `.count`: an affix set can be known
+    and empty of *usable* structure, and it is `known` that says whether the
+    numbers below it mean anything at all.
+    """
+    if affixes is None or not affixes.known:
+        return None
+    return affixes.open_slots
+
+
+def _verdict_free_slots(verdict: ExaltVerdict | None) -> int | None:
+    """Free slots off an exalt verdict, which carries the affix set either way.
+
+    `evaluate_exalt` attaches the `AffixSet` to *every* verdict it returns, the
+    `available=False` ones included -- a corrupted map, a full map and a map
+    with no catalogue behind it all still know their own affixes. So the dots
+    survive on maps that cannot be exalted, which is the majority of them.
+    """
+    return free_affix_slots(verdict.affixes if verdict is not None else None)
 
 
 #: What an export came from, and therefore whether it can be repeated.
@@ -209,6 +245,18 @@ class OverlayTile:
     confidence_score: float | None = None
     exalt: str = EXALT_NONE
     unsupported_reason: str = ""
+    #: How many affix slots this map still has open, or `None` for "the source
+    #: could not tell us".
+    #:
+    #: The distinction is the whole reason this is not a plain `int`.
+    #: `AffixSet.open_slots` answers 0 both for a map with six affixes and for a
+    #: map whose affix block could not be read at all -- see
+    #: src/parsing/affixes.py -- and those two have to look different on a tile.
+    #: A full map draws zero dots because it genuinely has zero free slots; an
+    #: unreadable one draws nothing because we have nothing to say. Collapsing
+    #: them would turn "we don't know" into a confident "this map is full",
+    #: which is the reading that costs someone an Exalted Orb.
+    open_affixes: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -226,6 +274,7 @@ class OverlayTile:
             "confidence_score": self.confidence_score,
             "exalt": self.exalt,
             "unsupported_reason": self.unsupported_reason,
+            "open_affixes": self.open_affixes,
         }
 
     @classmethod
@@ -246,6 +295,7 @@ class OverlayTile:
                 confidence_score=_optional_float(data.get("confidence_score")),
                 exalt=str(data.get("exalt", EXALT_NONE)),
                 unsupported_reason=str(data.get("unsupported_reason", "")),
+                open_affixes=_optional_int(data.get("open_affixes")),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise OverlayStateError(f"malformed tile in overlay state: {exc}") from exc
@@ -325,6 +375,7 @@ def state_from_priced(
     league: str = "",
     tab_names: Iterable[str] = (),
     verdicts: dict[int, ExaltVerdict] | None = None,
+    open_affixes: dict[int, int | None] | None = None,
     source: OverlaySource | None = None,
 ) -> OverlayState:
     """Project a priced tab onto the overlay contract.
@@ -333,12 +384,22 @@ def state_from_priced(
     so a caller that already computed them for the grid can hand over the same
     dict rather than paying for a second pass.
 
+    `open_affixes` is keyed the same way, and exists because the free-slot dots
+    must not be a by-product of having a trained model. The verdicts are: an
+    exalt judgement needs a model to say what an extra affix would be worth, and
+    a machine with no model produces no verdicts at all -- at which point the
+    dots would vanish too, even though counting the slots needs nothing but the
+    payload. A caller that can read the affixes without a model passes them here
+    and they win; everyone else falls back to the affix sets the verdicts are
+    already carrying.
+
     Maps with no stash coordinates are dropped rather than stacked at the
     origin: the clipboard source numbers items in paste order, which is not a
     layout, and drawing it as one would put prices on the wrong maps -- the one
     failure mode this feature must not have.
     """
     verdicts = verdicts or {}
+    open_affixes = open_affixes or {}
     tiles: list[OverlayTile] = []
     for entry in priced:
         item = entry.item
@@ -366,6 +427,11 @@ def state_from_priced(
                 ),
                 exalt=exalt_state(verdicts.get(id(entry))),
                 unsupported_reason="" if supported else (item.unsupported_reason or "Unsupported"),
+                open_affixes=(
+                    open_affixes[id(entry)]
+                    if id(entry) in open_affixes
+                    else _verdict_free_slots(verdicts.get(id(entry)))
+                ),
             )
         )
 
@@ -472,3 +538,8 @@ class StateWatcher:
 
 def _optional_float(value: Any) -> float | None:
     return None if value is None else float(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    """None stays None, because here it is a value and not a missing field."""
+    return None if value is None else int(value)

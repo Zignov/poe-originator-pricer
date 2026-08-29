@@ -46,6 +46,7 @@ from src.overlay.state import (
     SOURCE_STASH,
     OverlaySource,
     OverlayState,
+    free_affix_slots,
     state_from_priced,
     write_state,
 )
@@ -207,6 +208,31 @@ class _Engine:
                 continue
         return out
 
+    def open_affixes(self, priced) -> dict[int, int | None]:
+        """The free-slot dots, which must not depend on there being a model.
+
+        `verdicts` above returns nothing at all without a predictor, because an
+        exalt judgement needs one to price the outcome. Counting open slots does
+        not: it needs the affix block off the payload and the game's own
+        prefix/suffix limits, both of which `_affixes` already has. Deriving the
+        dots from the verdicts would therefore have made them disappear on a
+        machine with no trained model -- silently, and looking exactly like a
+        tab of maps that happen to be full.
+
+        Keyed by `id(entry)` like the verdicts, because that is what
+        `state_from_priced` reads them back by.
+        """
+        self._load()
+        out: dict[int, int | None] = {}
+        for entry in priced:
+            try:
+                out[id(entry)] = free_affix_slots(self._affixes(entry.item))
+            except Exception:
+                # A payload shaped in a way the catalogue chokes on is an
+                # unknown count, not a failed analysis.
+                out[id(entry)] = None
+        return out
+
     def _affixes(self, item: NormalizedMap):
         payload = item.raw_item_data or {}
         if self._catalogue is not None:
@@ -272,6 +298,7 @@ def analyze(
             league=league,
             tab_names=[t.name for t in tabs],
             verdicts=engine.verdicts(priced),
+            open_affixes=engine.open_affixes(priced),
             source=OverlaySource(
                 kind=source.kind,
                 league=league,

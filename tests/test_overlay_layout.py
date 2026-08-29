@@ -12,6 +12,8 @@ import pytest
 from src.market.comparables import percentile_bands, value_category
 from src.overlay.calibration import Calibration
 from src.overlay.layout import (
+    DOTS_FILL,
+    DOTS_MAX,
     MUTED_FILL,
     MUTED_LABEL,
     RING_SKIP,
@@ -212,3 +214,122 @@ def test_the_meter_is_shifted_into_window_coordinates_with_its_tile():
     assert box.meter.fill_right == draw.meter.fill_right - 100
     # And still inside its own tile after the shift.
     assert box.left < box.meter.left < box.meter.right < box.right
+
+
+# -- the free-affix badge ---------------------------------------------------
+def _dots(tile: OverlayTile, calibration: Calibration = CAL):
+    """The dot boxes drawn for one tile, or None when the badge is suppressed."""
+    draw = build_draw_list(_state(tile), calibration)[0]
+    return None if draw.dots is None else draw.dots.dots
+
+
+def _overlaps(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """Whether two (left, top, right, bottom) boxes share any area."""
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def test_a_map_with_two_free_slots_gets_two_dots():
+    assert len(_dots(_tile(open_affixes=2))) == 2
+
+
+def test_a_full_map_gets_no_dots():
+    """Zero dots for zero slots is the honest drawing, not a missing badge."""
+    assert _dots(_tile(open_affixes=0)) is None
+
+
+def test_an_unreadable_affix_set_gets_no_dots_rather_than_zero():
+    """`None` is "we could not read the affixes", and it must not become a claim.
+
+    An absent badge here reads the same as a full map's absent badge, which is
+    safe in this direction: neither invites an Exalted Orb. The collapse that
+    would cost someone currency is the other one -- drawing a confident zero for
+    a map nobody has counted -- and `open_slots` returns exactly that 0 whenever
+    `known` is False, which is why the tile carries `int | None` and not `int`.
+    """
+    assert _dots(_tile(open_affixes=None)) is None
+
+
+def test_a_dot_is_drawn_for_every_open_slot_up_to_the_ceiling():
+    for free in range(1, DOTS_MAX + 1):
+        assert len(_dots(_tile(open_affixes=free))) == free, free
+
+
+def test_the_badge_stops_at_six_rather_than_growing_a_third_row():
+    """A corrupted map can have eight slots and can take an orb in none of them."""
+    assert len(_dots(_tile(open_affixes=8))) == DOTS_MAX
+
+
+def test_the_dots_sit_in_the_top_right_corner_of_their_tile():
+    draw = build_draw_list(_state(_tile(x=0, y=0, open_affixes=1)), CAL)[0]
+    (left, top, right, bottom) = draw.dots.dots[0]
+    assert right < draw.right and right > (draw.left + draw.right) / 2
+    assert top > draw.top and bottom < (draw.top + draw.bottom) / 2
+
+
+def test_the_dots_are_white_on_the_negligible_band_too():
+    """The count is structure, not a value judgement: it reads the same on any fill."""
+    state = _state(_tile(x=0, price=12.0, open_affixes=2), _tile(x=1, price=900.0))
+    cheap = build_draw_list(state, CAL)[0]
+    assert cheap.fill == VALUE_COLOURS["negligible"]
+    assert cheap.dots.fill == DOTS_FILL == "#ffffff"
+
+
+def test_the_dots_are_suppressed_on_a_cell_too_small_to_hold_them():
+    """Six countable circles need pixels; below that they are corner texture."""
+    tiny = Calibration(origin=(0, 0), cell_px=14.0, grid=(12, 12))
+    draw = build_draw_list(_state(_tile(open_affixes=3)), tiny)[0]
+    assert draw.text  # the price is still drawn
+    assert draw.dots is None
+
+
+def test_the_dots_never_overlap_the_confidence_meter_or_the_ring():
+    """Two readings on top of each other is worse than one of them missing."""
+    for cell_px in (22.0, 30.0, 46.0, 53.4, 80.0, 140.0):
+        calibration = Calibration(origin=(0, 0), cell_px=cell_px, grid=(12, 12))
+        for free in range(1, DOTS_MAX + 1):
+            tile = OverlayTile(
+                x=0, y=0, price_chaos=100.0, label="100c",
+                confidence="High", confidence_score=1.0, open_affixes=free,
+            )
+            draw = build_draw_list(_state(tile), calibration)[0]
+            if draw.dots is None:
+                continue
+            meter = draw.meter
+            # The ring is drawn 2px in from the tile edge at 2px wide, so the
+            # band it occupies runs from the edge to 4px in on every side.
+            ring_clear = (draw.left + 4, draw.top + 4, draw.right - 4, draw.bottom - 4)
+            for dot in draw.dots.dots:
+                assert not _overlaps(dot, (
+                    meter.left, meter.top, meter.right, meter.bottom
+                )), f"dot {dot} on the meter at {cell_px}px, {free} slots"
+                assert (
+                    ring_clear[0] <= dot[0] and dot[2] <= ring_clear[2]
+                    and ring_clear[1] <= dot[1] and dot[3] <= ring_clear[3]
+                ), f"dot {dot} in the ring's band at {cell_px}px, {free} slots"
+
+
+def test_two_dots_on_one_tile_never_overlap_each_other():
+    dots = _dots(_tile(open_affixes=DOTS_MAX))
+    for index, first in enumerate(dots):
+        for second in dots[index + 1:]:
+            assert not _overlaps(first, second), (first, second)
+
+
+def test_the_dots_are_shifted_into_window_coordinates_with_their_tile():
+    state = _state(_tile(x=5, y=7, open_affixes=3))
+    draw = build_draw_list(state, CAL)[0]
+    box = draw.relative_to(CAL.grid_rect()[:2])
+    assert box.dots.dots == tuple(
+        (left - 100, top - 200, right - 100, bottom - 200)
+        for left, top, right, bottom in draw.dots.dots
+    )
+    # And still inside its own tile after the shift.
+    for left, top, right, bottom in box.dots.dots:
+        assert box.left < left and right < box.right
+        assert box.top < top and bottom < box.bottom
+
+
+def test_an_unsupported_map_still_shows_the_slots_it_has_open():
+    """The dash means "we cannot price it", not "we cannot read it"."""
+    unsupported = OverlayTile(x=0, y=0, supported=False, open_affixes=2)
+    assert len(_dots(unsupported)) == 2

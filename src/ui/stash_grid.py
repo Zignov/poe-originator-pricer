@@ -17,11 +17,12 @@ from typing import Sequence
 import streamlit as st
 
 from src.market.comparables import percentile_bands, value_category
-from src.overlay.state import tile_price
+from src.overlay.state import free_affix_slots, tile_price
 from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
 from src.ui.common import VALUE_COLOURS
+from src.ui.exalt_panel import affixes_for
 from src.ui.palette import (
     CONFIDENCE_COLOURS,
     NEGLIGIBLE_CHAOS,
@@ -54,13 +55,18 @@ def render_grid(
     height = max(height, max_y)
 
     cells: list[str] = []
+    badges = 0
     for y in range(height):
         for x in range(width):
             entry = occupied.get((x, y))
             if entry is None:
                 cells.append('<div class="stash-cell"></div>')
                 continue
-            tooltip = _tooltip(entry, fmt, (verdicts or {}).get(id(entry)))
+            # Read once and handed to both the badge and the tooltip: resolving
+            # a stash payload's modifier text against the catalogue is the
+            # expensive part of drawing a tile, and a quad tab draws 576 of them.
+            free = free_affix_slots(affixes_for(entry.item))
+            tooltip = _tooltip(entry, fmt, (verdicts or {}).get(id(entry)), free)
             if not entry.supported:
                 cells.append(
                     f'<div class="stash-cell unsupported" title="{tooltip}">-</div>'
@@ -74,10 +80,12 @@ def render_grid(
             # alone recedes, but the white price on top of it does not, and the
             # point of the band is that the eye skips the whole tile.
             dim = " negligible" if category == "negligible" else ""
+            badge = free_affix_badge(free)
+            badges += bool(badge)
             cells.append(
                 f'<div class="stash-cell filled{dim} {ring}" style="background:{colour}" '
                 f'title="{tooltip}">{fmt.format(price)}'
-                f"{confidence_meter(entry)}</div>"
+                f"{confidence_meter(entry)}{badge}</div>"
             )
 
     st.markdown(
@@ -90,6 +98,8 @@ def render_grid(
     _legend(bands, fmt, len(values))
     if verdicts:
         _exalt_legend()
+    if badges:
+        _free_affix_legend()
     _confidence_legend()
 
 
@@ -106,6 +116,49 @@ def exalt_class(verdict: ExaltVerdict | None) -> str:
     if verdict is None or not verdict.available:
         return ""
     return EXALT_YES_CLASS if (verdict.net_gain_chaos or 0.0) > 0 else EXALT_NO_CLASS
+
+
+#: The badge's geometry, written as inline style rather than as a rule in the
+#: page stylesheet. Everything it needs is four numbers and a colour, and the
+#: alternative -- a `.free-affix` block over in src/ui/common.py -- would put the
+#: two halves of one small feature in two files that are edited for unrelated
+#: reasons. The class name is still on the element, because that is what the
+#: grid's tests count and what a browser inspector reads.
+#:
+#: Top-right, inset 4px like the meter's 4px, which is what clears the 2px exalt
+#: outline. The dots are the same white on every band, including the near-black
+#: negligible one: the count is structure rather than a value judgement, so it
+#: has to read the same on a 12c map as on a 900c one.
+_BADGE_STYLE = (
+    "position:absolute;top:4px;right:4px;display:flex;gap:2px;"
+    "pointer-events:none"
+)
+_DOT_STYLE = "width:4px;height:4px;border-radius:50%;background:#fff"
+
+#: Six dots at 4px plus five 2px gaps is 34px, inside a 46px cell with its
+#: insets. Past that the badge would run under the price, so it stops -- see
+#: DOTS_MAX in src/overlay/layout.py for why six is the right place to stop.
+FREE_AFFIX_MAX_DOTS = 6
+
+
+def free_affix_badge(free: int | None) -> str:
+    """One white dot per open affix slot, or nothing at all.
+
+    `None` and `0` both draw nothing, and they mean different things: `None` is
+    "this payload carries no affix structure" and `0` is "this map is full".
+    That they look the same is deliberate and safe in this direction -- neither
+    invites an Exalted Orb -- and it is the *opposite* collapse, drawing zero
+    dots for an unreadable map, that would be a lie. `free_affix_slots` in
+    src/overlay/state.py is what keeps the two apart on the way in.
+    """
+    if not free or free <= 0:
+        return ""
+    dots = "".join(
+        f'<span style="{_DOT_STYLE}"></span>'
+        for _ in range(min(int(free), FREE_AFFIX_MAX_DOTS))
+    )
+    plural = "" if free == 1 else "s"
+    return f'<span class="free-affix" style="{_BADGE_STYLE}" title="{free} free affix slot{plural}">{dots}</span>'
 
 
 def confidence_meter(entry: PricedMap) -> str:
@@ -191,6 +244,32 @@ def _exalt_legend() -> None:
     )
 
 
+def _free_affix_legend() -> None:
+    """Key for the dots, drawn only on a tab that actually has some.
+
+    Conditional, unlike the value bands: most stash payloads carry no affix
+    structure at all -- see `_no_matches_reason` in the Stash Pricer page -- so
+    on those tabs every tile is badgeless and a key explaining a mark nobody can
+    see is one more thing to read past.
+    """
+    swatch = (
+        '<span style="display:inline-flex;gap:2px;vertical-align:1px;'
+        'margin-right:.35rem">'
+        + f'<span style="{_DOT_STYLE}"></span>' * 2
+        + "</span>"
+    )
+    st.markdown(
+        f'<div class="legend"><div>{swatch}free affix slots</div></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "One dot per affix slot the map still has open, in the tile's top-right "
+        "corner -- two dots, two slots. No dots means either that the map is "
+        "full or that this payload carries no affix structure to read; the "
+        "tooltip says which."
+    )
+
+
 def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
     spread = (fmt.value(bands["exceptional"]) or 0.0) - (
         fmt.value(bands["modest"]) or 0.0
@@ -239,7 +318,12 @@ def _legend(bands: dict[str, float], fmt: PriceFormatter, count: int) -> None:
     )
 
 
-def _tooltip(entry: PricedMap, fmt: PriceFormatter, verdict: ExaltVerdict | None = None) -> str:
+def _tooltip(
+    entry: PricedMap,
+    fmt: PriceFormatter,
+    verdict: ExaltVerdict | None = None,
+    free: int | None = None,
+) -> str:
     item = entry.item
     lines = [
         f"{item.position_label()}  {item.name or item.base_type}",
@@ -262,6 +346,14 @@ def _tooltip(entry: PricedMap, fmt: PriceFormatter, verdict: ExaltVerdict | None
         ]
     else:
         lines += ["", f"Unsupported: {item.unsupported_reason}"]
+
+    # Spelled out in words because the dots cannot distinguish the two reasons a
+    # tile has none of them, and this is the only place that can.
+    lines.append(
+        "Free affix slots: unknown (no affix data in this payload)"
+        if free is None
+        else f"Free affix slots: {free}"
+    )
 
     if verdict is not None:
         lines.append("")
