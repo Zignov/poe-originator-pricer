@@ -1,5 +1,10 @@
 # Listing Tracker (Core) Implementation Plan
 
+> **Completed and merged in 0.5.0.** Every step below landed; the shipped
+> behaviour is documented in README §12 and the design rationale in
+> `../specs/2026-08-28-listing-tracker-design.md`. Kept as the record of how
+> the feature was built, not as work outstanding.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Poll the account's own instant-buyout listings, record re-prices and disappearances in an event log, and ship a My Listings page that shows every map still sitting in the store with a stash-search regex, an overlay export, and a recommended lower price.
@@ -56,7 +61,7 @@
 - Consumes: `init_db(path)` from `src/database/models.py`
 - Produces: tables `tracked_listings`, `tracked_listing_events`, `listing_poll_runs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Migration 3 creates the tracker tables with the columns the tracker needs."""
@@ -119,12 +124,12 @@ def test_migration_is_idempotent(tmp_path):
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracker_schema.py -v`
 Expected: FAIL — `sqlite3.OperationalError: no such table: tracked_listings`
 
-- [ ] **Step 3: Append migration 3**
+- [x] **Step 3: Append migration 3**
 
 Add to the end of the `MIGRATIONS` list in `src/database/models.py`, after entry `(2, ...)`:
 
@@ -237,17 +242,17 @@ Add to the end of the `MIGRATIONS` list in `src/database/models.py`, after entry
     ),
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracker_schema.py -v`
 Expected: 4 passed
 
-- [ ] **Step 5: Run the whole suite — migrations touch every test that opens a database**
+- [x] **Step 5: Run the whole suite — migrations touch every test that opens a database**
 
 Run: `python -m pytest -q`
 Expected: no new failures against the pre-task baseline
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/database/models.py tests/test_tracker_schema.py
@@ -272,7 +277,7 @@ This is the heart of the feature and the part most worth getting right before an
   - `Reconciliation(events, live, gone, ambiguous, skipped_disappearance)`
   - `reconcile(previous, snapshot, now, complete, reappearance_window_hours=6.0) -> Reconciliation`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """The reconciler: what one poll means for what we already knew."""
@@ -413,12 +418,12 @@ def test_distinct_maps_are_not_ambiguous():
     assert not any(r.ambiguous for r in result.live)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_reconcile.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `src/tracking/__init__.py` empty, then `src/tracking/reconcile.py`:
 
@@ -672,12 +677,12 @@ def reconcile(
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_reconcile.py -v`
 Expected: 10 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/__init__.py src/tracking/reconcile.py tests/test_tracking_reconcile.py
@@ -697,7 +702,7 @@ git commit -m "Add listing reconciler: events from one poll of your own listings
 - Consumes: `OfficialTradeApiCollector.build_query`, `.search`, `.fetch`, `.listing_from_result`
 - Produces: `MyListingsSnapshot(listings, total_reported, complete, error)`; `fetch_my_listings(collector, account, max_ids=100) -> MyListingsSnapshot`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Reading your own listings: the query shape, and refusing to guess when truncated."""
@@ -793,12 +798,12 @@ def test_empty_account_name_refuses_rather_than_polling():
         fetch_my_listings(c, account="")
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_my_listings.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.market.my_listings'`
 
-- [ ] **Step 3: Promote `_to_listing`, then write the collector**
+- [x] **Step 3: Promote `_to_listing`, then write the collector**
 
 In `src/market/collectors/official_trade_api.py`, rename the method and its single call site:
 
@@ -908,12 +913,12 @@ asserts `"collapse" not in trade`. Emitting `{"option": "false"}` instead would
 break that test and change the query every other account-scoped caller sends.
 Passing `collapse=False` is already correct and sufficient.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_my_listings.py tests/test_market_sampling.py -v`
 Expected: all pass. `test_market_sampling.py` is included because the `collapse` change touches the shared query builder.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/market/my_listings.py src/market/collectors/official_trade_api.py tests/test_my_listings.py
@@ -939,7 +944,7 @@ git commit -m "Read the account's own listings from the trade search"
   - `set_exclude_from_learning(listing_id, excluded)`
   - `last_poll_run(account, league) -> sqlite3.Row | None`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Persisting what the reconciler decided."""
@@ -1046,12 +1051,12 @@ def test_exclude_from_learning_round_trips(tmp_path):
     assert page[0]["exclude_from_learning"] == 1
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracker_repository.py -v`
 Expected: FAIL — `AttributeError: 'Repository' object has no attribute 'apply_reconciliation'`
 
-- [ ] **Step 3: Implement the methods**
+- [x] **Step 3: Implement the methods**
 
 Append to `src/database/repository.py`, inside `class Repository`, following the existing style (`self.conn`, ISO strings, `sqlite3.Row` returns). Add `from src.tracking.reconcile import TrackedRow` to the imports.
 
@@ -1294,12 +1299,12 @@ Append to `src/database/repository.py`, inside `class Repository`, following the
 
 Confirm `json`, `sqlite3`, `datetime` and `Sequence` are already imported at the top of the file; add whichever is missing.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracker_repository.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/database/repository.py tests/test_tracker_repository.py
@@ -1322,7 +1327,7 @@ The derived recommendation needs the censored fit, which is the follow-on plan. 
   - `LadderConfig(steps, floor_ratio, stale_after_hours)`
   - `recommend_ladder(price_chaos, hours_listed, predicted_chaos, interval_low_chaos, cfg) -> Recommendation | None`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """What to re-price a map to when it has not sold."""
@@ -1378,12 +1383,12 @@ def test_a_map_with_no_prediction_uses_the_ladder_without_a_floor():
     assert rec.floored is False
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_reprice.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking.reprice'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 """What to re-price a map to when it has not sold.
@@ -1478,12 +1483,12 @@ def recommend_ladder(
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_reprice.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/reprice.py tests/test_tracking_reprice.py
@@ -1506,7 +1511,7 @@ git commit -m "Add the fallback reprice ladder, with a floor and an honest sourc
   - `PollState(last_run_at, last_error, polls, listings_live, running)`
   - `ListingPoller.start(repo, collector, account, league, cfg) -> ListingPoller`, `.poll_once(now)`, `.cancel()`, `.next_interval_seconds(now)`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """The poller: one pass, its cadence, and its refusal to guess."""
@@ -1608,12 +1613,12 @@ def test_an_empty_book_uses_the_slow_cadence(tmp_path):
     assert poller.next_interval_seconds(now=T0) == 15 * 60
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_poller.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking.poller'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 """Polling your own listings on a thread, the way market runs already work.
@@ -1785,12 +1790,12 @@ listing_tracker:
 
 And the matching defaults in `src/config.py`, following the shape of the existing `"scope"` and `"market_comparison"` entries in the defaults dict.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_poller.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/poller.py src/config.py config.yaml config.example.yaml tests/test_tracking_poller.py
@@ -1813,7 +1818,7 @@ git commit -m "Add the listing poller: immediate first pass, faster while listin
   - `regex_for_stale(stale, all_rows) -> HighlightBatches`
   - `render()`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 The page's decisions are extracted as pure functions so they are testable without a browser, matching how `tests/test_ui_smoke.py` treats the other pages.
 
@@ -1872,12 +1877,12 @@ def test_no_stale_maps_produces_no_pattern():
     assert not regex_for_stale(stale, rows).ok
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_my_listings_page.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.ui.my_listings'`
 
-- [ ] **Step 3: Write the page**
+- [x] **Step 3: Write the page**
 
 Create `src/ui/my_listings.py`. The two pure functions first — these are what the test drives — then `render()` built on them in the style of `src/ui/stash_pricer.py` (which already calls `build_highlight_batches` and can be read as the model for the regex block and the copy controls).
 
@@ -1967,12 +1972,12 @@ PAGES = {
 
 **Check the nav CSS.** `app.py`'s own comment warns that the group headings above Dashboard, Market Data and Model Analysis are drawn by `nth-child` selectors in `src/ui/common.py`. Adding a page to the Price group shifts every later position by one, so the `.nav-group` `nth-child` values for the Market and Tool headings must each be incremented, or the headings land on the wrong rows.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_my_listings_page.py tests/test_ui_smoke.py -v`
 Expected: all pass
 
-- [ ] **Step 5: Update the data-access record**
+- [x] **Step 5: Update the data-access record**
 
 `docs/data-access.md` §3 ends with "**Not done, deliberately:** no continuous background polling…". That is no longer true. Amend that paragraph to record what changed and why it is still modest:
 
@@ -1987,12 +1992,12 @@ collection, polling with the app closed, and any attempt to enumerate the
 10,000-result cap.
 ```
 
-- [ ] **Step 6: Run the full suite**
+- [x] **Step 6: Run the full suite**
 
 Run: `python -m pytest -q`
 Expected: all pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/ui/my_listings.py app.py src/ui/common.py docs/data-access.md tests/test_my_listings_page.py

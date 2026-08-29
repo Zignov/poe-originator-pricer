@@ -367,7 +367,7 @@ Two things do not survive the trip, both by design:
   the machine that collected it.
 * **`POE_CONTACT_EMAIL` must be set as a secret.** Without it the User-Agent
   goes out as `you@example.com`, and GGG asks automated clients to identify
-  themselves with a real address (see §13). `POE_LEAGUE` can be set the same way
+  themselves with a real address (see §14). `POE_LEAGUE` can be set the same way
   to override the league without editing config.
 
 POESESSID is deliberately *not* something to put in cloud secrets — it is a
@@ -743,7 +743,7 @@ Five things keep that from being unbounded:
    cache is on disk, so it continues across restarts too.
 
 Rate limiting is never bypassed. This mode goes through the same client, the
-same `RateLimiter` and the same 429 back-off as everything else in §13.
+same `RateLimiter` and the same 429 back-off as everything else in §14.
 
 ### Confidence, and how it degrades
 
@@ -1150,7 +1150,100 @@ interesting reward interactions, and the history of every training run.
 
 ---
 
-## 12. Current limitations
+## 12. Tracking what you listed, and learning what actually sells
+
+Everything else in this tool is fitted on **asks** — what sellers wanted. Your
+own listings are the one place it can see what a buyer actually paid, and that
+makes them worth tracking on their own terms.
+
+The **My Listings** page answers one question — *which of my maps are sitting* —
+and then makes the answer actionable in the two places that help: a stash search
+regex that lights the stale maps up in game, and an overlay export that puts the
+new price onto them where they physically are.
+
+### How it watches
+
+With `POE_ACCOUNT_NAME` set and `listing_tracker.enabled` on, a background poller
+(`src/tracking/poller.py`) runs one account-scoped trade search — your own
+listings — while the app is open. It reconciles each poll against the last into
+events: a map appeared, a map is still sitting, a map is gone.
+
+The cadence is deliberately uneven. A listing's first hour is where the
+fast-sale signal lives — the difference between "sold in eleven minutes" and
+"sold in three hours" is most of what the learning half has to work with, and a
+fifteen-minute poll blurs it. A map that has sat for three days does not need a
+five-minute check to confirm it is still sitting. So young listings are polled
+every five minutes and old ones every fifteen, which spends requests where they
+buy information. A markdown makes a listing young again, because a new price is
+a new question.
+
+The poller runs on its own thread with its own database connection, and it stops
+when you close the app. It never restarts itself. §14 has the request cost.
+
+### What it can and cannot know
+
+**The stale half is exact.** A map still listed after sixty-two hours has been
+listed for sixty-two hours whatever the polling gaps, so every "sitting for N
+hours" figure on the page is a measurement.
+
+**The sold half is bracketed.** Polling stops when the app closes, so a map that
+sold overnight is known only to have sold *somewhere inside* a nine-hour window.
+The code treats these as **interval- and right-censored observations**
+(`src/tracking/censoring.py`) rather than throwing them away or pretending the
+midpoint is the answer — discarding them would bias what is left toward whoever
+happens to leave the app running. A Turnbull-style EM fit
+(`src/tracking/survival.py`) turns that censored history into: *if I list at this
+ratio to the model's estimate, what are the odds it clears within W hours?*
+
+A map that vanishes and comes back within `reappearance_window_hours` was never
+sold — someone else's search index blinked, or you relisted it.
+
+### What it does with the answer
+
+- **Re-price recommendations.** Until there is enough of your own history to fit
+  the real thing, a fixed fallback ladder walks a stale map down by staleness
+  (8% at 24h, 15% at 72h, 22% at a week) with a hard floor at 75% of the
+  estimate. Left alone, a ladder walks a map nobody wants down until it is being
+  given away — each markdown producing more evidence that the price is still too
+  high, which is exactly what a ladder reacts to. Every recommendation carries a
+  `source` and the page prints it: **a fallback labelled as a measurement is
+  worse than no number at all.**
+- **Alerts**, but only when the data is decisive. An alert fires only when the
+  *whole* bracket sits on one side of the threshold — a map that sold somewhere
+  between twenty minutes and nine hours might have sold fast or slowly, and the
+  overnight gap that produced that bracket is not a licence to guess.
+- **A personal calibration factor** — how far your listings actually clear from
+  what the model says — applied as a multiplier on the **suggested listing
+  price**, never on the fair-value estimate.
+
+That factor is the most dangerous number in the app, because it silently moves
+every price you are shown. So it is guarded the same way the observed-spread
+multipliers are:
+
+- **Evidence on both sides, or nothing.** Fast sales bracket the clearing ratio
+  from below, stale listings bracket it from above. With only one side there is
+  no bracket, just a direction — and a direction is not a factor.
+- **Clamped to 0.8–1.3, and it says on the page when it clamped.**
+- **A measurement outside 0.5–2.0 is refused, not clamped.** A factor of 0.25
+  does not mean sell at a quarter price, it means the model is miscalibrated,
+  and quietly scaling by 0.25 would hide the one thing worth seeing.
+- **Bound to a model version.** The model's known underpricing is a hedging
+  artefact with its own fix, and this factor is measured *on top of* whatever the
+  active model already does. Carry it across a retrain and the two corrections
+  stack, the second fitted on prices the first already moved.
+
+It needs `listing_tracker.calibration.min_sold` (default 20) resolved sales
+before it will produce a number at all.
+
+### Settings
+
+All under `listing_tracker:` in `config.yaml` — poll cadences, the reappearance
+window, what counts as stale, the target clearing window and probability, the
+calibration clamp, and the fallback ladder's steps and floor.
+
+---
+
+## 13. Current limitations
 
 Read this part.
 
@@ -1234,9 +1327,18 @@ Read this part.
 - **Single league, single tier at a time.** Both are config values, not
   hardcoded, but a model is trained for one scope.
 
+- **Your own sale times are bracketed, not observed.** The listing tracker (§12)
+  only polls while the app is open, so a map that sold overnight is known to
+  have sold somewhere inside a nine-hour window. The censored fit handles that
+  honestly rather than guessing a midpoint, but it means the clearing-speed
+  numbers get sharper the more you leave the app running, and the personal
+  calibration factor refuses to produce anything at all until 20 sales have
+  resolved. It is also the only number here fitted on outcomes rather than
+  asks — which is exactly why it is clamped and why it says when it clamped.
+
 ---
 
-## 13. GGG and API compliance
+## 14. GGG and API compliance
 
 - All market data comes from GGG's own endpoints, unauthenticated, at a
   self-limiting rate driven by the rate-limit policy GGG returns in its own
@@ -1258,7 +1360,7 @@ are in **[docs/data-access.md](docs/data-access.md)**.
 
 ---
 
-## 14. Project layout
+## 15. Project layout
 
 ```
 app.py                     Streamlit entry point
@@ -1277,6 +1379,9 @@ src/
                            affix_catalogue -- per-affix reward contributions
   pricing/                 currency, sell_strategy, fair_value, exalt
                            market_comparison -- live mode wired to PricedMap
+  tracking/                your own listings: reconcile (poll -> events),
+                           censoring + survival -- bracketed sale times, fitted
+                           honestly; reprice, alerts, calibration, poller
   overlay/                 the desktop overlay: state (the JSON contract),
                            calibration, layout -- and window, the only module
                            that imports tkinter
@@ -1327,7 +1432,7 @@ that CSS cannot reach start from the same ground.
 
 ---
 
-## 15. Tests
+## 16. Tests
 
 ```bash
 python -m pytest

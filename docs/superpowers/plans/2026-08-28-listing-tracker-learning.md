@@ -1,5 +1,10 @@
 # Listing Tracker (Learning) Implementation Plan
 
+> **Completed and merged in 0.5.0.** Every step below landed; the shipped
+> behaviour is documented in README §12 and the design rationale in
+> `../specs/2026-08-28-listing-tracker-design.md`. Kept as the record of how
+> the feature was built, not as work outstanding.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn the tracked listing history into a fitted answer to "at what price do my maps actually clear, and how fast" — then use it for alerts, for the reprice recommendation, and for a personal calibration factor on suggested listing price.
@@ -60,7 +65,7 @@ episode that ended in a re-price is a right-censored non-sale at that price: it
 did *not* sell there, which is exactly as informative as the sale that ended the
 last episode.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Turning a listing's history into observations that admit what they don't know."""
@@ -168,12 +173,12 @@ def test_a_reappearance_cancels_the_sale_it_followed():
     assert obs[0].sold is False
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_censoring.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking.censoring'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 """One listing's history, turned into observations that admit what they don't know.
@@ -323,12 +328,12 @@ def all_observations(rows, events_by_listing, predictions, now) -> list[Observat
     return out
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_censoring.py -v`
 Expected: 7 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/censoring.py tests/test_tracking_censoring.py
@@ -351,7 +356,7 @@ git commit -m "Turn listing history into interval- and right-censored observatio
   - `Fit.probability_within(ratio, hours) -> float | None`
   - `fit_hazard(observations, ratio_edges=..., time_edges=..., min_sales=8, max_iter=100, tol=1e-7) -> Fit`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """The censored fit: uses coarse data for what it is worth, and refuses to invent."""
@@ -435,12 +440,12 @@ def test_observations_without_a_ratio_are_ignored():
     assert fit_hazard(obs, ratio_edges=RATIO_EDGES).ok is False
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_survival.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking.survival'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 """How fast your maps clear, fitted from data that mostly doesn't know when.
@@ -641,18 +646,18 @@ probability it has not yet sold. Write the failing test first
 `test_exact_brackets_reduce_to_the_empirical_proportion` are the two that pin
 it down), then replace those lines with the accumulation that satisfies both.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_survival.py -v`
 Expected: 8 passed
 
-- [ ] **Step 5: Add a property test for monotonicity across the grid**
+- [x] **Step 5: Add a property test for monotonicity across the grid**
 
 `tests/test_monotonicity.py` already exists for the model; follow its style and add
 a check that `probability_within` never decreases as `hours` increases, for every
 band with data, over a randomised set of fitted inputs.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/tracking/survival.py tests/test_tracking_survival.py tests/test_monotonicity.py
@@ -674,7 +679,7 @@ git commit -m "Fit clearing speed from censored listing history"
   - `Alert(listing_id, kind, headline, evidence)`
   - `alerts_for(rows, observations, thresholds, fit, now) -> list[Alert]`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Alerts: only when the evidence is decisive, and thresholds you actually set."""
@@ -753,12 +758,12 @@ def test_excluded_and_ambiguous_rows_never_alert():
     assert alerts_for(rows, Thresholds(1.0, 24.0, "config")) == []
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_alerts.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking.alerts'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 """Telling you a map was mispriced, but only when the data actually says so.
@@ -872,12 +877,12 @@ def alerts_for(rows: Sequence[dict], thresholds: Thresholds) -> list[Alert]:
     return out
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_alerts.py -v`
 Expected: 8 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/alerts.py tests/test_tracking_alerts.py
@@ -896,7 +901,7 @@ git commit -m "Add mispricing alerts with decisive-bracket and observed threshol
 - Consumes: `Fit` from Task 2, `LadderConfig`/`Recommendation` from the core plan
 - Produces: `recommend(price_chaos, hours_listed, predicted_chaos, interval_low_chaos, fit, target_window_hours, target_probability, cfg) -> Recommendation | None`
 
-- [ ] **Step 1: Write the failing test (append to the existing file)**
+- [x] **Step 1: Write the failing test (append to the existing file)**
 
 ```python
 from src.tracking.reprice import recommend
@@ -946,12 +951,12 @@ def test_a_ratio_band_the_fit_knows_nothing_about_falls_back():
     assert rec.source == "ladder", "band 1.0 has no data; do not invent a number"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_reprice.py -v`
 Expected: FAIL — `ImportError: cannot import name 'recommend'`
 
-- [ ] **Step 3: Add `recommend` to `src/tracking/reprice.py`**
+- [x] **Step 3: Add `recommend` to `src/tracking/reprice.py`**
 
 ```python
 def recommend(
@@ -1028,12 +1033,12 @@ def recommend(
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_reprice.py -v`
 Expected: 10 passed (6 from the core plan, 4 new)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/reprice.py tests/test_tracking_reprice.py
@@ -1054,7 +1059,7 @@ git commit -m "Derive the reprice recommendation from the fit, falling back hone
   - `PersonalCalibration(factor, source, model_version, sample, applied)`
   - `personal_factor(observations, fit, model_version, cfg) -> PersonalCalibration`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """The personal factor: measured, clamped, bound to a model, and refusable."""
@@ -1131,12 +1136,12 @@ def test_the_calibration_records_which_model_it_was_measured_against():
     assert cal.model_version == "catboost-2026-08-24"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_tracking_calibration.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.tracking.calibration'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 """How far your listings actually clear from what the model says.
@@ -1256,12 +1261,12 @@ def personal_factor(observations, fit, model_version: str, cfg: CalibrationConfi
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_tracking_calibration.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tracking/calibration.py tests/test_tracking_calibration.py
@@ -1279,7 +1284,7 @@ git commit -m "Measure a personal price factor from what actually cleared"
 **Interfaces:**
 - Produces: `StrategyMultipliers(..., personal=1.0, personal_source="")`, applied inside `suggested_price`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """The personal factor composes with the strategy, and never hides itself."""
@@ -1323,12 +1328,12 @@ def test_an_unknown_strategy_still_raises():
         suggested_price(100.0, "nonsense", _multipliers())
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_sell_strategy_personal.py -v`
 Expected: FAIL — `TypeError: StrategyMultipliers.__init__() got an unexpected keyword argument 'personal'`
 
-- [ ] **Step 3: Modify `src/pricing/sell_strategy.py`**
+- [x] **Step 3: Modify `src/pricing/sell_strategy.py`**
 
 Add the two fields to the dataclass, defaulted so every existing construction
 site keeps working unchanged:
@@ -1361,17 +1366,17 @@ def suggested_price(fair_value: float, strategy: str, multipliers: StrategyMulti
 `get` uses `getattr(self, strategy)` and `STRATEGIES` does not contain
 `"personal"`, so the new field cannot be selected as a strategy by accident.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_sell_strategy_personal.py tests/ -q -k "strategy or pricing or stash"`
 Expected: all pass — the defaults mean no existing caller changes behaviour
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `python -m pytest -q`
 Expected: all pass
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/pricing/sell_strategy.py tests/test_sell_strategy_personal.py
@@ -1386,7 +1391,7 @@ git commit -m "Compose a personal calibration factor into suggested listing pric
 - Modify: `src/ui/my_listings.py`, `src/ui/settings.py`, `src/ui/common.py`
 - Test: `tests/test_my_listings_page.py` (extend), `tests/test_ui_smoke.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_the_page_reports_a_refused_calibration_rather_than_hiding_it():
@@ -1415,12 +1420,12 @@ def test_an_applied_calibration_names_its_model():
     assert "1.08" in note and "catboost-2026-08-24" in note
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_my_listings_page.py -v`
 Expected: FAIL — `ImportError: cannot import name 'calibration_note'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `calibration_note(calibration) -> str` to `src/ui/my_listings.py` — a single
 string that always states whether the factor is applied, its value, its sample
@@ -1458,12 +1463,12 @@ listing_tracker:
     clamp: [0.8, 1.3]
 ```
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `python -m pytest -q`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/ui/my_listings.py src/ui/settings.py src/ui/common.py config.yaml config.example.yaml tests/
