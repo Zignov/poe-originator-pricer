@@ -299,9 +299,7 @@ and never leaves your machine — but it is plain text, so saving makes the cook
 
 ### Download and double-click (Windows)
 
-Grab the zip from the [latest release](https://github.com/Zignov/poe-originator-pricer/releases/latest),
-extract it anywhere you like — Desktop is fine, `C:\Program Files` is not —
-and double-click:
+Reducted
 
 ```
 Start Originator Pricer.bat
