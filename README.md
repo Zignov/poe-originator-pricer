@@ -7,12 +7,6 @@ list and for how much without checking each map by hand.
 It is an analysis tool. It never touches the game client, never modifies your
 stash, and never performs a gameplay action.
 
-**[Download the latest release](https://github.com/Zignov/poe-originator-pricer/releases/latest)**,
-extract it, and double-click `Start Originator Pricer.bat`. It ships with a
-trained model, so the first stash tab you paste already gets prices. Needs
-Python 3.11+ installed; §6 covers what the launcher does and why there is no
-frozen `.exe`.
-
 ---
 
 ## 1. What it does
