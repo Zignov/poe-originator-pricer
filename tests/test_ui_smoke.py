@@ -62,6 +62,108 @@ def test_page_renders_on_a_fresh_install(page, monkeypatch, tmp_path):
     assert not app.exception, f"{page} raised on a fresh install: {[str(e) for e in app.exception]}"
 
 
+# ---------------------------------------------------------------------------
+# Tab strips: the tabs that remember which one is open
+# ---------------------------------------------------------------------------
+
+#: The pages whose tabs used to be `st.tabs`, which rendered every pane on every
+#: rerun. They are `tab_strip` now, which renders only the open one -- so a page
+#: that renders says nothing about the other panels, and the two tests below
+#: have to walk them to say what the two above used to say on their own.
+TAB_STRIPS = [
+    ("Market Data", "market_data_tab"),
+    ("Model Analysis", "model_analysis_tab"),
+]
+
+
+def _tab_names(app):
+    """The labels of the tabs on screen, in order.
+
+    `tab_strip` is a real `st.tabs` since Streamlit 1.67, and AppTest's `Tab`
+    element carries a label but no key, value or options -- so a strip is found
+    by its labels and driven through session state rather than by a widget
+    handle. Both pages walked below draw exactly one strip.
+    """
+    return [str(tab.label) for tab in app.tabs]
+
+
+def _open_tab(app, key, name):
+    """Open one tab by name and rerun.
+
+    Assigning the widget key is what a click does; `tab_strip` mirrors it on
+    the way back out, so the choice then survives leaving the page.
+    """
+    app.session_state[key] = name
+    app.run()
+
+
+def _walk_tabs(app, key):
+    """Open each tab of the named strip in turn. Returns the ones it opened.
+
+    Empty when the page drew no strip at all, which is a real state for both of
+    these pages -- no trained model, and Model Analysis stops at a warning.
+    """
+    names = _tab_names(app)
+    if not names:
+        return []
+    opened = []
+    for name in names:
+        _open_tab(app, key, name)
+        assert not app.exception, f"{name} raised: {[str(e) for e in app.exception]}"
+        opened.append(name)
+    return opened
+
+
+@pytest.mark.parametrize("page,key", TAB_STRIPS)
+def test_every_tab_of_a_strip_renders(page, key):
+    app = _run(page)
+    if not _walk_tabs(app, key):
+        pytest.skip(f"{page} drew no tab strip")
+
+
+@pytest.mark.parametrize("page,key", TAB_STRIPS)
+def test_every_tab_of_a_strip_renders_on_a_fresh_install(page, key, monkeypatch, tmp_path):
+    """The empty-database case, tab by tab. See the fresh-install test above."""
+    from src.config import Config
+
+    empty = tmp_path / "empty.db"
+    monkeypatch.setattr(Config, "db_path", property(lambda self: empty))
+
+    app = _run(page)
+    if not _walk_tabs(app, key):
+        pytest.skip(f"{page} drew no tab strip on a fresh install")
+
+
+def test_the_open_tab_survives_a_trip_to_another_page():
+    """The complaint: st.tabs re-opened the first tab every time you came back.
+
+    Leaving Market Data to check a price and returning put you on Collect again
+    whatever you had been reading, which made the nav cost something every time
+    it was used. Streamlit also drops a keyed widget's value as soon as one
+    rerun goes by without that widget on screen -- which is exactly what leaving
+    the page is -- so remembering has to survive that too, not merely a rerun.
+    """
+    app = _run("Market Data")
+    assert "Import" in _tab_names(app), "the Market Data page drew no tab strip"
+    _open_tab(app, "market_data_tab", "Import")
+    assert not app.exception, [str(e) for e in app.exception]
+
+    app.sidebar.radio[0].set_value("Dashboard").run()
+    app.sidebar.radio[0].set_value("Market Data").run()
+    assert not app.exception, [str(e) for e in app.exception]
+
+    assert _tab_names(app), "the tab strip did not come back with the page"
+    # Both halves matter. The mirror is what survived the trip; the widget key
+    # is what the strip is actually showing now. A bug that restored the mirror
+    # but reopened the first tab anyway -- which is what a plain keyed st.tabs
+    # does on 1.67 -- passes the first and fails the second.
+    assert app.session_state["tab_strip::market_data_tab"] == "Import"
+    assert app.session_state["market_data_tab"] == "Import", (
+        f"came back on {app.session_state['market_data_tab']!r} "
+        "rather than the tab that was open"
+    )
+
+
 def test_single_map_prices_a_manually_entered_map():
     app = _run("Single Map")
     if not app.number_input:

@@ -1,21 +1,27 @@
+# What the app needs to RUN. Not what it needs to train a model -- that is
+# requirements-train.txt, and it is several hundred megabytes heavier.
+#
+# The split exists because fitting a model and evaluating one are different
+# jobs with wildly different dependencies. CatBoost, LightGBM, XGBoost,
+# scikit-learn, scipy and shap exist only to *produce* models/originator_model
+# .pkl; once produced, it is exported to ONNX (src/ml/onnx_export.py) and the
+# app evaluates it through onnxruntime, which is a ~13 MB wheel instead of
+# several hundred. A player installing this gets the list below and nothing
+# else. See scripts/export_onnx.py.
+
 numpy>=2.0
 pandas>=2.2
-scikit-learn>=1.5
-scipy>=1.13
 requests>=2.32
 PyYAML>=6.0
 python-dotenv>=1.0
-streamlit>=1.40
+
+# 1.67 is a hard floor, not a preference: tab_strip() uses st.tabs(key=...,
+# default=..., on_change=...), which does not exist before it. On an older
+# Streamlit the tab strips raise rather than degrade.
+streamlit>=1.67
 altair>=5.4
 
-# Gradient boosting backends. All optional: src/ml/models.py degrades to
-# scikit-learn's HistGradientBoostingRegressor if none of these import.
-catboost>=1.2
-lightgbm>=4.5
-xgboost>=2.1
-
-# Model explanation. Optional: src/ml/explain.py falls back to a
-# tree-path attribution when shap is unavailable.
-shap>=0.46
-
-pytest>=8.0
+# Evaluates the exported model. The app degrades to the pickled model if an
+# artifact has no .onnx beside it, but that path needs whichever library fitted
+# it, so this is what makes a library-free install work.
+onnxruntime>=1.20

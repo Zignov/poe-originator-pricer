@@ -9,7 +9,38 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# And this directory, so a test module can `from conftest import ...` for the
+# shared helpers below. pytest imports conftest itself but does not put it on
+# the path, and there is no `tests/__init__.py` to import it as a package.
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def code_only(path: Path | str) -> str:
+    """A Python file's code with its comments and strings removed.
+
+    For the source checks that assert an API is *not* called. Those modules
+    name the forbidden API in their own docstrings in order to explain why they
+    refuse to use it -- `src/pricecheck/clipboard.py` on `SendInput` is the
+    clearest case -- so a plain `in` against the file text fails on the very
+    sentence that makes the promise.
+    """
+    import io
+    import tokenize
+
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except tokenize.TokenError:  # pragma: no cover - a syntax error fails elsewhere
+        return text
+    return " ".join(
+        token.string
+        for token in tokens
+        if token.type not in (tokenize.COMMENT, tokenize.STRING)
+    )
 
 
 # ---------------------------------------------------------------------------

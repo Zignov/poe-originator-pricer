@@ -27,12 +27,15 @@ Draw the prices onto a picture of your stash grid
 ...or onto the real stash tab (or inventory), with a transparent desktop overlay
         v
 ...and re-priced from the overlay itself, with one chord, between maps
+        v
+...or price one item on its own: copy it in game, see the number beside the
+   pointer
 ```
 
 You get a sortable table, a visual stash grid with the price written on each
 map's actual position, per-map explanations of where the number came from, and
 an optional click-through overlay that puts the same tiles on top of the game
-window itself (section 7).
+window itself, and a hotkey price check for a single copied item (section 7).
 
 ---
 
@@ -94,8 +97,8 @@ more_divination_cards
 A map with
 
 ```
-Item Quantity: +84%   Item Rarity: +134%   Monster Pack Size: +32%
-More Scarabs: +35%    More Currency: +47%
+Atlas Drops: +84%     Item Rarity: +134%   Monster Pack Size: +32%
+More Threads: +35%    More Currency: +47%
 ```
 
 becomes
@@ -108,6 +111,77 @@ becomes
 
 Absent rewards normalize to `0`, because absence genuinely means no bonus. The
 raw item data and full modifier list are preserved alongside.
+
+### GGG renames these between leagues
+
+The seven slots are stable. What the game *calls* them is not, and Covens
+renamed two of them:
+
+| Through Allflame | In Covens | property type id |
+|---|---|---|
+| `Item Quantity` | `Atlas Drops` | 2 → **112** |
+| `More Scarabs` | `More Threads` | 89 — unchanged |
+
+Both old and new names are recognised, permanently and in both directions: a
+stash export from a past league, a community CSV and a map you copy today all
+have to parse. Nothing is ever removed from the alias table, only added to.
+
+**The feature keys themselves do not change.** `more_scarabs` holds thread
+counts in Covens, and that is deliberate — the key is a *slot identifier*, not
+a claim about what the slot currently contains, which is the same thing GGG
+said by keeping property type id 89 through the rename. Renaming the key would
+mean a database migration and a `feature_list` no trained model matches, to
+gain what the display label already gives. Everything a user reads comes from
+`FEATURE_LABELS` in `src/schema.py`; change it there and the table, the grid
+tooltip, the filter dropdown, the explanations, the CLI and the price-check
+popup all follow.
+
+**Why this is called out at all.** The quantity rename changed the name *and*
+the type id, so neither the name match nor the numeric fallback caught it, and
+every map collected in the new league read `quantity: 0`. Nothing raised and
+nothing was logged. Near the training floor a lost feature barely moves the
+price, so the only symptom was good maps quietly pricing at about half what
+they were worth. An unrecognised reward-shaped property is therefore now
+*reported* rather than dropped — on the collection summary, on the price-check
+popup, and by `scripts/reparse_listings.py`.
+
+**The trade *search* needs a second fix, and it is not the same one.** GGG
+renamed the item property *and* kept two separate search filters:
+
+```
+map_iiq      Increased Item Quantity
+map_bonus    Atlas Drops
+```
+
+Market comparison windows the quantity roll to find similar maps, and it has
+to send `map_bonus` — a `map_iiq` window matches nothing on a current map and
+silently excludes every real comparable. Measured live, same query, same
+window: `map_iiq` returned 0 listings across 21 searches, `map_bonus` returned
+10,000. So unlike the property names, which resolve through one alias table,
+the filter is a single constant: `QUANTITY_FILTER` in
+`src/market/collectors/official_trade_api.py`.
+
+What made this expensive to find is that it does not look like a bug. Every
+map reported "no live listings matched, even at the widest tolerance", which
+is a sentence the mode is *supposed* to be able to say — it is what a genuinely
+unusual map looks like. Seven out of seven saying it is the only tell, and the
+page now says so explicitly when every map comes back empty.
+
+If the pricer ever starts underpricing your best maps after a league launch,
+that is the first thing to check:
+
+```powershell
+python -m src.cli collect-market --limit 50
+```
+
+It prints a warning naming any reward property it could not place. Add it to
+`PROPERTY_TO_FEATURE` in `src/schema.py`, then repair the rows already
+collected — the full trade payload is stored with every listing, so the value
+is already in your database and nothing needs re-fetching:
+
+```powershell
+python scripts/reparse_listings.py --dry-run
+```
 
 ### Prices are shown in chaos
 
@@ -359,16 +433,30 @@ cd poe-originator-pricer
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-pip install -r requirements.txt
+pip install -r requirements.txt                  # to run it
+pip install -r requirements-train.txt            # to train, test or explain
 
 cp config.example.yaml config.yaml   # set your league and contact address
 cp .env.example .env                 # optional: POESESSID for stash access
 ```
 
-A trained model is already in the checkout — `models/originator_model.pkl` is
-tracked (§11) — so `streamlit run app.py` prices maps right now. What is *not*
-in the checkout is the listings database, so the Market Data and Model Analysis
-pages stay empty until you give them one:
+**The two requirement files are a deliberate split.** `requirements.txt` is what
+the app needs to *price* maps: roughly 400 MB, of which the largest single item
+is Streamlit's own pyarrow. `requirements-train.txt` adds CatBoost, LightGBM,
+XGBoost, scikit-learn, scipy and shap — the libraries that exist only to *fit* a
+model — and takes the install past a gigabyte. Training writes the fitted model
+out to ONNX (`src/ml/onnx_export.py`), and the app evaluates that through
+`onnxruntime` instead, so a player never installs any of them. Pricing is
+identical either way; this is pinned by a parity test against the shipped model.
+
+Without the training stack the app prices normally and the Retrain button
+explains what to install, rather than failing. With it, everything works.
+
+A trained model is already in the checkout — `models/originator_model.onnx`,
+`.npz` and `.json` are the set the app loads, and `.pkl` is kept for re-export
+and for SHAP explanations (§11) — so `streamlit run app.py` prices maps right
+now. What is *not* in the checkout is the listings database, so the Market Data
+and Model Analysis pages stay empty until you give them one:
 
 ```bash
 python -m src.cli update-rate                 # live divine/chaos rate
@@ -674,6 +762,27 @@ whichever the maps came from, because sending an inventory read to the stash
 overlay draws it in the wrong half of the screen and looks, from inside the
 game, exactly like a bad calibration.
 
+**How it looks.** The **Appearance** tab on the Settings page carries the rest:
+the label face and size, the two ring colours, the tile hairline and its width,
+the free-affix dots, whether the confidence meter and the dots are drawn at all,
+an optional flat tint across the whole grid, and which side of the grid the
+control strip sits on and how wide it is. It also carries this surface's
+**opacity, cell size and grid position** — the same three numbers the
+calibration screen edits, for when you already know the value and would rather
+type it than nudge it.
+
+Two things about that tab are worth knowing:
+
+- **The colours are shared with the web app.** The value bands and the
+  confidence meter have one definition, in `src/ui/palette.py`, which the Stash
+  Pricer and the overlay both read — so a map that is amber in the browser is
+  amber over the game, which is the entire reason to trust the overlay after
+  you stop looking at the browser.
+- **The overlay reads them when it opens.** It is a separate process, so close
+  and reopen it to see a change. Nothing on that tab can move a price onto a
+  different map; that is the calibration, and *Reset appearance to defaults*
+  deliberately leaves it alone.
+
 **Honest limitations:**
 
 - **Fullscreen-exclusive mode will cover it.** That mode hands the display to
@@ -694,6 +803,62 @@ game, exactly like a bad calibration.
 - The *Launch overlay window* button on the Stash Pricer page starts the process
   for you, but running `python -m src.cli overlay` in a terminal is better while
   you are setting it up — that is where its errors are printed.
+
+### Price-checking one item with a hotkey
+
+The overlay answers "what is my whole tab worth". This answers "what is *this*
+worth", in the second between picking a map up and deciding whether to list it.
+
+```powershell
+python -m src.cli price-check
+```
+
+Then, in game: **hover an item and press Ctrl+C**. A small panel appears beside
+the pointer with the price, the verdict, the interval, the confidence and the
+rolls that produced it. Press Ctrl+Alt+D to re-check the same item, click the
+panel or press Escape to dismiss it, or just wait — it fades after six seconds.
+
+**Nothing here sends a keystroke to the game, and that is the whole design.**
+The usual way to build this is to bind one hotkey and have the tool synthesise
+a Ctrl+C into the game window, so the user presses one key instead of two. That
+is a program sending input to the client on your behalf, which is the thing
+every automation rule is written about. Pressing Ctrl+C yourself is Path of
+Exile's own copy binding — a feature the game ships for exactly this purpose —
+and the tool only reads the clipboard the game wrote to. One extra keypress,
+and nothing to explain. The reasoning is in `src/pricecheck/clipboard.py` and
+`tests/test_pricecheck_compliance.py` fails the build if the forbidden calls
+ever appear.
+
+**A price check costs the API nothing.** The request goes to `127.0.0.1`, is
+answered from the trained model and the listings already collected, and makes
+no call to GGG at all. Press it four hundred times in an evening if you like.
+
+Two other things worth knowing:
+
+- **It starts the pricing service itself** if one is not already running, and
+  stops it again on exit. `--no-spawn` requires one you started. The service is
+  the same local HTTP boundary described in `docs/architecture.md`, bound to the
+  loopback interface with a token generated per launch.
+- **Automatic checking on Ctrl+C can be turned off.** It is on by default, and
+  it is safe to be: the clipboard is only read when Windows reports it changed,
+  and anything without Path of Exile's item header on it is discarded before any
+  other part of the program sees it — never logged, never written to disk, never
+  sent anywhere. If you would still rather it only ever looked when you ask,
+  `--no-watch` (or `watch_clipboard: false`) makes the hotkey the only way in.
+
+```powershell
+python -m src.cli price-check --once
+```
+
+`--once` prices the clipboard, prints the result and exits — no window, no
+hotkey. It is the thing to run when the popup does not appear, because it
+proves whether the clipboard, the service and the model are working
+independently of whether anything can be drawn over the game.
+
+Same limitations as the overlay: Windows only, and a game in
+**fullscreen-exclusive** mode will cover the popup. The checker detects that at
+startup and says so on its strip rather than leaving you with a hotkey that
+appears to do nothing.
 
 ---
 
@@ -1307,13 +1472,25 @@ buy information. A markdown makes a listing young again, because a new price is
 a new question.
 
 The poller runs on its own thread with its own database connection, and it stops
-when you close the app. It never restarts itself. §14 has the request cost.
+when you close the app. It is owned by a process-global registry rather than by
+session state, so a browser refresh reattaches to the running poller instead of
+orphaning it and starting a second one beside it; a pass that raises is recorded
+and the loop continues, and a poller that has died is restarted on the next
+visit rather than handed back dead. The page shows the last check, the pass
+count and the last error, so a stopped watcher says so instead of looking
+identical to a quiet market. §14 has the request cost.
 
 ### What it can and cannot know
 
-**The stale half is exact.** A map still listed after sixty-two hours has been
-listed for sixty-two hours whatever the polling gaps, so every "sitting for N
-hours" figure on the page is a measurement.
+**The stale half is exact**, and it does not depend on having watched. Age comes
+from the trade API's own `listing.indexed` stamp — the "listed X ago" the trade
+site shows — not from comparing one scan against the last. So a map listed
+sixty-two hours ago reads as sixty-two hours on the very first capture after a
+cold start, with no polling history at all, and a gap in the watch cannot make a
+stale map look fresh. A price difference only counts as a reprice when GGG has
+actually re-indexed the listing: the chaos figure moves on its own every time
+the divine rate is refreshed, and treating that as a markdown used to reset the
+age of every divine-priced map and split its episode in two.
 
 **The sold half is bracketed.** Polling stops when the app closes, so a map that
 sold overnight is known only to have sold *somewhere inside* a nine-hour window.
@@ -1370,6 +1547,33 @@ On/off lives on the page itself. The rest is under `listing_tracker:` in
 `config.yaml` — poll cadences, the reappearance window, what counts as stale,
 the target clearing window and probability, the calibration clamp, and the
 fallback ladder's steps and floor.
+
+---
+
+## 12b. When the app is wrong without looking wrong
+
+Every page carries a health check, shown as a banner under the page when it has
+something to say and invisible when it does not. It exists because this app's
+real failure mode is not crashing — it is pricing confidently against the wrong
+thing while every screen continues to look exactly right.
+
+All five checks are things that actually happened, in one league turnover:
+
+| Check | What it caught |
+|---|---|
+| Model league ≠ configured league | An Allflame model pricing Covens maps. Nothing on any page said the two disagreed. |
+| Unrecognised reward properties | `Atlas Drops` read as `0` on every map in the league, because the parser knew neither the new name nor the new type id. |
+| No listings for this league | Comparables and market mode both silently empty. |
+| Data older than the pricing window | Comparables past `market.max_age_days` are excluded, so the panels thin out with no explanation. |
+| Divine rate never fetched, or stale | `config.yaml` shipped `210` while the market was at `209` — and a bad fetch once stored `125`, scaling every divine price by 0.6. |
+
+Each one names the command that fixes it. None of them fires on a healthy
+install: a banner that is always on is a banner nobody reads.
+
+The checks are pure functions in `src/ui/health.py`, so they cost nothing per
+rerun and are tested without a display. The reward check re-reads the stored
+trade payloads of the most recent listings, which is how a *future* rename
+announces itself instead of quietly zeroing a feature.
 
 ---
 
@@ -1482,6 +1686,20 @@ Read this part.
 - No writes to the game, the stash, or item notes — there is no supported API for
   it, and doing it another way would mean automating the client. You copy prices
   in yourself.
+- **No input is ever sent to the game client.** No `SendInput`, no `keybd_event`,
+  no posted window messages, no `pyautogui`. The hotkey price checker reads the
+  clipboard *after you* press Path of Exile's own Ctrl+C; it does not press it
+  for you, which is the difference between a program reading and a program
+  acting on your behalf. This is enforced, not just intended:
+  `tests/test_pricecheck_compliance.py` greps the package for every one of those
+  calls and fails the build if one appears.
+- **The game's process is never touched.** No `ReadProcessMemory`, no
+  `OpenProcess`, no injected threads, no keyboard hooks. The only things this
+  app reads are GGG's public HTTP endpoints and a clipboard the game chose to
+  write to.
+- **A price check makes no network request to GGG.** It is answered locally from
+  the model, so pressing the hotkey repeatedly cannot contribute to a rate
+  limit.
 - Every data source sits behind an abstraction, so if GGG's position or endpoints
   change, one adapter is replaced and the app keeps working on manual imports.
 
@@ -1517,15 +1735,29 @@ src/
                            that imports tkinter
                            profiles -- stash tab vs inventory: two calibrations,
                            two state files, two processes
+                           appearance -- how it looks, as opposed to where it
+                           sits: colours, faces, what is drawn at all
+  pricecheck/              hotkey price checks on the copied item:
+                           clipboard -- reading it, and the line about never
+                           synthesising input into the game
+                           client -- stdlib HTTP to the local service
+                           render -- the card, decided before any window exists
+                           popup, app -- the only modules that import tkinter
+  service/                 the local HTTP boundary: core (no Streamlit, ever)
+                           and api -- loopback only, token per launch
   ui/                      one module per page, over one design system in
+                           health.py -- the checks behind the banner: what is
+                           wrong when nothing looks wrong
                            common.py: page_header, stat_rail, section, panels
                            and the CSS -- see "Colour is data" below
+                           palette.py -- the colours both front ends share, the
+                           web themes, and the persisted overrides for either
   cli.py                   everything the UI does, without Streamlit
 docs/
   originator-modifiers.md  Phase 1 research, confirmed / inferred / unknown
   data-access.md           Phase 2 research, what was verified live
   architecture.md          how the pieces fit and why
-tests/                     937 tests, including live-render checks of every page
+tests/                     1375 tests, including live-render checks of every page
 ```
 
 See **[docs/architecture.md](docs/architecture.md)**.
@@ -1560,6 +1792,34 @@ Three consequences worth knowing before editing a page:
 `.streamlit/config.toml` carries the same palette, so the parts of Streamlit
 that CSS cannot reach start from the same ground.
 
+### Changing it
+
+**Settings → Appearance.** It is one section covering both front ends, and it
+writes to the config the app already has rather than a store of its own.
+
+For the web app: colour scheme (dark, light, or follow the browser), accent
+colour, interface font, text size and density. For the shared palette: the seven
+value bands and the three confidence levels. For the overlay: everything listed
+under *Drawing the prices over the game itself* above.
+
+Where each setting lands, and when it takes effect:
+
+| Setting | Written to | Takes effect |
+| --- | --- | --- |
+| Scheme, accent, font, text size, density | `appearance.web` in `config.yaml`, and `[theme]` in `.streamlit/config.toml` | The page styling previews immediately as you pick. Streamlit reads its own theme file once at startup, so the widgets it draws for itself — tables, the sidebar ground, focus rings — follow after a restart. The page says so. |
+| Value bands, confidence colours | `appearance.palette` in `config.yaml` | Immediately, in the web grid *and* the overlay: `src/ui/palette.py` keeps one set of dictionaries that both subscript at draw time, and re-reads the saved overrides when it is imported. |
+| Everything under the overlay heading | `appearance.overlay` in `config.yaml` | Next time the overlay opens — it is a separate process. |
+| Overlay opacity, cell size, grid position | the `overlay:` / `overlay_inventory:` block, per surface | Next time that overlay opens. |
+
+Only what you actually changed is stored: a band left alone is not written into
+your config file, so a later release's new colour still reaches you.
+
+**Reset appearance to defaults** puts every one of the above back to the shipped
+value. It does not touch your calibration — origin, cell pitch, grid and the
+resolution stamp are a measurement of your screen that took a minute to get
+right, and losing them because you wanted the default colours back would be the
+worst thing that button could do.
+
 ---
 
 ## 16. Tests
@@ -1579,3 +1839,14 @@ distance-weighted price and interval derivation, confidence degradation — and 
 smoke test that renders every Streamlit page through
 Streamlit's own test harness, so a broken page fails the suite instead of showing
 up as a red box in your browser.
+
+Two groups are worth singling out, because they guard things that cannot be
+caught by reading the code later:
+
+- **`test_pricecheck_compliance.py`** greps `src/pricecheck/` for every API that
+  would synthesise input into the game or reach into its process, and fails if
+  one appears. The rule it enforces is the one in section 14; a docstring alone
+  would not survive someone deciding to save the user a keypress.
+- **`test_service_api.py::test_the_core_imports_without_streamlit`** fails if
+  `src/service/` ever grows a Streamlit import. That import is what would make
+  the UI technology a one-way door instead of a replaceable shell.

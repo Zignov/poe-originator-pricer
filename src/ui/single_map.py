@@ -7,7 +7,7 @@ import streamlit as st
 from src.market.comparables import format_age
 from src.parsing.item_parser import ItemParseError, classify, parse_item_text
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
-from src.schema import FEATURE_NAMES, NormalizedMap
+from src.schema import FEATURE_LABELS, FEATURE_NAMES, NormalizedMap
 from src.ui.common import (
     get_config,
     get_service,
@@ -16,15 +16,8 @@ from src.ui.common import (
 )
 from src.ui.exalt_panel import render_verdict, verdict_for
 
-LABELS = {
-    "quantity": "Item Quantity",
-    "rarity": "Item Rarity",
-    "pack_size": "Monster Pack Size",
-    "more_currency": "More Currency",
-    "more_maps": "More Maps",
-    "more_scarabs": "More Scarabs",
-    "more_divination_cards": "More Divination Cards",
-}
+#: One source of truth for reward display names -- see src/schema.py.
+LABELS = FEATURE_LABELS
 
 
 def render() -> None:
@@ -148,7 +141,7 @@ def render() -> None:
                     }
                 ),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "Price": st.column_config.NumberColumn(
                         f"Price ({fmt.column_suffix()})",
@@ -200,7 +193,7 @@ def _explanation(priced, fmt) -> None:
     st.dataframe(
         pd.DataFrame(rows),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             unit: st.column_config.NumberColumn(
                 unit, format="%+.0f" if fmt.unit == "chaos" else "%+.2f"

@@ -15,6 +15,7 @@ from src.market.collectors.official_trade_api import (
 )
 from src.pricing.currency import CurrencyConverter
 from src.schema import ORIGINATOR_IMPLICIT_STAT_ID
+from src.market.collectors.official_trade_api import QUANTITY_FILTER
 
 
 def _collector(**kwargs) -> OfficialTradeApiCollector:
@@ -73,15 +74,27 @@ def test_query_applies_the_configured_scope():
 
 
 def test_corrupted_filter_is_dropped_when_scope_allows_corrupted():
-    query = _collector(require_uncorrupted=False).build_query()
-    assert "misc_filters" not in query["query"]["filters"]
+    """The corrupted filter goes; the block it lived in does not.
+
+    `misc_filters` used to exist only when this scope was set, so its absence
+    was a fair proxy for "no corrupted filter". It now always carries
+    `identified` -- unidentified maps show no reward rolls at all and are
+    excluded from every search -- so the block is always present and the
+    assertion has to name the key it actually cares about. See
+    tests/test_identified_only.py.
+    """
+    misc = _collector(require_uncorrupted=False).build_query()["query"]["filters"][
+        "misc_filters"
+    ]["filters"]
+    assert "corrupted" not in misc
+    assert misc["identified"] == {"option": "true"}
 
 
 def test_pack_size_and_quantity_bounds_become_map_filters():
     query = _collector().build_query(pack_size=(41, 48), quantity=(80, None))
     map_filters = query["query"]["filters"]["map_filters"]["filters"]
     assert map_filters["map_packsize"] == {"min": 41, "max": 48}
-    assert map_filters["map_iiq"] == {"min": 80}
+    assert map_filters[QUANTITY_FILTER] == {"min": 80}
 
 
 def test_sort_key_is_honoured():

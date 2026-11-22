@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 
 from src.config import Config, load_config
+from src.overlay.appearance import DEFAULT_APPEARANCE, OverlayAppearance
 from src.overlay.calibration import (
     Calibration,
     resolution_warning,
@@ -38,7 +39,6 @@ from src.overlay.calibration import (
 )
 from src.overlay.hotkeys import HotkeyListener
 from src.overlay.layout import (
-    TILE_OUTLINE,
     build_draw_list,
     font_size_for,
     geometry_string,
@@ -69,8 +69,23 @@ HOTKEY_POLL_MS = 80
 
 #: The control strip's width. Sized to its buttons: five of them plus the
 #: profile label do not fit in the four-button strip this started as, and a
-#: clipped "quit" is a button people cannot find.
-STRIP_WIDTH = 500
+#: clipped "quit" is a button people cannot find. The default only -- the
+#: Settings page can widen it, within the bounds in src/overlay/appearance.py.
+STRIP_WIDTH = DEFAULT_APPEARANCE.strip_width
+
+#: The strip's own height, and the gap it keeps from the grid. Not settings:
+#: they are what two rows of 8pt text plus padding measures, and a strip that
+#: does not fit its own contents is not a preference anybody has.
+STRIP_HEIGHT = 52
+STRIP_GAP = 6
+
+#: The chrome of the strip itself. Slate, matching the web app's panel colours,
+#: because the strip is structure -- it carries no price and no verdict, so
+#: nothing on it may compete with the tiles for the eye.
+STRIP_BG = "#15181d"
+STRIP_BUTTON_BG = "#242a33"
+STRIP_FG = "#f4f4f5"
+STRIP_STATUS_FG = "#a9b0ba"
 
 
 class OverlayUnavailable(RuntimeError):
@@ -90,6 +105,55 @@ WS_EX_TRANSPARENT = 0x00000020
 #: clicked back out of. Tk already sets this for an override-redirect toplevel,
 #: so nothing here has to ask for it.
 WS_EX_TOOLWINDOW = 0x00000080
+#: Stops a window becoming the foreground window when it is shown or clicked.
+#: Not the same thing as `-topmost`, which only controls z-order: a topmost
+#: window can still take focus, and a window that takes focus from a
+#: fullscreen-windowed game minimises it. See `set_no_activate`.
+WS_EX_NOACTIVATE = 0x08000000
+
+#: `SHQueryUserNotificationState` says a Direct3D application is running in
+#: fullscreen-exclusive mode. That mode hands the display to the game and no
+#: layered window can draw over it, so the overlay is running correctly and is
+#: simply invisible -- the single worst failure this thing has, because there
+#: is nothing on screen to explain it. Documented at
+#: learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shqueryusernotificationstate
+QUNS_RUNNING_D3D_FULL_SCREEN = 3
+
+
+def fullscreen_exclusive_active() -> bool | None:
+    """Is a game currently holding the display in fullscreen-exclusive mode?
+
+    Returns None when the question cannot be answered -- not Windows, or the
+    call failed -- which is deliberately distinct from False. A caller should
+    warn on True and stay quiet on None rather than claiming the display is
+    fine when it does not know.
+
+    This asks Windows about *any* fullscreen-exclusive D3D application, not
+    specifically Path of Exile. That is the right question anyway: whatever is
+    holding the display is what the overlay cannot draw over.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+
+        state = ctypes.c_int()
+        # S_OK is 0; anything else means the state was not filled in.
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return None
+        return state.value == QUNS_RUNNING_D3D_FULL_SCREEN
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
+#: What to tell the user when the check comes back True. Kept here so the
+#: overlay's own status strip and the web page's launch button say the same
+#: thing rather than drifting into two half-explanations.
+FULLSCREEN_WARNING = (
+    "Path of Exile looks like it is in fullscreen-exclusive mode. No overlay "
+    "can draw over that -- switch the game to windowed fullscreen and the "
+    "tiles will appear."
+)
 
 
 def _hwnd(window) -> int:
@@ -144,6 +208,45 @@ def set_click_through(window, enabled: bool) -> None:
     put(ctypes.c_void_p(handle), GWL_EXSTYLE, style)
 
 
+def set_no_activate(window, enabled: bool = True) -> None:
+    """Add WS_EX_NOACTIVATE, so showing this window cannot steal focus.
+
+    `-topmost` and `overrideredirect` put a window above the game. Neither
+    stops it *becoming the foreground window* when it is shown or clicked, and
+    for a client in fullscreen-windowed mode that is the difference between a
+    price appearing and the game minimising. `lift()` alone is not enough
+    either: it reorders windows, and on Windows showing a previously withdrawn
+    toplevel can still activate it.
+
+    Mouse clicks still arrive -- WS_EX_NOACTIVATE suppresses activation, not
+    input -- which is what lets the popup stay dismissable by clicking it.
+
+    Same two constraints as `set_click_through`, for the same reasons: only this
+    one bit is touched, and the window has to be mapped already or Tk discards
+    the ex-style written here when it maps it.
+    """
+    if sys.platform != "win32":  # pragma: no cover - Windows-only feature
+        return
+    import ctypes
+
+    window.update_idletasks()
+
+    user32 = ctypes.windll.user32
+    get = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+    put = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+    get.restype = ctypes.c_ssize_t
+    put.restype = ctypes.c_ssize_t
+    put.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+
+    handle = _hwnd(window)
+    style = int(get(ctypes.c_void_p(handle), GWL_EXSTYLE))
+    if enabled:
+        style |= WS_EX_NOACTIVATE
+    else:
+        style &= ~WS_EX_NOACTIVATE
+    put(ctypes.c_void_p(handle), GWL_EXSTYLE, style)
+
+
 # ---------------------------------------------------------------------------
 class OverlayWindow:
     """The overlay proper, plus the little control strip that drives it."""
@@ -153,12 +256,18 @@ class OverlayWindow:
         cfg: Config,
         calibration: Calibration,
         state_path: Path | str | None = None,
+        appearance: OverlayAppearance | None = None,
     ):
         import tkinter as tk
 
         self._tk = tk
         self.cfg = cfg
         self.calibration = calibration
+        # Read from the config once, here, rather than looked up per redraw:
+        # the redraw runs on a timer over a game, and it is not the place to be
+        # re-parsing a settings block. Changing an appearance therefore takes a
+        # restart of the overlay, which is what the Settings page says.
+        self.appearance = appearance or OverlayAppearance.from_config(cfg)
         # Which surface this window is for comes from the calibration it was
         # handed, not from a second argument that could disagree with it.
         self.profile: OverlayProfile = calibration.profile_spec
@@ -215,7 +324,15 @@ class OverlayWindow:
 
         self._place()
         set_click_through(self.window, True)
-        self.strip.report(resolution_warning(calibration, self.screen) or "")
+        # Fullscreen-exclusive first: when it is on, nothing else the strip
+        # could say matters, because the tiles are not on screen to be judged.
+        # The strip is an ordinary window, so it stays visible even then --
+        # which makes it the only place that can explain the empty screen.
+        self.strip.report(
+            FULLSCREEN_WARNING
+            if fullscreen_exclusive_active()
+            else (resolution_warning(calibration, self.screen) or "")
+        )
 
         # Held so quitting can cancel them. A pending `after` fires into an
         # interpreter that no longer exists and Tcl reports it on stderr as an
@@ -243,12 +360,28 @@ class OverlayWindow:
             return
 
         origin = self.calibration.grid_rect()[:2]
-        font = ("Segoe UI", font_size_for(self.calibration.cell_px), "bold")
-        for draw in build_draw_list(self.state, self.calibration):
+        appearance = self.appearance
+        font = appearance.label_font(
+            font_size_for(self.calibration.cell_px, appearance.font_scale)
+        )
+        # An optional flat wash across the whole grid, under everything else.
+        # Off by default, and the default is the one that matters: an overlay
+        # whose empty cells are opaque is a screenshot of a stash tab sitting on
+        # top of the stash tab. Some people want the dimmed panel anyway.
+        if appearance.tint:
+            width, height, _x, _y = window_geometry(self.calibration, self.state)
+            self.canvas.create_rectangle(
+                0, 0, width, height, fill=appearance.tint, outline=""
+            )
+        # Tk reads width=0 as "hairline", not "none", so an outline the user has
+        # turned off has to go out as no colour rather than as no width.
+        outline = appearance.outline if appearance.outline_width else ""
+        for draw in build_draw_list(self.state, self.calibration, appearance):
             box = draw.relative_to(origin)
             self.canvas.create_rectangle(
                 box.left, box.top, box.right, box.bottom,
-                fill=box.fill, outline=TILE_OUTLINE, width=1,
+                fill=box.fill, outline=outline,
+                width=max(1, appearance.outline_width),
             )
             if box.ring:
                 dash = (3, 2) if (box.tile and box.tile.exalt == EXALT_SKIP) else ()
@@ -482,13 +615,18 @@ class OverlayWindow:
         cols, rows = self.calibration.grid
         left, top, right, bottom = self.calibration.grid_rect()
         width, height = right - left, bottom - top
+        # The alignment lines take the exalt-ring colour, which is the one hue
+        # in the overlay that is deliberately not in any value band -- so they
+        # stay findable over whatever the game is drawing underneath, and they
+        # follow the accent when the user moves it.
+        grid_line = self.appearance.ring_worth
         self.canvas.create_rectangle(0, 0, width - 1, height - 1, fill="#101317", outline="")
         for column in range(cols + 1):
             x = round(column * self.calibration.cell_px)
-            self.canvas.create_line(x, 0, x, height, fill="#39d0d8")
+            self.canvas.create_line(x, 0, x, height, fill=grid_line)
         for row in range(rows + 1):
             y = round(row * self.calibration.cell_px)
-            self.canvas.create_line(0, y, width, y, fill="#39d0d8")
+            self.canvas.create_line(0, y, width, y, fill=grid_line)
 
         cell = f"{self.calibration.cell_px:.2f}"
         lines = [
@@ -527,20 +665,22 @@ class _ControlStrip:
 
     def __init__(self, overlay: OverlayWindow, tk):
         self.overlay = overlay
+        appearance = overlay.appearance
         self.window = tk.Toplevel(overlay.root)
         self.window.title(f"Originator overlay — {overlay.profile.label}")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
-        self.window.configure(bg="#15181d", padx=6, pady=4)
+        self.window.configure(bg=STRIP_BG, padx=6, pady=4)
 
-        row = tk.Frame(self.window, bg="#15181d")
+        row = tk.Frame(self.window, bg=STRIP_BG)
         row.pack(fill="x")
         # With both profiles running there are two identical strips on screen,
         # and the only way to know which "calibrate" you are about to press is
-        # for each to say what it is drawing over.
+        # for each to say what it is drawing over. In the accent colour, so the
+        # strip and the rings it belongs to are visibly the same overlay.
         tk.Label(
-            row, text=overlay.profile.label, bg="#15181d", fg="#39d0d8",
-            font=("Segoe UI", 8, "bold"),
+            row, text=overlay.profile.label, bg=STRIP_BG, fg=appearance.ring_worth,
+            font=(appearance.font_family, 8, "bold"),
         ).pack(side="left", padx=(2, 8))
         for label, command in (
             ("show/hide", overlay.toggle),
@@ -553,13 +693,18 @@ class _ControlStrip:
         ):
             tk.Button(
                 row, text=label, command=command, relief="flat", bd=0,
-                bg="#242a33", fg="#f4f4f5", activebackground="#39d0d8",
-                font=("Segoe UI", 8), padx=6, pady=1,
+                bg=STRIP_BUTTON_BG, fg=STRIP_FG,
+                activebackground=appearance.ring_worth,
+                font=(appearance.font_family, 8), padx=6, pady=1,
             ).pack(side="left", padx=2)
 
         self.status = tk.Label(
-            self.window, text="", bg="#15181d", fg="#a9b0ba",
-            font=("Segoe UI", 8), anchor="w", justify="left", wraplength=380,
+            self.window, text="", bg=STRIP_BG, fg=STRIP_STATUS_FG,
+            font=(appearance.font_family, 8), anchor="w", justify="left",
+            # Wrapped just inside the strip, whatever width it has been given:
+            # a fixed 380 in a 700px strip wastes half of it, and in a 340px
+            # one the text runs past the edge it was meant to stay inside.
+            wraplength=max(200, appearance.strip_width - 120),
         )
         self.status.pack(fill="x", pady=(3, 0))
 
@@ -596,11 +741,22 @@ class _ControlStrip:
         self._place()
 
     def _place(self) -> None:
+        appearance = self.overlay.appearance
         left, top, _right, bottom = self.overlay.calibration.grid_rect()
-        # Above the grid if there is room, below it otherwise, so the strip
-        # never covers the first row of maps.
-        y = top - 58 if top - 58 >= 0 else bottom + 6
-        self.window.geometry(geometry_string(STRIP_WIDTH, 52, left, y))
+        above = top - (STRIP_HEIGHT + STRIP_GAP)
+        below = bottom + STRIP_GAP
+        # The user's side if it fits, the other one if it does not. "Above" is
+        # the default and still falls back, because a grid calibrated against
+        # the top of the screen has no room over it -- and a strip placed at a
+        # negative y is a strip nobody can click, which is the one control
+        # surface the overlay has.
+        if appearance.strip_anchor == "below":
+            y = below
+        else:
+            y = above if above >= 0 else below
+        self.window.geometry(
+            geometry_string(appearance.strip_width, STRIP_HEIGHT, left, y)
+        )
 
     def report(self, message: str) -> None:
         if message:
@@ -626,12 +782,18 @@ def run_overlay(
     calibrate: bool = False,
     state_path: Path | str | None = None,
     profile: str | OverlayProfile = DEFAULT_PROFILE,
+    appearance: OverlayAppearance | None = None,
 ) -> int:
     """Open one overlay and block until it is closed. The CLI's entry point.
 
     `profile` selects which surface this process draws over -- the stash tab or
     the inventory -- which in turn selects the config block it calibrates into
     and the state file it watches. Run it twice, once per profile, to have both.
+
+    `appearance` defaults to whatever `appearance.overlay:` holds, which is one
+    block shared by both profiles: the two surfaces sit in different places and
+    are different shapes, but there is no reason for the inventory's prices to
+    be a different colour from the stash's.
     """
     try:
         import tkinter  # noqa: F401
@@ -643,7 +805,7 @@ def run_overlay(
     cfg = cfg or load_config()
     spec = profile_for(profile)
     calibration = Calibration.from_config(cfg, spec)
-    overlay = OverlayWindow(cfg, calibration, state_path)
+    overlay = OverlayWindow(cfg, calibration, state_path, appearance)
     if calibrate or not calibration.calibrated:
         overlay.start_calibration()
     return overlay.run()

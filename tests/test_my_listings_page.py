@@ -1,6 +1,15 @@
 """The stale-listing view: which maps it selects, and what it lights up in game."""
 from __future__ import annotations
 
+#: Taken from the real config rather than hardcoded, because these tests run
+#: the actual app.py, which reads config.yaml and queries for whatever league
+#: is set there. A literal "Allflame" here meant the seeded rows stopped being
+#: found the moment the user switched to a new league -- a test failing on a
+#: config change rather than on a code change.
+from src.config import load_config as _load_config
+
+LEAGUE = _load_config().get("league") or "Standard"
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -133,12 +142,12 @@ def test_the_page_body_renders_with_real_tracked_rows(monkeypatch, tmp_path):
         is_originator=True, supported=True, quantity=90, rarity=140, pack_size=30,
     )
     listing = MarketListing(
-        item=item, listing_id="abc", league="Allflame", price_amount=150.0,
+        item=item, listing_id="abc", league=LEAGUE, price_amount=150.0,
         price_currency="chaos", price_chaos=150.0, price_type="~b/o", seller="me#1234",
         raw_data={"listing": {"stash": {"name": "Sell 3", "x": 1, "y": 2}}},
     )
     result = reconcile([], [listing], now=old, complete=True)
-    repo.apply_reconciliation("me#1234", "Allflame", result)
+    repo.apply_reconciliation("me#1234", LEAGUE, result)
     repo.close()
 
     app = st_testing.AppTest.from_file(
@@ -271,3 +280,123 @@ def test_the_off_caption_says_what_is_lost_rather_than_only_that_it_is_off():
 
     source = inspect.getsource(my_listings._tracker_toggle)
     assert "bracket" in source
+
+
+# ---------------------------------------------------------------------------
+# Staleness comes from the trade API's own timestamp, not from scan history
+# ---------------------------------------------------------------------------
+def test_the_age_is_read_from_the_api_timestamp_when_there_is_one():
+    from src.ui.my_listings import hours_listed, listed_at
+
+    row = _row("Rune Path", 1, indexed_at=(T0 - timedelta(hours=62)).isoformat())
+    assert listed_at(row) == T0 - timedelta(hours=62)
+    assert hours_listed(row, T0) == 62
+
+
+def test_a_row_with_no_api_timestamp_falls_back_to_priced_at():
+    """Imported rows, and rows written before the stamp was carried."""
+    from src.ui.my_listings import hours_listed
+
+    assert hours_listed(_row("Rune Path", 30), T0) == 30
+    assert hours_listed(_row("Rune Path", 30, indexed_at=None), T0) == 30
+
+
+def test_a_trailing_z_timestamp_is_understood():
+    """GGG writes `2026-08-22T18:00:00Z`, which fromisoformat rejected before 3.11."""
+    from src.ui.my_listings import listed_at
+
+    row = _row("Rune Path", 1, indexed_at="2026-08-26T12:00:00Z")
+    assert listed_at(row) == datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
+
+
+def test_a_map_listed_days_ago_is_stale_on_the_first_capture(tmp_path):
+    """No scan history at all: one poll, and a map GGG says was listed 62 hours
+    ago is 62 hours old on the page. This is the bug the API timestamp exists to
+    fix -- ages inferred from our own scans made everything newly listed after
+    every restart, so nothing was ever stale."""
+    from dataclasses import replace
+
+    from src.database.repository import Repository
+    from src.schema import MarketListing, NormalizedMap
+    from src.tracking.reconcile import reconcile
+    from src.ui.my_listings import stale_rows
+
+    now = datetime.now(timezone.utc)
+    listed = now - timedelta(hours=62)
+    item = NormalizedMap(
+        name="Rune Path", base_type="Terror Solace", map_tier=16, item_level=84,
+        is_originator=True, supported=True, quantity=90, rarity=140, pack_size=30,
+    )
+    listing = replace(
+        MarketListing(
+            item=item, listing_id="abc", league=LEAGUE, price_amount=150.0,
+            price_currency="chaos", price_chaos=150.0, price_type="~b/o",
+        ),
+        indexed_at=listed,
+    )
+
+    repo = Repository(tmp_path / "first.db")
+    # `now` is the moment of the one and only poll: nothing has been watched.
+    repo.apply_reconciliation(
+        "me", "Allflame", reconcile([], [listing], now=now, complete=True)
+    )
+    rows = repo.tracked_rows_for_page("me", "Allflame")
+
+    stale = stale_rows(rows, now, stale_after_hours=24)
+    assert len(stale) == 1, "62 hours listed is stale on the first look"
+    assert stale[0]["hours_listed"] == pytest.approx(62, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# The watcher has to be visible, and pressable
+# ---------------------------------------------------------------------------
+def test_the_status_line_redraws_itself_rather_than_waiting_for_a_click():
+    """Streamlit runs the script only when a widget is touched, so a page left
+    open said "last checked: never" however many passes ran behind it -- which
+    is indistinguishable from a switch that does nothing."""
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings)
+    assert "@st.fragment(run_every=" in source
+    assert "WATCH_REFRESH_SECONDS" in source
+
+
+def test_there_is_a_button_that_checks_now_and_says_what_happened():
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings._watch_status)
+    assert "Check now" in source
+    assert "_poll_now" in source
+
+    poll_now = inspect.getsource(my_listings._poll_now)
+    assert "poller.poke()" in poll_now, "the button makes a capture, it does not only ask"
+    assert "wait_for_pass" in poll_now, "and it waits, so it can say what happened"
+    assert "poller.start()" in poll_now, "and it revives a poller that has stopped"
+    assert "poll_once" not in poll_now, (
+        "the pass belongs on the poller's thread -- its SQLite connection does"
+    )
+
+
+def test_a_stopped_watcher_says_so_instead_of_showing_a_stale_success():
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings._watch_status)
+    assert "poller.running" in source
+    assert "has stopped" in source
+
+
+def test_turning_it_off_clears_the_process_registry_too():
+    """Off used to pop a session-state key while the process registry kept the
+    thread, so the next rerun found it there and started it again."""
+    import inspect
+
+    from src.ui import my_listings
+
+    source = inspect.getsource(my_listings._tracker_toggle)
+    assert "stop_poller(account, league)" in source

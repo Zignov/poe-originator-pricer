@@ -23,6 +23,7 @@ import pandas as pd
 
 from src.config import Config, ROOT, user_agent
 from src.database.repository import Repository
+from src.market.cancel import CancelToken
 from src.market.collectors.official_trade_api import (
     FETCH_BATCH,
     OfficialTradeApiCollector,
@@ -105,12 +106,23 @@ class MarketComparisonSettings:
         return path if path.is_absolute() else (ROOT / path)
 
 
-def client_for(cfg: Config, repo: Repository) -> OfficialTradeApiCollector:
+def client_for(
+    cfg: Config, repo: Repository, cancel: "CancelToken | None" = None
+) -> OfficialTradeApiCollector:
     """The same collector the training path uses, with the same limiter.
 
     Reused rather than reimplemented on purpose: the User-Agent, the
     header-driven rate limiting and the 429 back-off are not things this mode
     should have its own opinion about.
+
+    `cancel` is what makes the page's Cancel button work, and leaving it out
+    was a real bug. Without a token the collector's `_wait` falls through to a
+    blind `time.sleep`, so a cancel is only noticed *between maps* -- and the
+    sleeps on this path are rate-limit backoffs measured in minutes. GGG's
+    published search policy carries an 1800-second penalty, so a run cancelled
+    during one sat on "Stopping..." for up to half an hour, which reads as a
+    broken button. `src/market/cancel.py` was written for exactly this and
+    this caller never used it.
     """
     return OfficialTradeApiCollector(
         league=cfg.get("league"),
@@ -119,6 +131,7 @@ def client_for(cfg: Config, repo: Repository) -> OfficialTradeApiCollector:
         min_interval=cfg.get("http.min_request_interval_seconds", 2.0),
         map_tier=cfg.get("scope.map_tier"),
         require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+        cancel=cancel,
     )
 
 
@@ -217,13 +230,18 @@ class MarketComparisonPricer:
         service: PricingService,
         budget: int | None = None,
         tolerance_schedule: Sequence[float] | None = None,
+        cancel: "CancelToken | None" = None,
     ) -> "MarketComparisonPricer":
         settings = MarketComparisonSettings.from_config(cfg)
         if budget is not None:
             settings.request_budget = int(budget)
         if tolerance_schedule:
             settings.tolerance_schedule = tuple(float(x) for x in tolerance_schedule)
-        return cls(service=service, client=client_for(cfg, repo), settings=settings)
+        return cls(
+            service=service,
+            client=client_for(cfg, repo, cancel),
+            settings=settings,
+        )
 
     # ------------------------------------------------------------------
     def seconds_per_request(self) -> float:

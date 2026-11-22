@@ -21,6 +21,7 @@ from src.overlay.state import free_affix_slots, tile_price
 from src.pricing.display import PriceFormatter
 from src.pricing.exalt import ExaltVerdict
 from src.pricing.fair_value import PricedMap
+from src.schema import FEATURE_LABELS
 from src.ui.common import VALUE_COLOURS
 from src.ui.exalt_panel import affixes_for
 from src.ui.palette import (
@@ -38,8 +39,17 @@ def render_grid(
     height: int = 12,
     cell_px: int = 46,
     verdicts: dict[int, ExaltVerdict] | None = None,
+    filtered_out: set[int] | None = None,
 ) -> None:
-    """Draw the grid. Colour bands are percentiles of this tab, not fixed values."""
+    """Draw the grid. Colour bands are percentiles of this tab, not fixed values.
+
+    `filtered_out` holds the `id()` of every map the page's filters excluded.
+    Those tiles are drawn receded rather than dropped: the grid's job is to be
+    alignable against the real stash tab, and a hole in it reads as an empty
+    slot rather than as a map that did not match. The bands are still computed
+    over the whole tab, so setting a bar re-shades nothing -- a map keeps the
+    colour it had before the filter was typed.
+    """
     values = [_tile_price(p) for p in priced if p.supported and p.estimate is not None]
     bands = percentile_bands(values)
 
@@ -75,6 +85,14 @@ def render_grid(
             price = _tile_price(entry)
             category = value_category(price, bands)
             colour = VALUE_COLOURS[category]
+            if filtered_out and id(entry) in filtered_out:
+                # No ring, no meter, no badge: those are all ways of saying
+                # "look here", and this is a tile the filter just said not to.
+                cells.append(
+                    f'<div class="stash-cell filled filtered" style="background:{colour}" '
+                    f'title="{tooltip}">{fmt.format(price)}</div>'
+                )
+                continue
             ring = exalt_class((verdicts or {}).get(id(entry)))
             # The negligible band gets a class as well as a colour: the fill
             # alone recedes, but the white price on top of it does not, and the
@@ -90,7 +108,12 @@ def render_grid(
 
     st.markdown(
         '<div class="stash-grid-wrap">'
-        f'<div class="stash-grid" style="grid-template-columns: repeat({width}, {cell_px}px)">'
+        # `minmax(0, Npx)` rather than a flat `Npx`: the pixel value is the
+        # cell's maximum, and the grid scales below it when the column is too
+        # narrow instead of overflowing and hiding the occupied columns. See
+        # the .stash-grid rules in src/ui/common.py.
+        f'<div class="stash-grid" '
+        f'style="grid-template-columns: repeat({width}, minmax(0, {cell_px}px))">'
         + "".join(cells)
         + "</div></div>",
         unsafe_allow_html=True,
@@ -327,12 +350,12 @@ def _tooltip(
     item = entry.item
     lines = [
         f"{item.position_label()}  {item.name or item.base_type}",
-        f"Quantity: {item.quantity}",
+        f"{FEATURE_LABELS['quantity']}: {item.quantity}",
         f"Rarity: {item.rarity}",
         f"Pack: {item.pack_size}",
         f"Currency: {item.more_currency}",
         f"Maps: {item.more_maps}",
-        f"Scarabs: {item.more_scarabs}",
+        f"{FEATURE_LABELS['more_scarabs']}: {item.more_scarabs}",
         f"Div Cards: {item.more_divination_cards}",
     ]
     if entry.supported and entry.estimate:

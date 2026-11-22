@@ -172,10 +172,16 @@ def _fetch(payload, want="divine", status=200):
 
 
 def test_a_rate_is_fetched_and_returned():
+    """poe.ninja still answers -- but it is the fallback now, not the first call.
+
+    GGG's own Currency Exchange is tried ahead of it, so the poe.ninja request
+    is no longer `calls[0]`; this finds it by URL rather than by position.
+    """
     quote, session = _fetch(EXCHANGE_PAYLOAD)
     assert isinstance(quote, RateQuote) and quote.chaos == 210.9
-    assert session.calls[0]["params"] == {"league": "Allflame", "type": "Currency"}
-    assert session.calls[0]["url"] == EXCHANGE
+    ninja_calls = [c for c in session.calls if c["url"] == EXCHANGE]
+    assert ninja_calls, f"poe.ninja was never asked; calls were {session.calls}"
+    assert ninja_calls[0]["params"] == {"league": "Allflame", "type": "Currency"}
 
 
 def test_one_response_carries_every_currency():

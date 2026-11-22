@@ -136,6 +136,61 @@ _DEFAULTS: dict[str, Any] = {
         },
     },
     "http": {"user_agent_contact": "unset@example.com", "min_request_interval_seconds": 2.0},
+    # How the two front ends look. Everything under here is a preference and
+    # nothing under here is data: no number in this block can change a price,
+    # which is why it is safe to hand the whole of it to a colour picker.
+    #
+    # `web` is written through to .streamlit/config.toml as well, because
+    # Streamlit's own widgets take their colours from that file and it is read
+    # once at startup -- see src/ui/settings.py.
+    "appearance": {
+        "web": {
+            "theme": "dark",          # dark | light | system
+            "accent": "#b3894e",      # structure accent, never a data colour
+            "font": "Inter, sans-serif",
+            "font_scale": 1.0,        # 0.8 - 1.3, multiplies the root font size
+            "density": "comfortable",  # comfortable | compact
+        },
+        # Consumed by src/overlay/layout.py and src/overlay/window.py. The
+        # overlay is a separate process, so these are read when it starts.
+        "overlay": {
+            "font_family": "Segoe UI",
+            "font_scale": 1.0,
+            "bold_labels": True,
+            "ring_worth": "#39d0d8",
+            "ring_skip": "#b6b6bd",
+            "outline": "#0e0f12",
+            "outline_width": 1,
+            "tint": "",               # "" = empty cells stay fully see-through
+            "muted_fill": "",         # "" = the palette's "unknown" grey
+            "muted_text": "#9aa1ab",
+            "meter_track": "#15181d",
+            "dots_fill": "#ffffff",
+            "show_meter": True,
+            "show_dots": True,
+            "strip_anchor": "above",  # above | below
+            "strip_width": 500,
+        },
+        # Empty means "the shipped colours". Anything in here overrides one
+        # entry of src/ui/palette.py, for the web grid and the overlay at once.
+        "palette": {},
+    },
+    # Hotkey price checks on the copied item. The chord is Ctrl+Alt+D rather
+    # than anything with C in it: Ctrl+C is the game's own copy binding and the
+    # one key this feature must leave alone, and a checker whose own chord sat
+    # next to it would be mispressed constantly.
+    #
+    # `watch_clipboard` is what makes the feature one keypress instead of two.
+    # It is on by default and it is safe to be: the clipboard is only *read*
+    # when Windows says it changed, and anything without Path of Exile's item
+    # header on it is dropped before any other part of the program sees it --
+    # see src/pricecheck/clipboard.py.
+    "pricecheck": {
+        "hotkey": "ctrl+alt+d",
+        "watch_clipboard": True,
+        "strategy": "market",
+        "port": 8777,
+    },
 }
 
 
@@ -192,14 +247,54 @@ class Config:
         return path
 
 
+def defaults_for(path: str) -> Any:
+    """The shipped default at a dotted path, deep-copied.
+
+    What "Reset to defaults" means: the value in `_DEFAULTS`, not the value in
+    whatever config.yaml has been edited into since. Copied rather than handed
+    out, so a caller that mutates the result cannot rewrite the defaults for
+    everything else in the process.
+    """
+    node: Any = _DEFAULTS
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return copy.deepcopy(node)
+
+
+def config_source_path(path: str | Path | None = None) -> Path:
+    """The file `load_config` would read: config.yaml if written, else the example.
+
+    Split out so that a reader which must not pull in the rest of the app --
+    src/ui/palette.py is imported by a tkinter process with no Streamlit and no
+    database in it -- can find the same file without a second copy of this rule.
+    """
+    if path is not None:
+        return Path(path)
+    if (ROOT / "config.yaml").exists():
+        return ROOT / "config.yaml"
+    return ROOT / "config.example.yaml"
+
+
+def read_raw_config(path: str | Path | None = None) -> dict[str, Any]:
+    """The config file as it is on disk: no defaults, no environment, no dotenv.
+
+    For readers that want one small block and must not have side effects doing
+    it. `load_config` is still the way to read a *setting*; this is the way to
+    read a file. Never raises: a hand-broken YAML leaves the caller on its own
+    defaults rather than stopping the process that imported it.
+    """
+    src = config_source_path(path)
+    try:
+        return yaml.safe_load(src.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+
+
 def load_config(path: str | Path | None = None) -> Config:
     load_dotenv(ROOT / ".env")
-    if path is not None:
-        src = Path(path)
-    elif (ROOT / "config.yaml").exists():
-        src = ROOT / "config.yaml"
-    else:
-        src = ROOT / "config.example.yaml"
+    src = config_source_path(path)
 
     data = _DEFAULTS
     if src.exists():

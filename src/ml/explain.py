@@ -15,21 +15,18 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from src.schema import FEATURE_LABELS as SCHEMA_FEATURE_LABELS
 from src.schema import FEATURE_NAMES
 
 if TYPE_CHECKING:  # pragma: no cover
     from src.ml.predict import Predictor
     from src.schema import NormalizedMap
 
-FEATURE_LABELS: dict[str, str] = {
-    "quantity": "Item Quantity",
-    "rarity": "Item Rarity",
-    "pack_size": "Monster Pack Size",
-    "more_currency": "More Currency",
-    "more_maps": "More Maps",
-    "more_scarabs": "More Scarabs",
-    "more_divination_cards": "More Divination Cards",
-}
+#: Re-exported from the schema, which is the single place a reward's display
+#: name is decided. It used to be a second copy of the same dictionary, and
+#: that is how Covens' rename would have left the explanations saying
+#: "More Scarabs" about a thread count long after the parser had moved on.
+FEATURE_LABELS = SCHEMA_FEATURE_LABELS
 
 
 def explain_item(predictor: "Predictor", item: "NormalizedMap") -> dict[str, Any]:

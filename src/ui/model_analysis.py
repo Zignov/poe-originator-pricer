@@ -21,6 +21,7 @@ from src.ui.common import (
     get_repo,
     page_header,
     stat_rail,
+    tab_strip,
 )
 
 
@@ -57,19 +58,20 @@ def render() -> None:
         ]
     )
 
-    tabs = st.tabs(
-        ["Validation", "Feature importance", "Prediction vs actual", "Interactions", "History"]
+    open_tab = tab_strip(
+        "model_analysis_tab",
+        ["Validation", "Feature importance", "Prediction vs actual", "Interactions", "History"],
     )
 
-    with tabs[0]:
+    if open_tab == "Validation":
         _validation(meta, fmt)
-    with tabs[1]:
+    elif open_tab == "Feature importance":
         _importance(predictor)
-    with tabs[2]:
+    elif open_tab == "Prediction vs actual":
         _residuals(cfg, repo, predictor, fmt, rate)
-    with tabs[3]:
+    elif open_tab == "Interactions":
         _interactions(predictor, fmt)
-    with tabs[4]:
+    elif open_tab == "History":
         _history(repo, fmt)
 
 
@@ -97,7 +99,7 @@ def _validation(meta, fmt) -> None:
         if block:
             frames.append({"split": name, **_readable(block, fmt)})
     if frames:
-        st.dataframe(pd.DataFrame(frames), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(frames), hide_index=True, width="stretch")
 
     rolling = meta["metrics"].get("rolling_folds") or []
     if rolling:
@@ -105,7 +107,7 @@ def _validation(meta, fmt) -> None:
         st.dataframe(
             pd.DataFrame([_readable(f, fmt) for f in rolling]),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     comparison = meta["metrics"].get("backend_comparison") or []
@@ -119,7 +121,7 @@ def _validation(meta, fmt) -> None:
                 ]
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     conformal = meta.get("conformal") or {}
@@ -168,7 +170,7 @@ def _importance(predictor) -> None:
         st.info("This backend exposes no feature importance.")
         return
     st.bar_chart(frame.set_index("label")["importance"], height=320, color=CHART_SERIES)
-    st.dataframe(frame, hide_index=True, use_container_width=True)
+    st.dataframe(frame, hide_index=True, width="stretch")
     st.caption(
         "Importance is whatever the trained backend reports. It says which features "
         "the model splits on, not what a map is 'worth' -- read the per-map "
@@ -264,7 +266,7 @@ def _residuals(cfg, repo, predictor, fmt, rate) -> None:
     st.dataframe(
         pd.DataFrame([_readable(compute_metrics(actual, predicted), fmt)]),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -288,7 +290,7 @@ def _interactions(predictor, fmt) -> None:
         pivot.style.background_gradient(cmap="viridis").format(
             "{:.0f}" if fmt.unit == "chaos" else "{:.2f}"
         ),
-        use_container_width=True,
+        width="stretch",
     )
     st.caption(
         f"Rows: {pair[1]}. Columns: {pair[0]}. Cells: estimated value in {fmt.unit}."
@@ -315,4 +317,4 @@ def _history(repo, fmt) -> None:
                 "active": bool(run["is_active"]),
             }
         )
-    st.dataframe(pd.DataFrame(records), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(records), hide_index=True, width="stretch")

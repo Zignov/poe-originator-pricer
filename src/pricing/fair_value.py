@@ -22,7 +22,7 @@ from src.pricing.sell_strategy import (
     multipliers_from_config,
     suggested_price,
 )
-from src.schema import NormalizedMap
+from src.schema import FEATURE_SHORT_LABELS, NormalizedMap
 
 
 @dataclass
@@ -59,10 +59,12 @@ class PricedMap:
             "Tab": self.item.stash_tab_name or "",
             "Currency": self.item.more_currency,
             "Maps": self.item.more_maps,
-            "Scarabs": self.item.more_scarabs,
+            # Named from FEATURE_SHORT_LABELS so a league rename reaches the
+            # table too -- `more_scarabs` holds thread counts in Covens.
+            FEATURE_SHORT_LABELS["more_scarabs"]: self.item.more_scarabs,
             "Div Cards": self.item.more_divination_cards,
             "Pack": self.item.pack_size,
-            "Qty": self.item.quantity,
+            FEATURE_SHORT_LABELS["quantity"]: self.item.quantity,
             "Rarity": self.item.rarity,
             "Fair Value": amount(est.fair_value_chaos) if est else None,
             "Suggested": amount(self.suggested_chaos),

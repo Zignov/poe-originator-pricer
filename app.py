@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st  # noqa: E402
 
-from src.ui.common import page_setup, sidebar_context  # noqa: E402
+from src.ui.common import health_banner, page_setup, sidebar_context  # noqa: E402
 
 #: Order matters twice over. It is the order of the nav, and the group headings
 #: above Dashboard, Market Data and Model Analysis are drawn by CSS keyed on
@@ -48,6 +48,11 @@ def main() -> None:
 
     module = __import__(PAGES[choice], fromlist=["render"])
     module.render()
+    # After the page, not before it. These are warnings about what the page
+    # means, so they read as a footnote to something rather than as a wall
+    # between the user and the app they just opened -- and a first-run install
+    # with no data would otherwise open on four red blocks.
+    health_banner()
 
 
 if __name__ == "__main__":

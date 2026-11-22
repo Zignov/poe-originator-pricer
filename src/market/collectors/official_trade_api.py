@@ -30,7 +30,11 @@ from src.market.rate_limit import (
 from src.parsing.item_parser import classify, parse_api_item
 from src.parsing.price_parser import parse_api_price
 from src.pricing.currency import CurrencyConverter
-from src.schema import ORIGINATOR_IMPLICIT_STAT_ID, MarketListing
+from src.schema import (
+    ORIGINATOR_IMPLICIT_STAT_ID,
+    OTHER_INFLUENCE_STAT_IDS,
+    MarketListing,
+)
 
 TRADE_BASE = "https://www.pathofexile.com/api/trade"
 FETCH_BATCH = 10  # the endpoint accepts at most 10 ids per call
@@ -137,6 +141,7 @@ class OfficialTradeApiCollector(MarketCollector):
         sort_by: str = "price",
         status: str = "any",
         extra_stats: list[dict[str, Any]] | None = None,
+        exclude_other_influence: bool = False,
         price_min: float | None = None,
         price_max: float | None = None,
         indexed: str | None = None,
@@ -161,8 +166,22 @@ class OfficialTradeApiCollector(MarketCollector):
             # "rare" among the option ids.
             "type_filters": {"filters": {"rarity": {"option": "rare"}}},
         }
+        # Identified only, always.
+        #
+        # An unidentified map hides every reward roll -- the Originator implicit
+        # still shows, so these come back from an Originator search looking
+        # plausible, but there is no quantity, no rarity, no pack size and
+        # nothing for any part of this app to read. They parse as seven zeroes
+        # and the outlier pass then flags them "no reward values on the item":
+        # 164 of the 166 rows carrying that reason in a 10,918-listing sample
+        # were unidentified. Excluding them in the query rather than after the
+        # fetch is strictly better -- it stops paying for rows whose only
+        # destiny is to be thrown away, on an endpoint where requests are the
+        # scarce resource.
+        misc: dict[str, Any] = {"identified": {"option": "true"}}
         if self.require_uncorrupted:
-            filters["misc_filters"] = {"filters": {"corrupted": {"option": "false"}}}
+            misc["corrupted"] = {"option": "false"}
+        filters["misc_filters"] = {"filters": misc}
         # map_iir is only ever used by the market-comparison mode, which asks for
         # maps that look like one particular map rather than for a spread of the
         # market. Verified live on 2026-08-25: a query carrying map_iiq, map_iir
@@ -170,7 +189,7 @@ class OfficialTradeApiCollector(MarketCollector):
         # properties all sat inside them.
         for key, bounds in (
             ("map_packsize", pack_size),
-            ("map_iiq", quantity),
+            (QUANTITY_FILTER, quantity),
             ("map_iir", map_rarity),
         ):
             if not bounds:
@@ -223,6 +242,23 @@ class OfficialTradeApiCollector(MarketCollector):
         stats: list[dict[str, Any]] = [
             {"type": "and", "filters": [{"id": ORIGINATOR_IMPLICIT_STAT_ID}]}
         ]
+        # Originator and nothing else. A map can carry Shaper, Elder or a
+        # Conqueror influence on top; those are real maps with real rolls, and
+        # they sell for reasons none of the seven modelled features can see.
+        #
+        # **Off by default, and that is deliberate.** Training wants the
+        # broadest honest sample of the market, and narrowing what it collects
+        # is a decision about the model, not about a search. Only the buying
+        # page opts in, where the question is "what do I want to own" rather
+        # than "what is this worth". Verified live: the group is honoured
+        # rather than ignored, taking a 4,072-listing search to 3,961.
+        if exclude_other_influence:
+            stats.append(
+                {
+                    "type": "not",
+                    "filters": [{"id": sid} for sid in OTHER_INFLUENCE_STAT_IDS],
+                }
+            )
         stats.extend(extra_stats or [])
         return {
             "query": {"status": {"option": status}, "filters": filters, "stats": stats},
@@ -479,8 +515,34 @@ class OfficialTradeApiCollector(MarketCollector):
         )
 
 
+#: The map filter that windows the quantity-slot reward.
+#:
+#: **`map_bonus`, not `map_iiq`**, and the difference silently broke the whole
+#: market-comparison mode for a league. GGG's `/api/trade/data/filters` lists
+#: both today:
+#:
+#:     map_iiq      Increased Item Quantity
+#:     map_bonus    Atlas Drops
+#:
+#: The reward this project stores as `quantity` is displayed as `Atlas Drops`
+#: on current maps, and those maps carry no `Item Quantity` property at all --
+#: so a `map_iiq` window excludes every one of them. Measured live on
+#: 2026-11-22, same query, same +/-10 window around one map's roll:
+#:
+#:     map_iiq   83-103  ->      0 listings   (21 searches, every one empty)
+#:     map_bonus 83-103  ->  10000 listings
+#:
+#: Note this is the opposite situation to the item *property*, where Atlas
+#: Drops took over the quantity slot outright. On the trade site the two are
+#: distinct filters and both still exist, so this cannot be resolved by an
+#: alias table the way `PROPERTY_TO_FEATURE` resolves the property names.
+QUANTITY_FILTER = "map_bonus"
+
 #: Pseudo stat ids for the four "More" rewards, verified against
 #: /api/trade/data/stats. These let a query be stratified by *reward*.
+#: These survived the Covens rename unchanged, including
+#: `pseudo_map_more_scarab_drops`, which still carries what the item now calls
+#: More Threads -- the same slot-identity argument as the property type ids.
 REWARD_STATS = {
     "more_currency": "pseudo.pseudo_map_more_currency_drops",
     "more_maps": "pseudo.pseudo_map_more_map_drops",

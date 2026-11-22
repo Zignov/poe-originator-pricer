@@ -17,6 +17,7 @@ from src.config import ROOT
 from src.market.comparables import format_age
 from src.overlay.calibration import Calibration, resolution_warning
 from src.overlay.profiles import INVENTORY_PROFILE, STASH_PROFILE
+from src.overlay.window import FULLSCREEN_WARNING, fullscreen_exclusive_active
 from src.overlay.state import (
     SOURCE_INVENTORY,
     SOURCE_MANUAL,
@@ -28,6 +29,7 @@ from src.overlay.state import (
     write_state,
 )
 from src.pricing.sell_strategy import STRATEGIES, STRATEGY_LABELS
+from src.schema import FEATURE_LABELS
 from src.stash.base import StashSource, grid_size_for
 from src.stash.clipboard_import import ClipboardStashSource
 from src.stash.highlight_regex import build_highlight_batches
@@ -44,9 +46,19 @@ from src.ui.common import (
     render_confidence,
     section,
     stat_rail,
+    tab_strip,
 )
 from src.ui.exalt_panel import affix_label, affixes_for, render_verdict, verdict_for
 from src.ui.stash_grid import render_grid
+
+#: The reward filter's options, named from the schema so the dropdown and the
+#: column it filters on can never drift apart -- and so a league rename reaches
+#: both at once. Built in the order the rewards are displayed, not in
+#: FEATURE_NAMES order, because the first three are not filterable rewards.
+REWARD_FILTER_FIELDS = {
+    FEATURE_LABELS[name]: name
+    for name in ("more_currency", "more_maps", "more_scarabs", "more_divination_cards")
+}
 
 MODE_LABELS = {
     "model": "Model",
@@ -215,9 +227,19 @@ def render() -> None:
     strategy = controls[0].selectbox(
         "Selling strategy", STRATEGIES, index=1, format_func=STRATEGY_LABELS.get
     )
+    # `suffix(None)` rather than `column_suffix()`: this is one typed number, not
+    # a column, and under "auto" a column header says "d" while the column holds
+    # both units. suffix(None) says "c" there, which is the unit `to_chaos`
+    # reads the number in -- the label and the comparison cannot disagree.
+    min_unit = fmt.suffix(None)
     min_value = controls[1].number_input(
-        f"Min value ({fmt.column_suffix()})", min_value=0.0, value=0.0,
-        step=5.0 if fmt.unit == "chaos" else 0.5,
+        f"Min value ({min_unit})", min_value=0.0, value=0.0,
+        step=0.5 if min_unit == "d" else 5.0,
+        help=(
+            "Hides maps worth less than this. A map that is under the bar now "
+            "but would clear it once its open affixes are exalted is kept, so "
+            "the filter does not hide the maps worth an orb."
+        ),
     )
     # The two checkboxes are one question -- what to leave out -- and without a
     # label of their own they also sat a label's height higher than every other
@@ -230,7 +252,7 @@ def render() -> None:
         "Exaltable only", help="Uncorrupted maps with fewer than 6 affixes."
     )
     reward_filter = controls[3].selectbox(
-        "Reward filter", ["Any", "More Currency", "More Maps", "More Scarabs", "More Div Cards"]
+        "Reward filter", ["Any", *REWARD_FILTER_FIELDS]
     )
     sort_key = controls[4].selectbox(
         "Sort by",
@@ -252,7 +274,19 @@ def render() -> None:
     else:
         priced = model_priced
 
+    # Three states, not two, and conflating them is a real bug in market mode.
+    #
+    # `PricedMap.supported` means "in scope AND has an estimate". That is the
+    # right test for anything that needs a number, but it is the wrong one for
+    # counting, because a map the live-comparison run has simply not reached
+    # yet also fails it. The rail used to label those "unsupported", so a tab
+    # of perfectly good T16 rares read as "Priceable 0 of 7 / Skipped 7
+    # unsupported" for the whole of a two-minute run -- which says the maps are
+    # wrong when the truth is that the answer has not arrived.
+    in_scope = [p for p in priced if p.item.supported]
     supported = [p for p in priced if p.supported]
+    out_of_scope = len(items) - len(in_scope)
+    awaiting = len(in_scope) - len(supported)
     total_chaos = sum(p.suggested_chaos or 0 for p in supported)
     # Keyed by object identity so the grid never has to know how a map is
     # priced. Computed once, here, rather than once for the rail's count and
@@ -265,12 +299,28 @@ def render() -> None:
     stat_rail(
         [
             ("Maps in tab", f"{len(items)}"),
-            ("Priceable", f"{len(supported)}", f"of {len(items)}"),
-            ("Skipped", f"{len(items) - len(supported)}", "unsupported"),
+            ("Priced", f"{len(supported)}", f"of {len(in_scope)} in scope"),
+            # Only maps the scope genuinely excludes -- wrong tier, corrupted,
+            # not an Originator map. A map waiting on a live search is not one
+            # of these.
+            ("Out of scope", f"{out_of_scope}", "unsupported"),
             ("Tab total", fmt.format(total_chaos), STRATEGY_LABELS[strategy].lower()),
             ("Worth an exalt", f"{exaltable}"),
         ]
     )
+    if awaiting:
+        # Said in words, because the rail can only show the gap and not the
+        # reason for it, and the two reasons call for opposite responses:
+        # waiting, or giving up on this mode for this map.
+        st.caption(
+            f"{awaiting} of {len(in_scope)} in-scope maps have no price yet"
+            + (
+                " — the live search is still running, or found nothing comparable "
+                "listed. They are in scope and will price in Model mode."
+                if mode == "market"
+                else "."
+            )
+        )
     if service.multipliers.source.startswith("config (observed spread rejected"):
         st.markdown(
             f'<div class="warn">{service.multipliers.source}</div>',
@@ -278,9 +328,15 @@ def render() -> None:
         )
 
     visible = _apply_filters(
-        priced, fmt, min_value, only_confident, reward_filter, exaltable_only
+        priced, fmt, min_value, only_confident, reward_filter, exaltable_only, verdicts
     )
     visible = _sort(visible, sort_key)
+    # The grid used to draw `priced` whatever the filters said, so setting a bar
+    # changed the table and left the tab looking identical -- which reads as the
+    # filter doing nothing at all. It draws every tile still, because a hole is
+    # indistinguishable from an empty slot and the layout has to stay alignable
+    # against the real stash; the ones that did not match just recede.
+    filtered_out = {id(p) for p in priced} - {id(p) for p in visible}
 
     # The stash grid is a fixed-pixel layout, so it gets the wider share and a
     # large gap; the table beside it reflows to whatever is left.
@@ -291,12 +347,19 @@ def render() -> None:
             "Each tile is the price to list that map at. A solid cyan outline "
             "means an Exalted Orb pays for itself; a dashed one means it does "
             "not. Hover a tile for fair value and the reasoning."
+            + (
+                "  Tiles the filters excluded are faded, not removed, so the "
+                "grid still lines up with the tab in game."
+                if filtered_out
+                else ""
+            )
         )
         grid = st.session_state.get("stash_grid")
         render_grid(
             priced,
             fmt,
             verdicts=verdicts,
+            filtered_out=filtered_out,
             **({"width": grid[0], "height": grid[1]} if grid else {}),
         )
 
@@ -325,7 +388,7 @@ def render() -> None:
             display = frame.drop(columns=["_fingerprint"])
             st.dataframe(
                 display,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=_price_columns(frame, fmt),
             )
@@ -338,35 +401,36 @@ def render() -> None:
     names = ["Inspect a map", "Highlight in game", "Copy & save", "Overlay"]
     if mode == "market":
         names.insert(1, "Market evidence")
-    # `on_change="rerun"` makes these dynamic tabs, which is what lets `.open`
-    # answer truthfully and the bodies below be skipped. Default tabs render
-    # every pane on every rerun whether or not it is the one on screen, so
-    # moving a checkbox at the top of the page was rebuilding the stash-search
-    # pattern, the market evidence and the overlay preview as well.
-    tabs = st.tabs(names, on_change="rerun")
-    panes = dict(zip(names, tabs))
+    # `tab_strip` rather than `st.tabs` for two reasons. It remembers which tab
+    # was open across a trip to another page, which st.tabs cannot be told; and
+    # only the named body runs, where default tabs render every pane on every
+    # rerun whether or not it is the one on screen -- so moving a checkbox at
+    # the top of the page was rebuilding the stash-search pattern, the market
+    # evidence and the overlay preview as well.
+    open_tab = tab_strip("stash_pricer_tab", names)
 
-    if panes["Inspect a map"].open:
-        with panes["Inspect a map"]:
-            _detail_panel(visible, fmt)
-    if mode == "market" and panes["Market evidence"].open:
-        with panes["Market evidence"]:
-            _market_evidence(priced, fmt)
-            _mode_comparison(model_priced, priced, fmt)
-    if panes["Highlight in game"].open:
-        with panes["Highlight in game"]:
-            # The whole tab, not `visible`: the pattern must know about every map
-            # that has to stay dark, and the table filters only change what is on
-            # screen. repo and league are what let it name every map that *could*
-            # be in the tab, not just the ones scanned into it.
-            _highlight_tool(priced, fmt, repo, cfg.get("league"))
-    if panes["Copy & save"].open:
-        with panes["Copy & save"]:
-            _copy_tools(visible, fmt)
-            _snapshot_button(cfg, repo, items, priced)
-    if panes["Overlay"].open:
-        with panes["Overlay"]:
-            _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode)
+    if open_tab == "Inspect a map":
+        _detail_panel(visible, fmt)
+    elif open_tab == "Market evidence":
+        _market_evidence(priced, fmt)
+        _mode_comparison(model_priced, priced, fmt)
+    elif open_tab == "Highlight in game":
+        # The whole tab, not `visible`: the pattern must know about every map
+        # that has to stay dark, and the table filters only change what is on
+        # screen. repo and league are what let it name every map that *could*
+        # be in the tab, not just the ones scanned into it.
+        _highlight_tool(priced, fmt, repo, cfg.get("league"))
+    elif open_tab == "Copy & save":
+        _copy_tools(visible, fmt)
+        _snapshot_button(cfg, repo, items, priced)
+    elif open_tab == "Overlay":
+        _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode)
+        # Outside `_overlay_panel`, deliberately: that returns early when no map
+        # in the scan has stash coordinates, and the price checker does not need
+        # a scan at all -- it prices whatever is on the clipboard. Nesting it
+        # inside would have hidden it in exactly the case where someone has no
+        # tab loaded and a single map in their hand.
+        _price_check_panel(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -780,6 +844,29 @@ def _market_mode(cfg, repo, service, items, strategy):
             st.markdown(
                 f'<div class="warn">{state.stopped_reason}</div>', unsafe_allow_html=True
             )
+        # Every map failing is a different claim from some maps failing, and
+        # the mode cannot tell them apart from inside one map's search.
+        #
+        # "No live listings matched, even at the widest tolerance" is a
+        # sentence this mode is supposed to be able to say -- it is what a
+        # genuinely unusual map looks like. Hearing it for *every* map is not
+        # a market observation, it is a broken query, and it has happened: a
+        # league renamed the quantity reward and the window was still being
+        # sent as `map_iiq`, which no current map carries, so every search
+        # excluded every real comparable. Seven out of seven was the only
+        # visible tell, and it took a headless run to see it.
+        if state.priced_count == 0 and len(state.outcomes) >= 3:
+            st.markdown(
+                '<div class="warn"><b>Nothing matched for any map.</b> One map '
+                "with no comparables is normal; all of them is usually a search "
+                "problem rather than an empty market — a reward filter that no "
+                "longer matches what maps carry, or a league with very few "
+                "listings. Model mode does not use the trade API and will price "
+                "these maps now. If this persists, run "
+                "<code>python -m src.cli price-tab-market --tab &lt;name&gt;</code> "
+                "in a terminal, where each map prints its own reason.</div>",
+                unsafe_allow_html=True,
+            )
     else:
         st.info(
             "No live prices yet. The table below stays empty until you run the "
@@ -868,7 +955,7 @@ def _live_run_panel(service, items, strategy) -> None:
             help="The maps priced so far, without waiting for the run to end.",
         )
         with st.expander(f"Priced so far ({len(priced_rows)})", expanded=True):
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)
     else:
         columns[2].caption("No prices yet — nothing to export.")
 
@@ -950,7 +1037,7 @@ def _market_evidence(priced, fmt):
                     }
                 ),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "Price": st.column_config.NumberColumn(
                         f"Price ({fmt.column_suffix()})",
@@ -999,7 +1086,7 @@ def _mode_comparison(model_priced, market_priced, fmt):
     st.dataframe(
         frame,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "Model": st.column_config.NumberColumn(
                 f"Model ({fmt.column_suffix()})", format=f"%.{digits}f"
@@ -1061,13 +1148,40 @@ def _price_columns(frame, fmt):
     return config
 
 
-def _apply_filters(priced, fmt, min_value, only_confident, reward_filter, exaltable_only=False):
-    field = {
-        "More Currency": "more_currency",
-        "More Maps": "more_maps",
-        "More Scarabs": "more_scarabs",
-        "More Div Cards": "more_divination_cards",
-    }.get(reward_filter)
+def _clears_min_value(entry, threshold_chaos: float, verdict) -> bool:
+    """Is this map worth the bar -- now, or once its open slots are filled?
+
+    A 33c map with two open prefixes is not a 33c map to anyone holding an
+    Exalted Orb, and dropping it at a 40c bar hides exactly the maps the exalt
+    half of this page exists to find. So the bar is cleared by the current price
+    *or* by what `evaluate_exalt` expects the map to be worth after the orbs it
+    has room for -- the same `expected_value_chaos` the Inspect panel prints and
+    the tile ring is drawn from, so a tile ringed cyan can never be missing from
+    the table beside it.
+
+    Deliberately the expected value and not the net gain: this is a filter on
+    what a map is worth, not on whether exalting it pays. Whether it pays is the
+    ring's question, and `Exaltable only` is the checkbox for it.
+    """
+    if (entry.estimate.fair_value_chaos or 0) >= threshold_chaos:
+        return True
+    if verdict is None or not verdict.available:
+        return False
+    return (verdict.expected_value_chaos or 0) >= threshold_chaos
+
+
+def _apply_filters(
+    priced, fmt, min_value, only_confident, reward_filter, exaltable_only=False, verdicts=None
+):
+    field = REWARD_FILTER_FIELDS.get(reward_filter)
+
+    # Compared in chaos, never in display units. `fmt.value` picks its unit per
+    # amount, so in "auto" mode it hands back chaos for a 30c map and *divine*
+    # for a 250c one -- and a bar of 40 then threw away every map above the
+    # divine threshold, which is to say the whole reason to set a bar at all.
+    # `to_chaos` reads the typed number in the unit the input is labelled with
+    # (fmt.suffix(None) -- chaos under "auto"), so the two agree by construction.
+    threshold_chaos = (fmt.to_chaos(min_value) if min_value else 0.0) or 0.0
 
     out = []
     for entry in priced:
@@ -1076,7 +1190,9 @@ def _apply_filters(priced, fmt, min_value, only_confident, reward_filter, exalta
         if exaltable_only and not affixes_for(entry.item).can_be_exalted:
             continue
         if entry.supported:
-            if min_value and (fmt.value(entry.estimate.fair_value_chaos) or 0) < min_value:
+            if threshold_chaos and not _clears_min_value(
+                entry, threshold_chaos, (verdicts or {}).get(id(entry))
+            ):
                 continue
             if only_confident and entry.estimate.confidence != "High":
                 continue
@@ -1194,7 +1310,7 @@ def _detail_panel(priced, fmt):
                     }
                 ),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "Price": st.column_config.NumberColumn(
                         f"Price ({fmt.column_suffix()})",
@@ -1248,7 +1364,7 @@ def _explanation(entry, fmt):
         st.dataframe(
             pd.DataFrame(rows),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             column_config={
                 "Contribution": st.column_config.NumberColumn(
                     fmt.unit.title(), format="%+.0f" if fmt.unit == "chaos" else "%+.2f"
@@ -1647,12 +1763,73 @@ def _overlay_panel(cfg, priced, fmt, strategy, verdicts, mode="model"):
                 f"{process.pid}. It opens its own window with a small control "
                 "strip; close it from there."
             )
+            # Asked here as well as in the overlay process, because this is the
+            # window the user is looking at when they press the button. An
+            # overlay that starts correctly and then cannot draw looks exactly
+            # like one that failed to start.
+            if fullscreen_exclusive_active():
+                st.warning(FULLSCREEN_WARNING)
 
     columns[2].caption(
         "Or run it yourself, which is the better way if you want to see its "
         f"errors:  \n`python -m src.cli overlay --profile {profile.key} --calibrate` "
         f"once to line the grid up with your {profile.label.lower()}, then "
         f"`python -m src.cli overlay --profile {profile.key}`."
+    )
+
+
+def _price_check_panel(cfg):
+    """Start the hotkey price checker, and say plainly what it does not do.
+
+    The compliance sentence is on screen rather than only in the README because
+    this is the one feature in the app where a user has a reasonable right to be
+    nervous -- they have almost certainly used a tool that *does* inject the
+    keystroke -- and the place to answer that is where they press the button.
+    """
+    import subprocess
+    import sys
+
+    from src.pricecheck.app import PriceCheckSettings
+
+    settings = PriceCheckSettings.from_config(cfg)
+    chord = settings.hotkey.replace("+", " + ").title()
+
+    st.markdown("### Price one copied item")
+    st.caption(
+        "A small panel beside the pointer showing what the item under your "
+        "cursor is worth. In game, hover it and press **Ctrl+C** — Path of "
+        "Exile's own copy key. This never presses it for you: nothing in the "
+        f"price checker sends a keystroke to the game. Press **{chord}** to "
+        "re-check the same item. A check is answered from the local model and "
+        "makes no request to GGG."
+    )
+
+    columns = st.columns([1.1, 1, 2])
+    if columns[0].button("Launch price checker"):
+        try:
+            process = subprocess.Popen(
+                [sys.executable, "-m", "src.cli", "price-check"], cwd=str(ROOT)
+            )
+        except OSError as exc:
+            st.error(f"Could not start the price checker: {exc}")
+        else:
+            st.success(
+                f"Started the price checker as process {process.pid}. It opens a "
+                "small strip in the bottom-right corner; close it from there. "
+                "If no pricing service is running it starts one itself, which "
+                "takes a few seconds the first time."
+            )
+            # Same reasoning as the overlay's button: this is the window the
+            # user is looking at when they press it, and a checker that starts
+            # correctly and then cannot draw looks exactly like one that failed.
+            if fullscreen_exclusive_active():
+                st.warning(FULLSCREEN_WARNING)
+
+    columns[2].caption(
+        "Or run it yourself, which is the better way while you are setting it "
+        "up — that is where its errors are printed:  \n"
+        "`python -m src.cli price-check`, or `python -m src.pricecheck --once` "
+        "to price the clipboard once and print the result without a window."
     )
 
 

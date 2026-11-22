@@ -31,8 +31,12 @@ def env_path(tmp_path, monkeypatch):
     return path
 
 
-def _settings_page(**session):
+def _settings_page(tab="Account", **session):
     app = AppTest.from_file(APP, default_timeout=120)
+    # Settings renders only the open tab, so the credential fields do not exist
+    # until the strip is on Account. Seeded through the mirror key tab_strip()
+    # restores from, which is what a user coming back to the page would hit.
+    app.session_state["tab_strip::settings_tab"] = tab
     for key, value in session.items():
         app.session_state[key] = value
     app.run()

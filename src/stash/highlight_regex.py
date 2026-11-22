@@ -101,12 +101,14 @@ Rarity: Currency
 Map Tier: 16
 Atlas Region: Valdo's Rest
 Item Quantity: +100% (augmented)
+Atlas Drops: +100% (augmented)
 Item Rarity: +100% (augmented)
 Monster Pack Size: +100% (augmented)
 Quality: +20% (augmented)
 More Currency: +100% (augmented)
 More Maps: +100% (augmented)
 More Scarabs: +100% (augmented)
+More Threads: +100% (augmented)
 More Divination Cards: +100% (augmented)
 Area Level: 83
 Monster Level: 83

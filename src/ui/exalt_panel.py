@@ -130,7 +130,7 @@ def render_verdict(verdict: ExaltVerdict, fmt: PriceFormatter) -> None:
         st.dataframe(
             frame,
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             column_config={
                 "Chance": st.column_config.NumberColumn("Chance", format="%.1f%%"),
                 "Gain": st.column_config.NumberColumn(

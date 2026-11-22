@@ -42,6 +42,8 @@ from src.ml.affix_catalogue import (
     payloads_from_rows,
     samples_from_rows,
 )
+from src.ml.onnx_export import ExportUnsupported, onnx_path_for, write_runtime_arrays
+from src.ml.onnx_export import export as export_onnx
 from src.ml.validation import choose_split, is_snapshot, metrics, rolling_time_folds
 from src.schema import FEATURE_NAMES
 
@@ -60,6 +62,22 @@ CANDIDATE_WEIGHT_SCHEDULES: dict[str, list[list[float]]] = {
 
 class NotEnoughData(RuntimeError):
     pass
+
+
+class TrainingUnavailable(NotEnoughData):
+    """Nothing in this install can fit a model.
+
+    The normal state for a player's install since the dependency split: the app
+    ships `onnxruntime` to *evaluate* a model and none of the libraries that
+    *fit* one. Pricing works; retraining does not.
+
+    Subclasses `NotEnoughData` deliberately. Four places run training -- the
+    Settings button, the Market Data retrain, passive collection and the CLI --
+    and each already catches that and prints the message instead of a
+    traceback. The cause differs (environment, not data) but the handling is
+    identical, and a separate type would have shown this as a red box in three
+    of those four until every one was updated.
+    """
 
 
 def load_training_frame(cfg: Config, repo: Repository, log=None) -> pd.DataFrame:
@@ -185,6 +203,19 @@ def train(
         if compare_backends and backends.BASELINE_BACKEND not in candidates:
             candidates.append(backends.BASELINE_BACKEND)
         installed = backends.available_backends()
+        if not installed:
+            # Checked here rather than letting `build` raise ImportError deep
+            # inside the fitting loop, where it would surface as a traceback
+            # about a module nobody asked for.
+            raise TrainingUnavailable(
+                "No training backend is installed, so there is nothing to fit a "
+                "model with. This app ships only what it needs to price maps; "
+                "training additionally needs CatBoost, LightGBM, XGBoost or "
+                "scikit-learn. Install them with:\n\n"
+                "    pip install -r requirements-train.txt\n\n"
+                "Pricing keeps working without them -- the bundled model is "
+                "already trained."
+            )
         usable = [c for c in candidates if c in installed]
         if not usable:
             usable = ["sklearn_hgb"]
@@ -330,6 +361,21 @@ def train(
         }
         with open(artifact_path, "wb") as handle:
             pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Written beside the pickle so the app can price without CatBoost,
+        # LightGBM, XGBoost or scikit-learn installed -- see src/ml/onnx_export.
+        # A backend that cannot be converted is not an error: the pickle still
+        # holds the fitted model, and Predictor falls back to it. The app is
+        # then heavier, not broken, and the log says which happened.
+        try:
+            onnx_file = export_onnx(final, len(columns), onnx_path_for(artifact_path))
+        except ExportUnsupported as exc:
+            log(f"  ONNX export skipped ({exc}); the app will load the pickled model")
+        else:
+            # The arrays go beside it, because reading them back out of the
+            # pickle would import the library the export exists to avoid.
+            write_runtime_arrays(payload, artifact_path)
+            log(f"  exported {onnx_file.name} for library-free inference")
         (cfg.model_dir / METADATA_NAME).write_text(
             json.dumps(meta, indent=2, default=str), encoding="utf-8"
         )

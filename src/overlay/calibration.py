@@ -140,6 +140,26 @@ class Calibration:
     def with_opacity(self, opacity: float) -> Calibration:
         return replace(self, opacity=min(MAX_OPACITY, max(MIN_OPACITY, float(opacity))))
 
+    def with_cell_px(self, cell_px: float) -> Calibration:
+        """Set the cell pitch directly, rather than by dragging an edge.
+
+        `resized` is the calibration screen's way in -- it thinks in outline
+        pixels because that is what the user can see. This is the Settings
+        page's, which has a number box and a value the user already knows.
+        Same floor, for the same reason: a cell of zero is a window with no
+        area and no way back to one.
+        """
+        return replace(self, cell_px=max(MIN_CELL_PX, float(cell_px)))
+
+    def with_origin(self, x: int, y: int) -> Calibration:
+        """Place the grid's top-left corner outright.
+
+        Unbounded on purpose, and negative values are correct rather than
+        merely tolerated: these are virtual-desktop coordinates, so a monitor
+        left of or above the primary one genuinely starts below zero.
+        """
+        return replace(self, origin=(int(x), int(y)))
+
     def with_grid(self, cols: int, rows: int) -> Calibration:
         return replace(self, grid=(max(1, int(cols)), max(1, int(rows))))
 

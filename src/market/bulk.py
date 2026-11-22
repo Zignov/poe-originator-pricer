@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from src.market.collectors.official_trade_api import (
+    CollectionCancelled,
     FETCH_BATCH,
     OfficialTradeApiCollector,
     TradeApiError,
@@ -44,6 +45,48 @@ DEFAULT_PRICE_MAX = 15.0
 
 #: Fewest listings from one seller before it counts as a lot worth a trip.
 DEFAULT_MIN_LOT = 5
+
+#: Which listings this page looks at, as GGG's `status` filter spells it.
+#:
+#: `securable` is the trade site's **"Instant Buyout"** -- listings the seller
+#: has made directly purchasable, so the buy and Travel to Hideout controls
+#: work without whispering anyone. The alternatives, verified against
+#: /api/trade/data/filters on 2026-11-22:
+#:
+#:     available      Instant Buyout and In Person
+#:     securable      Instant Buyout
+#:     onlineleague   In Person (Online in League)
+#:     online         In Person (Online)
+#:     any            Any
+#:
+#: This page used to search `any`, which is the whole market including sellers
+#: who are offline and listings that need a whisper and a reply. For bulk
+#: buying that is the wrong set: the lots are large and cheap, the cheap end
+#: goes in seconds, and a lot you cannot buy *now* is not a lot you can buy.
+#: A scan that fills a table with unreachable sellers costs the same requests
+#: and answers a question nobody asked.
+#:
+#: Deliberately only this page. The training collector wants the broadest
+#: honest sample of asking prices, and the market-comparison mode makes its own
+#: choice (`online`) for its own stated reason.
+BULK_STATUS = "securable"
+
+#: What the page offers, newest-buyer-first. Keyed by the label shown, valued
+#: by GGG's own option id.
+#:
+#: A selector rather than a hard-wired `securable`, because the narrowing is
+#: severe and worth being able to undo: measured live on 2026-11-22, the same
+#: search under 20c returned **98 matching listings at `any` and 5 at
+#: `securable`**. Instant buyout is the right default -- a lot you cannot take
+#: right now is not a lot you can buy -- but a page that silently shows five
+#: results out of ninety-eight, with no way to see the rest, is a page people
+#: conclude is broken.
+BULK_STATUS_CHOICES: dict[str, str] = {
+    "Instant buyout only": "securable",
+    "Instant buyout or in person": "available",
+    "In person, online in league": "onlineleague",
+    "Anyone, including offline": "any",
+}
 
 #: The trade site accepts a whole query inline, so a link to one seller's stock
 #: costs no API call at all. Verified live: the site parses it, re-runs the
@@ -129,6 +172,10 @@ class BulkScan:
     league: str = ""
     #: The query this scan ran, so a per-seller link can be built from it.
     query: dict[str, Any] = field(default_factory=dict)
+    #: True when a cancel arrived mid-scan. The lots below are still real --
+    #: whatever had been read when the cancel landed -- so this marks them as
+    #: a partial view of the market rather than invalidating them.
+    cancelled: bool = False
 
     def age_seconds(self, now: datetime | None = None) -> float:
         now = now or datetime.now(timezone.utc)
@@ -141,6 +188,7 @@ def scan_bulk_lots(
     min_lot: int = DEFAULT_MIN_LOT,
     seller: str | None = None,
     progress=None,
+    status: str = BULK_STATUS,
 ) -> BulkScan:
     """One pass over what has just been listed below `price_max`.
 
@@ -155,10 +203,19 @@ def scan_bulk_lots(
         collapse=False,
         price_max=price_max,
         account=seller,
+        status=status,
+        # Buying page only. The question here is "what do I want to own", and
+        # a map carrying Shaper, Elder or a Conqueror influence on top of
+        # Originator is a different thing being sold for different reasons.
+        # Training deliberately does not do this -- see build_query.
+        exclude_other_influence=True,
     )
 
     try:
         query_id, ids, total = collector.search(query)
+    except CollectionCancelled:
+        return BulkScan(scanned_at=started, cancelled=True, price_max=price_max,
+                        league=collector.league)
     except TradeApiError as exc:
         return BulkScan(scanned_at=started, error=str(exc), price_max=price_max)
 
@@ -166,10 +223,19 @@ def scan_bulk_lots(
         progress(f"{total} listings under {price_max:g}c; reading the newest {len(ids)}")
 
     listings: list[BulkListing] = []
+    cancelled = False
     for start in range(0, len(ids), FETCH_BATCH):
         batch = ids[start : start + FETCH_BATCH]
         try:
             results = collector.fetch(batch, query_id)
+        except CollectionCancelled:
+            # Stop, but fall through and build the scan from what was already
+            # read. The same principle the collection runs follow: a cancelled
+            # run keeps what it paid for. Under a rate limit this loop can sit
+            # for minutes, so the batches already fetched are often the whole
+            # useful answer.
+            cancelled = True
+            break
         except TradeApiError as exc:
             if progress:
                 progress(f"backing off: {exc}")
@@ -196,6 +262,7 @@ def scan_bulk_lots(
         sellers_seen=len(lots),
         total_matching=total,
         price_max=price_max,
+        cancelled=cancelled,
     )
 
 

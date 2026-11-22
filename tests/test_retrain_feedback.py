@@ -22,8 +22,11 @@ st_testing = pytest.importorskip("streamlit.testing.v1")
 AppTest = st_testing.AppTest
 
 
-def _settings_page():
+def _settings_page(tab="Model"):
     app = AppTest.from_file(APP, default_timeout=120)
+    # Only the open tab renders, and Retrain lives on Model. Seeded through the
+    # mirror key tab_strip() restores from.
+    app.session_state["tab_strip::settings_tab"] = tab
     app.run()
     app.sidebar.radio[0].set_value("Settings").run()
     return app

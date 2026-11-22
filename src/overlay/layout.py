@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.market.comparables import percentile_bands, value_category
+from src.overlay.appearance import DEFAULT_APPEARANCE, OverlayAppearance
 from src.overlay.calibration import Calibration
 from src.overlay.state import EXALT_SKIP, EXALT_WORTH, OverlayState, OverlayTile
 from src.ui.palette import (
@@ -32,13 +33,17 @@ from src.ui.palette import (
 #: VALUE_COLOURS, so "worth an exalt" stays readable on top of any band. The
 #: "not worth it" ring is a translucent grey in CSS; tkinter has no per-item
 #: alpha, so it is the flattened equivalent against the tiles it sits on.
-RING_WORTH = "#39d0d8"
-RING_SKIP = "#b6b6bd"
+#:
+#: Kept as names because they are the *defaults* -- `OverlayAppearance` starts
+#: from these and the Settings page moves them, so there is still exactly one
+#: place that says what "worth an exalt" looks like out of the box.
+RING_WORTH = DEFAULT_APPEARANCE.ring_worth
+RING_SKIP = DEFAULT_APPEARANCE.ring_skip
 
 #: Every tile gets a hairline outline. Without it, two neighbouring maps in the
 #: same value band merge into one block and the alignment with the stash cells
 #: -- the entire reason to trust the thing -- becomes impossible to eyeball.
-TILE_OUTLINE = "#0e0f12"
+TILE_OUTLINE = DEFAULT_APPEARANCE.outline
 
 #: The default label colour. Kept as a name because the calibration grid and
 #: any future chrome want it; priced tiles carry their own in TileDraw.
@@ -51,7 +56,7 @@ MUTED_FILL = VALUE_COLOURS["unknown"]
 MUTED_LABEL = "-"
 #: Dimmer than a priced tile's label: the dash carries no information worth
 #: competing with the prices around it.
-MUTED_TEXT = "#9aa1ab"
+MUTED_TEXT = DEFAULT_APPEARANCE.muted_text
 
 #: The confidence meter's geometry, as fractions of the tile it sits in.
 #:
@@ -106,7 +111,7 @@ DOTS_MIN_CELL = 22
 #: mean the same thing and be equally findable on a 12c map as on a 900c one.
 #: White is also the only colour that stays legible across all seven fills
 #: without a second lookup table to maintain.
-DOTS_FILL = "#ffffff"
+DOTS_FILL = DEFAULT_APPEARANCE.dots_fill
 
 
 @dataclass(frozen=True)
@@ -212,24 +217,33 @@ class TileDraw:
         )
 
 
-def ring_colour(exalt: str) -> str:
+def ring_colour(exalt: str, appearance: OverlayAppearance = DEFAULT_APPEARANCE) -> str:
     """"" for a map that cannot take an orb -- no ring, indistinguishable."""
     if exalt == EXALT_WORTH:
-        return RING_WORTH
+        return appearance.ring_worth
     if exalt == EXALT_SKIP:
-        return RING_SKIP
+        return appearance.ring_skip
     return ""
 
 
 def meter_draw(
-    tile: OverlayTile, left: int, top: int, right: int, bottom: int
+    tile: OverlayTile,
+    left: int,
+    top: int,
+    right: int,
+    bottom: int,
+    appearance: OverlayAppearance = DEFAULT_APPEARANCE,
 ) -> MeterDraw | None:
     """The confidence meter for one tile, or None if it should not have one.
 
     None for an unsupported map (there is no estimate to be confident about),
-    for a state file with no confidence at all, and for a cell too small to
-    carry the bar without eating the price.
+    for a state file with no confidence at all, for a cell too small to carry
+    the bar without eating the price, and for a user who has turned the meter
+    off -- all four draw nothing, and only the first two are claims about the
+    map.
     """
+    if not appearance.show_meter:
+        return None
     if not tile.supported:
         return None
     filling = confidence_fill(tile.confidence, tile.confidence_score)
@@ -253,6 +267,7 @@ def meter_draw(
         bottom=bar_bottom,
         fill_right=min(fill_right, bar_right),
         fill=colour,
+        track=appearance.meter_track,
     )
 
 
@@ -263,6 +278,7 @@ def dots_draw(
     right: int,
     bottom: int,
     meter: MeterDraw | None = None,
+    appearance: OverlayAppearance = DEFAULT_APPEARANCE,
 ) -> DotsDraw | None:
     """The free-affix badge for one tile, or None if it should not have one.
 
@@ -287,6 +303,8 @@ def dots_draw(
     the confidence meter. Two readings overlapping is worse than one missing,
     and the meter is the older of the two.
     """
+    if not appearance.show_dots:
+        return None
     count = tile.open_affixes
     if count is None or count <= 0:
         return None
@@ -324,15 +342,23 @@ def dots_draw(
         dot_right = outer_right - column * pitch
         dot_top = outer_top + row * pitch
         boxes.append((dot_right - 2 * radius, dot_top, dot_right, dot_top + 2 * radius))
-    return DotsDraw(dots=tuple(boxes))
+    return DotsDraw(dots=tuple(boxes), fill=appearance.dots_fill)
 
 
-def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileDraw]:
+def build_draw_list(
+    state: OverlayState,
+    calibration: Calibration,
+    appearance: OverlayAppearance = DEFAULT_APPEARANCE,
+) -> list[TileDraw]:
     """The rectangles for one priced tab, in screen coordinates.
 
     Empty cells produce nothing at all. That is the difference between an
     overlay and a screenshot: the game has to show through everywhere there is
     no price, or the tab becomes unreadable and the user turns the thing off.
+
+    `appearance` carries the user's colours and switches. It defaults to the
+    shipped ones so that every caller which does not care -- the tests, and
+    anything reasoning about geometry -- reads exactly as it did before.
     """
     bands = percentile_bands(state.supported_prices)
     draws: list[TileDraw] = []
@@ -342,14 +368,17 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
         )
         if tile.supported and tile.price_chaos is not None:
             category = value_category(tile.price_chaos, bands)
+            # Subscripted here rather than read from a module constant, so a
+            # band re-coloured on the Settings page reaches the overlay too:
+            # VALUE_COLOURS is the dictionary both front ends share.
             fill = VALUE_COLOURS[category]
             text_fill = value_text_colour(category)
             text = tile.label
         else:
-            fill = MUTED_FILL
-            text_fill = MUTED_TEXT
+            fill = appearance.muted_tile_fill
+            text_fill = appearance.muted_text
             text = MUTED_LABEL
-        meter = meter_draw(tile, left, top, right, bottom)
+        meter = meter_draw(tile, left, top, right, bottom, appearance)
         draws.append(
             TileDraw(
                 left=left,
@@ -359,13 +388,13 @@ def build_draw_list(state: OverlayState, calibration: Calibration) -> list[TileD
                 fill=fill,
                 text=text,
                 text_fill=text_fill,
-                ring=ring_colour(tile.exalt),
+                ring=ring_colour(tile.exalt, appearance),
                 meter=meter,
                 # Handed the meter rather than recomputing it: the badge has to
                 # stop short of whatever the meter took, and two independent
                 # derivations of the same rectangle is how they would come to
                 # disagree by a pixel.
-                dots=dots_draw(tile, left, top, right, bottom, meter),
+                dots=dots_draw(tile, left, top, right, bottom, meter, appearance),
                 tile=tile,
             )
         )
@@ -426,14 +455,26 @@ def geometry_string(width: int, height: int, x: int, y: int) -> str:
     return f"{int(width)}x{int(height)}{_offset(x)}{_offset(y)}"
 
 
-def font_size_for(cell_px: float) -> int:
+def font_size_for(cell_px: float, scale: float = 1.0) -> int:
     """Point size that keeps a four-character price inside a cell.
 
     Derived from the cell rather than fixed: the same tab is 40px a cell at
     1080p and 70px on a 4K monitor, and a fixed size is either unreadable or
     spills over the neighbours.
+
+    `scale` is the user's preference on top of that, and it multiplies the
+    derived size rather than replacing it -- so a reader who wants bigger
+    numbers gets them at every resolution rather than only the one they set it
+    at.
+
+    The multiplier is applied *after* the 6-16pt fit, not inside it. Clamping
+    last would make the slider inert above about 1.2 on any ordinary cell size,
+    because the fitted size is already near the ceiling -- the knob would move
+    and nothing on screen would change, which is worse than not having it. The
+    outer 4-40pt bound is only there to keep a nonsense value out of Tk.
     """
-    return max(6, min(16, int(cell_px * 0.26)))
+    fitted = max(6, min(16, int(cell_px * 0.26)))
+    return max(4, min(40, round(fitted * max(0.1, float(scale)))))
 
 
 def _offset(value: int) -> str:

@@ -27,6 +27,27 @@ class ModelNotTrained(RuntimeError):
     pass
 
 
+def _onnx_model_beside(artifact: Path) -> Any | None:
+    """The exported model next to `artifact`, or None to use the pickled one.
+
+    None on every failure, deliberately. A missing `.onnx` is the normal state
+    for an artifact trained before export existed; a missing `onnxruntime` is
+    the normal state for a developer install that has the real libraries
+    anyway. Neither is worth refusing to price over while the pickle still
+    holds a working model -- and if it does not, `Predictor.__init__` raises
+    with something the user can act on.
+    """
+    from src.ml.onnx_export import OnnxModel, onnx_path_for
+
+    path = onnx_path_for(artifact)
+    if not path.exists():
+        return None
+    try:
+        return OnnxModel(path)
+    except Exception:
+        return None
+
+
 @dataclass
 class Estimate:
     fair_value_chaos: float
@@ -46,8 +67,19 @@ class Estimate:
 
 
 class Predictor:
-    def __init__(self, payload: dict[str, Any]):
-        self.model = payload["model"]
+    def __init__(self, payload: dict[str, Any], model: Any | None = None):
+        # `model` wins when given: it is the ONNX session, which lets the app
+        # price without the library that fitted the model. The pickled object
+        # is the fallback, and on an artifact saved before ONNX export existed
+        # it is the only thing there.
+        if model is None:
+            model = payload.get("model")
+        if model is None:
+            raise ModelNotTrained(
+                "the model artifact holds no fitted model and no .onnx file was "
+                "found beside it. Retrain: python -m src.ml.train"
+            )
+        self.model = model
         self.metadata: dict[str, Any] = payload["metadata"]
         self.training_features: np.ndarray = payload.get("training_features", np.empty((0, 0)))
         self.training_prices: np.ndarray = payload.get("training_prices", np.empty(0))
@@ -80,13 +112,27 @@ class Predictor:
     def load(cls, cfg: Config | None = None, path: str | Path | None = None) -> "Predictor":
         cfg = cfg or load_config()
         artifact = Path(path) if path else cfg.model_dir / ARTIFACT_NAME
+
+        # The library-free path, preferred whenever it is complete: the model
+        # from `.onnx`, the arrays from `.npz`, the metadata from `.json`, and
+        # the pickle never opened. That matters beyond tidiness -- the pickle
+        # holds a fitted CatBoost object, so merely reading it imports CatBoost,
+        # and an install that has no boosting library cannot get past it.
+        from src.ml.onnx_export import load_runtime_payload
+
+        model = _onnx_model_beside(artifact)
+        if model is not None:
+            runtime = load_runtime_payload(artifact)
+            if runtime is not None:
+                return cls(runtime, model=model)
+
         if not artifact.exists():
             raise ModelNotTrained(
                 f"no trained model at {artifact}. Run: python -m src.ml.train"
             )
         with open(artifact, "rb") as handle:
             payload = pickle.load(handle)
-        return cls(payload)
+        return cls(payload, model=model)
 
     @property
     def version(self) -> str:

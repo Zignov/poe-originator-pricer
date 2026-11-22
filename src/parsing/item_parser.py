@@ -19,6 +19,7 @@ from src.parsing.implicit_parser import (
 from src.schema import (
     ORIGINATOR_IMPLICIT_STAT_ID,
     ORIGINATOR_IMPLICIT_TEXT,
+    OTHER_INFLUENCE_TEXTS,
     NormalizedMap,
 )
 
@@ -57,7 +58,8 @@ def parse_api_item(item: dict[str, Any]) -> NormalizedMap:
                 is_originator = True
                 break
 
-    features = parse_api_properties(item.get("properties"))
+    unknown_rewards: list[str] = []
+    features = parse_api_properties(item.get("properties"), unknown_rewards)
     # A few sources express rewards as modifier text instead of properties.
     for feature, value in parse_modifier_sentences(explicit_lines + implicit_lines).items():
         if features.get(feature, 0) == 0:
@@ -83,6 +85,7 @@ def parse_api_item(item: dict[str, Any]) -> NormalizedMap:
         is_originator=is_originator,
         raw_modifiers=implicit_lines + explicit_lines + enchant_lines + crafted_lines,
         raw_item_data=item,
+        unknown_rewards=unknown_rewards,
         **features,
     )
 
@@ -169,8 +172,9 @@ def parse_item_text(text: str) -> NormalizedMap:
     is_originator = False
     modifier_lines: list[str] = []
 
+    unknown_rewards: list[str] = []
     for section in sections[1:]:
-        parsed, unknown = parse_property_lines(section)
+        parsed, unknown = parse_property_lines(section, unknown_rewards)
         for key, value in parsed.items():
             if value:
                 features[key] = value
@@ -216,6 +220,7 @@ def parse_item_text(text: str) -> NormalizedMap:
         is_originator=is_originator,
         raw_modifiers=modifier_lines,
         raw_item_data={"text": text, "item_class": item_class},
+        unknown_rewards=unknown_rewards,
         **features,
     )
 
@@ -247,6 +252,25 @@ def _is_boilerplate(line: str) -> bool:
 # ---------------------------------------------------------------------------
 # Eligibility
 # ---------------------------------------------------------------------------
+def other_influence(nm: NormalizedMap) -> str:
+    """The non-Originator influence this map carries, or "".
+
+    Read from the modifier text rather than from a stat id, because a stash
+    read, a clipboard paste and a CSV import carry no ids.
+
+    **Reporting only. `classify` does not use this, on purpose.** A map that is
+    Originator *and* Elder is still a real map with real rolls, and refusing to
+    price it would leave the user with no number for a map that is usually
+    worth more rather than less. Only the buying page acts on this distinction,
+    and it does so in the search rather than here.
+    """
+    text = " ".join(nm.raw_modifiers or ())
+    for marker in OTHER_INFLUENCE_TEXTS:
+        if marker in text:
+            return marker
+    return ""
+
+
 def classify(
     nm: NormalizedMap, map_tier: int = 16, require_uncorrupted: bool = True
 ) -> NormalizedMap:
