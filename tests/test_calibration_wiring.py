@@ -21,7 +21,15 @@ from src.tracking.calibration import (
 from src.tracking.history import calibration_for_account, observations_for_account
 from src.tracking.reconcile import reconcile
 
-ACCOUNT, LEAGUE = "me#1234", "Allflame"
+#: Taken from the real config rather than hardcoded, because these tests run
+#: the actual app.py, which reads config.yaml and queries for whatever league
+#: is set there. A literal "Allflame" here meant the seeded rows stopped being
+#: found the moment the user switched to a new league -- a test failing on a
+#: config change rather than on a code change.
+from src.config import load_config as _load_config
+
+ACCOUNT = "me#1234"
+LEAGUE = _load_config().get("league") or "Standard"
 BASE = StrategyMultipliers(quick_sell=0.94, market=0.99, patient=1.06, source="config")
 
 

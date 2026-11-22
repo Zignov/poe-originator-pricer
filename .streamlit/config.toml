@@ -9,12 +9,17 @@
 # rules, labels, borders, buttons, the active nav marker -- is slate and brass.
 # `primaryColor` is therefore brass rather than a signal colour, so a button can
 # never be mistaken for a price.
+#
+# Generated from `appearance.web` in config.yaml by the Settings page. Editing
+# it by hand works -- nothing reads it back -- but the Appearance tab will
+# overwrite it the next time it is used. Streamlit reads this file once, at
+# startup, so a change here needs a restart.
 [theme]
 base = "dark"
-primaryColor = "#b3894e"
 backgroundColor = "#0d1014"
 secondaryBackgroundColor = "#151a21"
 textColor = "#e7eaf0"
+primaryColor = "#b3894e"
 font = "Inter, sans-serif"
 
 [server]

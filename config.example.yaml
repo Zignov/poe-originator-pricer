@@ -47,13 +47,26 @@ market:
   refetch_after_hours: 12
   # Absolute sanity bounds in chaos. Anything outside is flagged as an outlier.
   # Observed 3.29 uncorrupted T16 spread on 820 collected listings: median ~40c,
-  # 90th ~300c, 95th ~460c, 99th ~920c, 99.5th ~1150c, max 69000c. The bulk of
-  # the market is 30c to 3 divine, so the ceiling sits just above that at 1000c:
-  # the 0.7% of listings above it are parked inventory and price-fixing asks,
-  # and left in they dominate every chart and drag the model's high end upward.
-  # The floor at 5c cuts unpriced-in-all-but-name junk without touching the
-  # genuinely cheap maps that make up the bottom quartile (~10c).
-  plausible_price_chaos: [5, 1000]
+  # 90th ~300c, 95th ~460c, 99th ~920c, 99.5th ~1150c, max 69000c. Listings
+  # outside these bounds are parked inventory and price-fixing asks; left in,
+  # they dominate every chart and drag the model's high end upward. The floor
+  # at 5c cuts unpriced-in-all-but-name junk without touching the genuinely
+  # cheap maps that make up the bottom quartile (~10c).
+  #
+  # CHECK THE CEILING WHEN A LEAGUE TURNS OVER. It is a chaos figure and the
+  # market thinks in divine, so it drifts with the rate and with the league.
+  # 1000c was right for Allflame, whose largest honest price was 869c. In
+  # Covens, with a divine near 203c, it sat under five divine and was throwing
+  # away 88 genuinely excellent maps -- 37 of them at exactly 5 divine, rolling
+  # an average of 87 atlas and 116 rarity. The model then had no example of
+  # what the best maps in the league look like, which is the worst place to
+  # have a blind spot.
+  #
+  # 2500c sits in a real gap: nothing was listed between 2032c (10 divine) and
+  # 4065c (20 divine), and above that gap the rolls stop justifying the price.
+  # Prices that are absurd *for their rolls* but inside the ceiling are the
+  # peer test's job, not this one's.
+  plausible_price_chaos: [5, 2500]
   # The range you actually expect to trade in -- 30c to 3 divine at the current
   # rate. Used only to focus charts, never to exclude data or clamp a prediction.
   typical_price_chaos: [30, 660]
@@ -209,6 +222,83 @@ overlay_inventory:
   # spends a stash read you did not ask for.
   hotkey_analyze: "ctrl+alt+shift+a"
 
+appearance:
+  # How the two front ends look. Everything under here is a preference and
+  # nothing under here is data: no value in this block can change a price,
+  # which is why the whole of it is safe to hand to a colour picker. Edit it
+  # here or from the Appearance tab of the Settings page, which writes it back.
+  web:
+    # "dark", "light", or "system" to follow the browser's own preference.
+    # This is written through to .streamlit/config.toml as well, because
+    # Streamlit's own widgets -- the dataframe canvas, the sidebar ground, the
+    # focus rings -- take their colours from that file and nothing else can
+    # reach them. Streamlit reads it once, at startup, so a change needs a
+    # restart to reach those; the page's own styling follows immediately.
+    theme: dark
+    # Structure, never data. It colours buttons, rules and the active nav
+    # marker, and is deliberately brass rather than a signal colour: with four
+    # percentile hues already on screen meaning something, a red primary read
+    # as a fifth one and a button could be mistaken for a price.
+    accent: "#b3894e"
+    # A full CSS stack, not one name: a machine without the first face still
+    # gets the right kind of one rather than the browser's default.
+    font: "Inter, sans-serif"
+    # Multiplies the root font size. Bounded 0.8-1.3 -- below that a tile's
+    # price clips, above it the twelve-column stash grid wraps.
+    font_scale: 1.0
+    # "comfortable" is the spacing the pages were designed at. "compact" is
+    # what a 1080p screen needs to get a full tab and its readout on one
+    # screen without scrolling.
+    density: comfortable
+
+  overlay:
+    # Read by src/overlay/layout.py and src/overlay/window.py. One block for
+    # both surfaces: the stash tab and the inventory sit in different places
+    # and are different shapes -- that is the calibration, above -- but there
+    # is no reason for the inventory's prices to be a different colour.
+    #
+    # The overlay is a separate process and reads these when it opens, so a
+    # change here needs the overlay reopened, not the app restarted.
+    #
+    # Opacity is NOT here. It lives on each `overlay*` block above, because it
+    # is set with +/- on the calibration screen while looking at the game
+    # through it, and is per surface.
+    font_family: Segoe UI    # Tk falls back silently for a face it cannot find
+    font_scale: 1.0          # multiplies the size derived from your cell pitch
+    bold_labels: true
+    ring_worth: "#39d0d8"    # the exalt ring; also the control strip's label
+                             # and the calibration screen's alignment lines
+    ring_skip: "#b6b6bd"     # "checked, and not worth the orb"
+    outline: "#0e0f12"       # the hairline between tiles. Without it two maps
+                             # in the same band merge into one block and the
+                             # alignment with the stash cells cannot be checked
+    outline_width: 1         # 0-4. 0 draws no outline at all
+    tint: ""                 # "" leaves every empty cell fully see-through,
+                             # which is the difference between an overlay and
+                             # a screenshot. A colour here fills the whole grid
+    muted_fill: ""           # "" = the palette's "unknown" grey
+    muted_text: "#9aa1ab"    # the dash on a map that cannot be priced
+    meter_track: "#15181d"   # the bar the confidence fill sits in
+    dots_fill: "#ffffff"     # one dot per open affix slot
+    show_meter: true         # both readings can be turned off; they are what
+    show_dots: true          # competes with the price on a small cell
+    strip_anchor: above      # above | below -- which side of the grid the
+                             # control strip sits on. "above" still drops below
+                             # when there is no room over the grid
+    strip_width: 500         # 320-900. Below 320 the five buttons clip
+
+  # Overrides for src/ui/palette.py, applied to the web grid and the overlay at
+  # once -- one definition, so a map that is amber in the browser is amber on
+  # the tab. Empty means the shipped colours; only what you actually changed is
+  # written here, so a later release's new band colour still reaches you.
+  #
+  #   palette:
+  #     value_colours:
+  #       high: "#a8791f"
+  #     confidence_colours:
+  #       Medium: "#e6b143"
+  palette: {}
+
 exalt:
   # Whether a map is worth an Exalted Orb. These used to be one line -- "is the
   # expectation bigger than the orb" -- which said yes to 92 of the 92 maps it
@@ -278,3 +368,31 @@ http:
   # server reports. These are only the initial conservative guesses.
   user_agent_contact: "you@example.com"   # put a real address you monitor here
   min_request_interval_seconds: 2.0
+
+pricecheck:
+  # Hotkey price checks on the item you copy in game. A third process, like the
+  # overlay, and for the same reason: tkinter wants the main thread.
+  #
+  #   python -m src.cli price-check
+  #   python -m src.cli price-check --once   # price the clipboard and print it
+  #
+  # In game: hover an item and press Ctrl+C -- Path of Exile's own copy binding.
+  # Nothing in this feature sends a keystroke to the game. That is the whole
+  # design and the reason it is two keypresses instead of one; see
+  # src/pricecheck/clipboard.py.
+  #
+  # Ctrl+Alt+D, and deliberately nothing with C in it: Ctrl+C is the game's own
+  # copy key and the one binding this must leave alone.
+  hotkey: "ctrl+alt+d"
+  # Price automatically when you copy an item, instead of waiting for the chord
+  # above. On by default, and safe to be: the clipboard is only read when
+  # Windows reports that it changed, and anything without Path of Exile's item
+  # header on it is dropped before any other part of the program sees it. Set
+  # this to false and the hotkey becomes the only way in.
+  watch_clipboard: true
+  # Which selling strategy the popup quotes. The same three the rest of the app
+  # uses, from `pricing.strategies` above.
+  strategy: "market"
+  # The local pricing service's port. 127.0.0.1 only -- there is no host
+  # setting, here or in the service, on purpose.
+  port: 8777

@@ -19,10 +19,29 @@ from src.schema import (
 )
 
 # "Item Quantity: +110% (augmented)" / "More Currency: 47%" / "Item Rarity: +65"
+# Brackets and a pipe are allowed in the label so that GGG's localisation
+# markup survives to `normalise_property_label` below, which is what strips it.
 _PROPERTY_LINE = re.compile(
-    r"^\s*(?P<label>[A-Za-z' ]+?)\s*:\s*(?P<sign>[+-]?)\s*(?P<value>\d+(?:\.\d+)?)\s*%?"
+    r"^\s*(?P<label>[A-Za-z'\[\]| ]+?)\s*:\s*(?P<sign>[+-]?)\s*(?P<value>\d+(?:\.\d+)?)\s*%?"
     r"(?:\s*\(augmented\))?\s*$"
 )
+
+# GGG wraps a translatable property name as `[InternalId|Display Text]`, and
+# sometimes as `[Word]` with no alternative. Covens is where this started
+# mattering: the trade API returns `[AtlasDropScaling|Atlas Drops]` and
+# `More [Thread|Threads]`, so a label match against the raw string fails for
+# both. The displayed half is the one players and community exports use, so
+# that is the half kept.
+_MARKUP = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
+
+
+def normalise_property_label(label: str) -> str:
+    """`More [Thread|Threads]` -> `More Threads`. Plain labels pass through."""
+    if not label:
+        return ""
+    resolved = _MARKUP.sub(lambda m: (m.group(2) or m.group(1) or "").strip(), str(label))
+    # The substitution can leave a double space where markup sat between words.
+    return re.sub(r"\s+", " ", resolved).strip()
 
 # Some sources render the same information as a modifier sentence rather than a
 # property, e.g. "35% increased Maps found in your Maps".
@@ -49,7 +68,41 @@ _LABEL_ALIASES: dict[str, str] = {
     "more scarabs": "more_scarabs",
     "more divination cards": "more_divination_cards",
     "more div cards": "more_divination_cards",
+    # Covens. `atlas drops` is `item quantity` renamed -- same slot, new name
+    # and a new type id; `more threads` is `more scarabs` renamed, and GGG kept
+    # the type id. See the table in src/schema.py.
+    "atlas drops": "quantity",
+    "atlasdropscaling": "quantity",
+    "more threads": "more_scarabs",
+    "threads": "more_scarabs",
 }
+
+# What a property has to look like before an unrecognised one is worth
+# reporting. A map carries plenty of properties this app has no interest in --
+# `Quality (Currency)`, `Map Tier`, `Monster Level` -- and warning about those
+# would train the user to ignore the warning that matters.
+#
+# A reward is a percentage bonus whose name is phrased as more-of-something, so
+# that is the test: a percent value, and a name that opens with one of these.
+_REWARD_SHAPED = re.compile(r"^\s*(more|item|monster|atlas|increased)\b", re.I)
+_NOT_A_REWARD = re.compile(r"^\s*(quality|monster level|map tier|item level)\b", re.I)
+
+
+def looks_like_a_reward(label: str, value: str = "%") -> bool:
+    """Is this an unrecognised property that the pricer probably should know?
+
+    The whole point of the Covens rename was that it cost nothing to notice and
+    a great deal to miss: `Atlas Drops` was simply dropped on the floor, every
+    map read as quantity 0, and the only visible symptom was prices drifting
+    low on exactly the maps worth the most. Anything shaped like a reward is
+    therefore reported rather than silently skipped.
+    """
+    name = normalise_property_label(label)
+    if not name or _NOT_A_REWARD.match(name):
+        return False
+    if feature_for_label(name) is not None:
+        return False  # recognised; nothing to report
+    return bool(_REWARD_SHAPED.match(name)) and "%" in str(value)
 
 
 def empty_features() -> dict[str, int]:
@@ -58,10 +111,12 @@ def empty_features() -> dict[str, int]:
 
 
 def feature_for_label(label: str) -> str | None:
-    key = label.strip().lower()
+    """The feature a property name maps to, markup and league aliases included."""
+    resolved = normalise_property_label(label)
+    key = resolved.lower()
     if key in _LABEL_ALIASES:
         return _LABEL_ALIASES[key]
-    return PROPERTY_TO_FEATURE.get(label.strip())
+    return PROPERTY_TO_FEATURE.get(resolved)
 
 
 def parse_property_line(line: str) -> tuple[str, int] | None:
@@ -78,8 +133,17 @@ def parse_property_line(line: str) -> tuple[str, int] | None:
     return feature, int(round(value))
 
 
-def parse_property_lines(lines: Iterable[str]) -> tuple[dict[str, int], list[str]]:
-    """Return (features, unrecognised_lines) for a block of property lines."""
+def parse_property_lines(
+    lines: Iterable[str], unknown_rewards: list[str] | None = None
+) -> tuple[dict[str, int], list[str]]:
+    """Return (features, unrecognised_lines) for a block of property lines.
+
+    `unknown_rewards`, when given, additionally collects the unrecognised lines
+    that *look like rewards* -- see `looks_like_a_reward`. The second return
+    value is every unrecognised line, rewards and map modifiers alike, and the
+    caller still treats those as modifier text; this is the narrower list that
+    is worth putting in front of a user.
+    """
     features = empty_features()
     unknown: list[str] = []
     for line in lines:
@@ -89,8 +153,12 @@ def parse_property_lines(lines: Iterable[str]) -> tuple[dict[str, int], list[str
         parsed = parse_property_line(line)
         if parsed:
             features[parsed[0]] = parsed[1]
-        else:
-            unknown.append(line)
+            continue
+        unknown.append(line)
+        if unknown_rewards is not None:
+            m = _PROPERTY_LINE.match(line)
+            if m and looks_like_a_reward(m.group("label"), line):
+                unknown_rewards.append(normalise_property_label(m.group("label")))
     return features, unknown
 
 
@@ -105,11 +173,20 @@ def parse_modifier_sentences(lines: Iterable[str]) -> dict[str, int]:
     return found
 
 
-def parse_api_properties(properties: list[dict[str, Any]] | None) -> dict[str, int]:
+def parse_api_properties(
+    properties: list[dict[str, Any]] | None,
+    unknown_rewards: list[str] | None = None,
+) -> dict[str, int]:
     """Extract features from the trade/stash API `properties` array.
 
     Matches on the property name first and falls back to the numeric `type` id,
-    so a renamed-but-same-id property still parses.
+    so a renamed-but-same-id property still parses. Covens proved that fallback
+    is necessary but not sufficient: `More Scarabs` became `More Threads` and
+    kept type 89, so the id saved it -- while `Item Quantity` became
+    `Atlas Drops` *and* moved from type 2 to type 112, so nothing saved it. A
+    property that neither match recognises is now collected into
+    `unknown_rewards` rather than silently skipped, which is the only way the
+    next rename gets noticed before it has cost a month of prices.
     """
     features = empty_features()
     for prop in properties or []:
@@ -118,6 +195,10 @@ def parse_api_properties(properties: list[dict[str, Any]] | None) -> dict[str, i
         if feature is None:
             feature = PROPERTY_TYPE_ID_TO_FEATURE.get(prop.get("type"))
         if feature is None:
+            values = prop.get("values") or []
+            shown = str(values[0][0]) if values and values[0] else ""
+            if unknown_rewards is not None and looks_like_a_reward(name, shown):
+                unknown_rewards.append(normalise_property_label(name))
             continue
         values = prop.get("values") or []
         if not values or not values[0]:

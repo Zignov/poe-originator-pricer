@@ -1,4 +1,6 @@
 .venv/
+.venv-test/
+.venv-runtime/
 __pycache__/
 *.pyc
 .env
@@ -6,6 +8,8 @@ data/*.db
 data/*.db-journal
 models/*.pkl
 models/*.json
+models/*.onnx
+models/*.npz
 !models/.gitkeep
 # ...except the three artifacts a release ships, which are tracked on purpose.
 # Together they are 1.3 MB -- small enough that git does not care, and they are
@@ -16,6 +20,11 @@ models/*.json
 !models/originator_model.pkl
 !models/originator_model.json
 !models/affix_catalogue.json
+# The library-free artifact set: these three are what a player's install
+# actually loads, and the .pkl above is only needed to re-export or to explain
+# a prediction with SHAP. See src/ml/onnx_export.py.
+!models/originator_model.onnx
+!models/originator_model.npz
 .pytest_cache/
 .playwright-mcp/
 data/*.log
@@ -43,3 +52,15 @@ dist/
 # rewritten on every "Send to overlay". The stash profile's file is tracked as a
 # fixture; this one names a character and has no business in the repository.
 data/overlay_inventory_state.json
+
+# The local service's API token, written per launch by `python -m src.service`
+# beside the database. Short-lived and regenerated every start, but it is still
+# a credential and it has no business in a repository.
+data/service-token
+
+# Model artifacts kept by scripts/collect_loop.py before each retrain. A local
+# safety net for a long unattended run -- one full artifact set per retrain,
+# tens of megabytes within a night -- and never something to share.
+models/backups/
+# Per-cycle summary written by scripts/collect_loop.py. A run log, not data.
+data/collect_loop.json

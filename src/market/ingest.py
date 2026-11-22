@@ -1,6 +1,7 @@
 """Wiring between collectors, the outlier pass and the database."""
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -38,6 +39,33 @@ def refresh_outliers(cfg: Config, repo: Repository) -> dict[str, Any]:
     )
     repo.flag_outliers(decisions)
     return {"flagged": sum(1 for _, flag, _ in decisions if flag), "evaluated": len(decisions)}
+
+
+def restate_prices(cfg: Config, repo: Repository, divine_to_chaos: float) -> dict[str, Any]:
+    """Re-derive every stored chaos price at a new rate, then re-flag outliers.
+
+    The two halves belong together and were previously done apart, which is a
+    quiet way to poison the training set.
+
+    `price_chaos` for a divine-denominated listing is `amount * rate`, so
+    changing the rate moves that listing's price -- and the outlier decision is
+    a judgement *about* the price: whether it sits inside
+    `market.plausible_price_chaos`, and whether it is wildly out of line with
+    its peers. Restating prices without re-deciding leaves every flag answering
+    a question about numbers that no longer exist.
+
+    It is not hypothetical. The divine rate moved 210 -> 125 -> 209 -> 203 in
+    one day. A listing at 35 divine was 4,375c under the bad rate and 7,113c
+    under the good one; the 1,000c plausibility ceiling sits between those, and
+    because nothing re-flagged it the row stayed marked clean and went into
+    training -- a map with atlas 52, rarity 35 and pack 20, priced at 35 divine,
+    teaching the model that weak rolls can be worth a fortune.
+
+    Every caller that changes the rate should use this instead of calling
+    `Repository.recompute_price_chaos` directly.
+    """
+    repo.recompute_price_chaos(divine_to_chaos)
+    return refresh_outliers(cfg, repo)
 
 
 def collect_from_trade_api(
@@ -91,7 +119,17 @@ def collect_from_trade_api(
 
     batch: list[MarketListing] = []
     stats: dict[str, Any] = {"inserted": 0, "updated": 0}
+    #: Reward properties the parser did not recognise, counted across the run.
+    #:
+    #: This is the whole early-warning mechanism, and it exists because of what
+    #: the Covens rename cost: `Item Quantity` became `Atlas Drops` with a new
+    #: type id, the parser dropped it silently, and every map collected for a
+    #: league read quantity 0. Nothing failed, nothing was logged, and the only
+    #: symptom was prices sagging on exactly the maps worth the most. A name
+    #: this run could not place is now counted and reported at the end.
+    unknown_rewards: Counter[str] = Counter()
     for listing in collector.collect(limit=limit, progress=progress):
+        unknown_rewards.update(listing.item.unknown_rewards)
         batch.append(listing)
         if len(batch) >= 50:
             partial = repo.upsert_listings(dedupe(batch))
@@ -114,4 +152,16 @@ def collect_from_trade_api(
     # that simply found little look identical in `inserted`, and only one of
     # them means the sample is missing whole slices of the stratification.
     stats["cancelled"] = is_cancelled(cancel)
+    if unknown_rewards:
+        stats["unknown_rewards"] = dict(unknown_rewards.most_common())
+        if progress:
+            names = ", ".join(
+                f"{name} (on {count})" for name, count in unknown_rewards.most_common(6)
+            )
+            progress(
+                f"WARNING: {len(unknown_rewards)} reward property name(s) this build "
+                f"does not recognise: {names}. Those rewards were read as 0. "
+                "This is what a league rename looks like -- add them to "
+                "PROPERTY_TO_FEATURE in src/schema.py before training on this data."
+            )
     return stats

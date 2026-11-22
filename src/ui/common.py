@@ -1,6 +1,7 @@
 """Shared UI state, styling and helpers."""
 from __future__ import annotations
 
+import html
 from typing import Any
 
 import streamlit as st
@@ -19,7 +20,11 @@ from src.pricing.sell_strategy import multipliers_from_config
 # Re-exported: the palette itself lives in src/ui/palette.py so the desktop
 # overlay, which runs in a tkinter process with no Streamlit in it, can share
 # the same colours without importing this module.
-from src.ui.palette import VALUE_COLOURS, confidence_fill  # noqa: F401
+from src.ui.palette import (  # noqa: F401
+    VALUE_COLOURS,
+    appearance_css,
+    confidence_fill,
+)
 
 #: The colour for a chart that carries one series and therefore no bands.
 #:
@@ -353,17 +358,38 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
    the right and slid under the table beside it, which read as the table
    floating over the stash layout. */
 .stash-grid-wrap { max-width: 100%; overflow-x: auto; padding-bottom: .35rem; }
+/* The grid shrinks to fit its column instead of overflowing it.
+
+   It used to be `width: max-content` with hard 46px cells, which makes a
+   12-wide tab 584px -- wider than the column it sits in on anything but a
+   maximised window. The wrapper then scrolled horizontally, and since a stash
+   tab is filled from the left, the occupied columns were the ones pushed out
+   of sight. A tab whose maps all sat in column L rendered as an entirely
+   empty grid with a scrollbar nobody notices, which reads as "the app found
+   nothing" rather than "scroll right".
+
+   `minmax(0, 46px)` keeps 46px as the *maximum*, so a wide screen looks
+   exactly as it did before and a narrow one scales the cells down rather than
+   hiding them. `max-width: max-content` stops the grid stretching past its
+   natural size on a very wide column. */
 .stash-grid {
   display: grid; gap: 2px; background: var(--ground);
-  padding: 5px; border-radius: 6px; width: max-content;
+  padding: 5px; border-radius: 6px;
+  width: 100%; max-width: max-content;
   border: 1px solid var(--rule);
+  container-type: inline-size;
 }
 .stash-cell {
-  width: 46px; height: 46px; border-radius: 3px;
+  /* Square at whatever width the column allows, rather than square at 46px. */
+  width: auto; min-width: 0; aspect-ratio: 1 / 1; height: auto;
+  border-radius: 3px;
   background: rgba(255,255,255,.035);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: .68rem; font-weight: 500; color: #f4f4f5;
+  /* Tied to the grid's own width so a price stays inside its tile as the
+     cells shrink, instead of being clipped by `overflow: hidden`. */
+  font-size: clamp(.46rem, 1.6cqw, .68rem);
+  font-weight: 500; color: #f4f4f5;
   overflow: hidden; text-align: center; line-height: 1.05;
 }
 .stash-cell.filled {
@@ -377,6 +403,17 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
    outright: the map is there, and a hole in the grid reads as a bug. */
 .stash-cell.filled.negligible {
   color: #5b626d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+}
+/* Excluded by the filters at the top of the page. Same reasoning as the
+   negligible band and deliberately a different mechanism: that one is a
+   property of the map and keeps its own colour, this one is a property of what
+   was typed into the Min value box a second ago and has to be obviously
+   temporary. So the tile keeps its band colour and loses its contrast --
+   readable if you look straight at it, invisible when you are scanning for
+   what matched. Not display:none: the grid is read positionally against the
+   real stash tab, and a missing tile there means an empty slot. */
+.stash-cell.filled.filtered {
+  opacity: .22; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
 }
 /* The confidence meter. Absolutely positioned -- hence the positioning context
    on .filled above -- so it takes no part in the flex centring: the price stays
@@ -507,6 +544,22 @@ button:focus-visible { outline: 2px solid var(--brass) !important; outline-offse
 def page_setup(title: str) -> None:
     st.set_page_config(page_title=f"{title} - Originator Pricer", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
+    # The user's appearance, emitted after the design system it overrides so a
+    # same-specificity :root block wins. This is the only place a stylesheet
+    # reaches every page, so without it a light scheme would leave every page
+    # but Settings on the hardcoded dark ground. Returns "" for the shipped
+    # values, so a default install renders exactly as before.
+    web = get_config().get("appearance.web") or {}
+    st.markdown(
+        appearance_css(
+            **{
+                k: web[k]
+                for k in ("theme", "accent", "font", "font_scale", "density")
+                if k in web
+            }
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -868,6 +921,53 @@ def section(eyebrow: str, note: str = "") -> None:
 def hint(text: str) -> None:
     """A line of explanation under a control or a section heading."""
     st.markdown(f'<div class="hint">{text}</div>', unsafe_allow_html=True)
+
+
+def tab_strip(key: str, names: list[str]) -> str:
+    """A row of tabs that remembers which one was open. Returns its name.
+
+    This was a radio dressed up as a tab list, because `st.tabs` could not be
+    asked which tab was open and could not be told which to open: it reopened
+    the first one on every rerun that rebuilt it, including the rerun that
+    redraws a page after a trip to another one. Streamlit 1.67 gives `st.tabs`
+    a `key`, a `default` and `on_change`, so the real widget can do the job and
+    the thirty-odd lines of CSS that restyled a radio are gone.
+
+    Two parts are still needed. `on_change="rerun"` is what makes the selection
+    readable at all -- under the default `"ignore"` the tabs track no state and
+    every `.open` is `None`. And the answer is still mirrored into a plain
+    session-state entry, because Streamlit discards a keyed widget's value once
+    a rerun goes by without that widget on screen, which is exactly what
+    leaving the page does; `st.tabs` has no `persist_state` to prevent it. The
+    mirror is never cleaned up, so it survives the trip and comes back as
+    `default`. Verified on 1.67.0: without it the strip resets to the first tab
+    on return, with it the selection holds.
+
+    The caller renders only the panel this names, which is also why the bodies
+    are not placed inside the returned tabs: an `if` on the name runs one
+    branch, where `with tab:` for every tab would run them all.
+
+    `key` names one strip: two strips sharing a key would share a selection.
+    `names` may differ between runs; a remembered tab that is no longer offered
+    falls back to the first, rather than raising on a value not in the options.
+    """
+    options = list(names)
+    if not options:
+        return ""
+    memory = f"tab_strip::{key}"
+    remembered = st.session_state.get(memory)
+    if remembered not in options:
+        remembered = options[0]
+    st.tabs(options, key=key, on_change="rerun", default=remembered)
+    open_tab = st.session_state.get(key)
+    if open_tab not in options:
+        # Nothing usable of its own: never drawn this run, or holding a tab this
+        # run does not offer.
+        open_tab = remembered
+    st.session_state[memory] = open_tab
+    return open_tab
+
+
 def sidebar_context() -> None:
     """What every price on screen is relative to, as a key/value block.
 
@@ -917,6 +1017,95 @@ def sidebar_context() -> None:
     with st.sidebar:
         st.markdown(
             f'<div class="ctx"><div class="nav-group">Context</div>{body}</div>',
+            unsafe_allow_html=True,
+        )
+
+
+@st.cache_data(show_spinner=False, ttl=120)
+def _health_inputs(league: str | None, version: int) -> dict:
+    """The database side of the health check, read once per data change.
+
+    Cached because it touches the database and runs on every page load, and
+    keyed on `data_version()` so it refreshes the moment anything is collected,
+    imported or retrained rather than going stale behind a timer.
+    """
+    from src.ui.health import age_hours, unknown_rewards_in
+
+    repo = get_repo()
+    counts = listing_counts(league, version)
+    newest = repo.conn.execute(
+        "SELECT MAX(COALESCE(indexed_at, captured_at)) AS m "
+        "FROM originator_listings WHERE league = ?",
+        (league,),
+    ).fetchone()
+    rate = repo.get_divine_rate(league or "")
+    payloads = [
+        row["raw_data"]
+        for row in repo.conn.execute(
+            "SELECT raw_data FROM originator_listings WHERE league = ? "
+            "AND raw_data IS NOT NULL AND raw_data != '' "
+            "ORDER BY captured_at DESC LIMIT 60",
+            (league,),
+        ).fetchall()
+    ]
+    return {
+        "total": counts["total"],
+        "newest_hours": age_hours(newest["m"] if newest else None),
+        "rate": rate[0] if rate else None,
+        "rate_hours": age_hours(rate[1]) if rate else None,
+        "rate_source": None if rate else "config",
+        "unknown_rewards": unknown_rewards_in(payloads),
+    }
+
+
+def health_banner() -> None:
+    """Say the things that are wrong but do not look wrong.
+
+    At the top of the page rather than in the sidebar, because every one of
+    these makes the numbers below it mean something other than what they
+    appear to mean -- and the sidebar is where someone looks to confirm a
+    detail, not to discover a problem. See src/ui/health.py for what each check
+    is and which real failure it came from.
+    """
+    from src.ui.health import ERROR, WARN, findings
+
+    cfg = get_config()
+    predictor, model_error = get_predictor()
+    league = cfg.get("league")
+    try:
+        data = _health_inputs(league, data_version())
+    except Exception:
+        # A health check that breaks the page it is meant to protect would be
+        # the worst possible version of this feature.
+        return
+
+    found = findings(
+        configured_league=league,
+        model_metadata=predictor.metadata if predictor else None,
+        predictor=predictor,
+        model_error=model_error,
+        listing_total=data["total"],
+        newest_listing_hours=data["newest_hours"],
+        max_age_days=cfg.get("market.max_age_days"),
+        divine_rate=data["rate"],
+        rate_fetched_hours=data["rate_hours"],
+        rate_source=data["rate_source"],
+        unknown_rewards=data["unknown_rewards"],
+    )
+    if not found:
+        return
+
+    for finding in found:
+        css = "warn" if finding.severity in (ERROR, WARN) else "callout"
+        detail = f" {html.escape(finding.detail)}" if finding.detail else ""
+        fix = (
+            f'<div style="margin-top:.35rem;opacity:.85">{html.escape(finding.fix)}</div>'
+            if finding.fix
+            else ""
+        )
+        st.markdown(
+            f'<div class="{css}"><strong>{html.escape(finding.title)}</strong>'
+            f"{detail}{fix}</div>",
             unsafe_allow_html=True,
         )
 

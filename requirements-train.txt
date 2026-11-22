@@ -1,0 +1,42 @@
+# Everything needed to TRAIN a model, run the tests, or explain a prediction.
+# A developer's list, not a player's. Install on top of requirements.txt:
+#
+#     pip install -r requirements.txt -r requirements-train.txt
+#
+# The app itself never needs any of this: training writes an ONNX file beside
+# the pickle (src/ml/onnx_export.py) and the app evaluates that instead. If you
+# add a dependency here, check first whether the *running* app needs it -- the
+# whole point of the split is that it usually does not.
+
+-r requirements.txt
+
+# Gradient boosting backends. All optional individually: src/ml/models.py
+# degrades to scikit-learn's HistGradientBoostingRegressor if none import.
+# Note that HistGradientBoostingRegressor is the one backend skl2onnx cannot
+# currently convert, so a model trained on it has no ONNX and the app will need
+# scikit-learn installed to load it. Prefer catboost, which is the default.
+catboost>=1.2
+lightgbm>=4.5
+xgboost>=2.1
+scikit-learn>=1.5
+
+# Non-negative least squares, for fitting the affix catalogue. Lazily imported
+# in src/ml/affix_catalogue.py, and only on the fitting path -- reading a
+# fitted catalogue needs nothing from scipy.
+scipy>=1.13
+
+# Model explanation. Optional: src/ml/explain.py falls back to ablation, which
+# needs only .predict(), so this is not required even on a dev machine.
+shap>=0.46
+
+# Writes the .onnx that lets the app run without any of the above.
+# onnxmltools covers LightGBM and XGBoost; skl2onnx covers scikit-learn;
+# CatBoost exports itself and needs neither.
+onnxmltools>=1.12
+skl2onnx>=1.17
+
+pytest>=8.0
+# Drives the local service in tests. starlette.testclient refuses to import
+# without it; the running service needs only starlette and uvicorn, which
+# Streamlit already installs.
+httpx2>=0.1

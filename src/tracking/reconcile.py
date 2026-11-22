@@ -10,6 +10,13 @@ The rules that carry the weight:
   ten-minute sale at the new price, not a three-day sale at the old one. So a
   price change moves `priced_at`, and every duration downstream measures from
   there.
+* **The clock is GGG's, not ours.** `priced_at` is taken from the listing's own
+  `indexed` timestamp -- the "listed X ago" the trade site prints -- and only
+  falls back to the polling clock when the API did not supply one. That is what
+  makes a map listed three days ago read as three days old on the *first* poll
+  after the app starts, with no scan history behind it at all. Deriving the age
+  from when we happened to first see it made every listing an hour old after
+  every restart.
 * **A partial poll changes nothing.** A listing missing because it fell outside
   a truncated result window is indistinguishable from one that sold, and
   counting it as a sale would inject a fake fast sale into the very data the
@@ -47,6 +54,13 @@ class TrackedRow:
     priced_at: datetime
     first_seen: datetime
     last_seen: datetime
+    #: GGG's own `listing.indexed` for the ask that is currently up -- the
+    #: "listed X ago" the trade site prints. Authoritative, and available on the
+    #: very first poll, which is why the page's ages are computed from it rather
+    #: than from when this app first happened to look. `None` only for rows
+    #: written before this was carried, or by an importer that has no such
+    #: timestamp to give; every reader falls back to `priced_at` for those.
+    indexed_at: datetime | None = None
     status: str = "live"
     gone_first_missing: datetime | None = None
     ambiguous: bool = False
@@ -87,6 +101,31 @@ def _same_price(a: float | None, b: float | None) -> bool:
     if a is None or b is None:
         return a is b
     return abs(a - b) < 1e-6
+
+
+def _repriced(row: TrackedRow, listing: MarketListing) -> bool:
+    """Did the *seller* change the ask, or did only our conversion move?
+
+    `price_chaos` is not what the seller typed. It is their ask run through the
+    current divine/exalt rate, and that rate is refreshed from the live market
+    while the tracker is running. So two polls either side of a rate refresh
+    produce two different chaos figures for a listing nobody touched -- and
+    comparing on that number alone called it a re-price, reset `priced_at` to
+    the moment of the poll, and wiped the age off every divine-priced map on the
+    page. It also cut the episode in two, so the survival fit saw a fresh live
+    listing where there was a three-day-old one.
+
+    GGG re-indexes a listing whenever its note changes, so `listing.indexed` is
+    the authoritative answer to "has the ask changed": same timestamp, same ask,
+    whatever the conversion says today. Only when one side has no timestamp to
+    compare -- an importer, or a row written before this was carried -- does the
+    converted price get the casting vote.
+    """
+    if _same_price(row.price_chaos, listing.price_chaos):
+        return False
+    if listing.indexed_at is not None and row.indexed_at is not None:
+        return listing.indexed_at != row.indexed_at
+    return True
 
 
 def reconcile(
@@ -135,14 +174,24 @@ def reconcile(
         if row is not None and row.id is not None and row.id in matched_rows:
             row = None
 
+        # GGG's timestamp for the ask now up. Kept fresh on every match, so a
+        # row written before this existed -- or one whose first poll came from
+        # an importer with no timestamp -- picks one up the next time it is seen
+        # rather than being stuck on the polling clock forever.
+        indexed_at = listing.indexed_at or (row.indexed_at if row else None)
+
         if row is not None:
             if row.id is not None:
                 matched_rows.add(row.id)
-            if _same_price(row.price_chaos, listing.price_chaos):
+            if not _repriced(row, listing):
                 live.append(
                     row.replace(
                         last_seen=now,
                         trade_listing_id=listing.listing_id or row.trade_listing_id,
+                        # The conversion may have moved even though the ask did
+                        # not; carry today's number without calling it a change.
+                        price_chaos=listing.price_chaos,
+                        indexed_at=indexed_at,
                         ambiguous=ambiguous or row.ambiguous,
                         listing=listing,
                     )
@@ -163,7 +212,17 @@ def reconcile(
                 row.replace(
                     trade_listing_id=listing.listing_id or row.trade_listing_id,
                     price_chaos=listing.price_chaos,
-                    priced_at=now,
+                    # When GGG re-indexed it is when the new price went up. That
+                    # is minutes to hours earlier than the poll that noticed,
+                    # and on the slow cadence the difference is a quarter of an
+                    # hour of a listing's life credited to the wrong price.
+                    #
+                    # `listing.indexed_at`, deliberately, not the carried-forward
+                    # `indexed_at`: the latter falls back to the *old* stamp when
+                    # this snapshot has none, and dating a new price from the old
+                    # one's listing time would run the clock backwards.
+                    priced_at=listing.indexed_at or now,
+                    indexed_at=indexed_at,
                     last_seen=now,
                     ambiguous=ambiguous or row.ambiguous,
                     listing=listing,
@@ -190,6 +249,7 @@ def reconcile(
                 revived.replace(
                     trade_listing_id=listing.listing_id,
                     price_chaos=listing.price_chaos,
+                    indexed_at=listing.indexed_at or revived.indexed_at,
                     last_seen=now,
                     status="live",
                     gone_first_missing=None,
@@ -213,7 +273,11 @@ def reconcile(
                 trade_listing_id=listing.listing_id,
                 fingerprint=fp,
                 price_chaos=listing.price_chaos,
+                # The whole point of the first poll after a restart: a map GGG
+                # says was listed three days ago is three days old here, not
+                # newly born because this is the first time we looked.
                 priced_at=listing.indexed_at or now,
+                indexed_at=listing.indexed_at,
                 first_seen=now,
                 last_seen=now,
                 status="live",

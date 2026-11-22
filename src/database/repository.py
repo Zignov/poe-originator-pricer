@@ -601,11 +601,17 @@ class Repository:
     def _tracked_row(self, row: sqlite3.Row) -> "TrackedRow":
         from src.tracking.reconcile import TrackedRow
 
+        # `.keys()` rather than a bare subscript: a database written by an
+        # older build has the column (migration 3 created it) but a row read
+        # through a narrowed projection may not carry it, and a missing "listed
+        # X ago" is a fallback, never a crash on the poller's thread.
+        indexed_at = _parse_iso(row["indexed_at"]) if "indexed_at" in row.keys() else None
         return TrackedRow(
             id=row["id"],
             trade_listing_id=row["trade_listing_id"],
             fingerprint=row["fingerprint"],
             price_chaos=row["price_chaos"],
+            indexed_at=indexed_at,
             priced_at=_parse_iso(row["priced_at"]),
             first_seen=_parse_iso(row["first_seen"]),
             last_seen=_parse_iso(row["last_seen"]),
@@ -680,7 +686,7 @@ class Repository:
             stash.get("name") or None,
             stash.get("x"),
             stash.get("y"),
-            _iso(getattr(listing, "indexed_at", None)),
+            _iso(getattr(row, "indexed_at", None) or getattr(listing, "indexed_at", None)),
             _iso(row.priced_at),
             _iso(row.first_seen),
             _iso(row.last_seen),
@@ -716,8 +722,16 @@ class Repository:
                 inserted += 1
             else:
                 self.conn.execute(
+                    # indexed_at is written on every pass, not only on the
+                    # insert. It is the listing's own "listed X ago" and it
+                    # moves whenever GGG re-indexes; write-once left every row
+                    # stamped with whatever the first poll happened to see, and
+                    # left rows from before it was carried permanently NULL.
+                    # COALESCE so a snapshot that arrives without one -- an
+                    # import, a partial fetch -- never blanks a stamp we have.
                     "UPDATE tracked_listings SET trade_listing_id = ?, "
                     "price_amount = ?, price_currency = ?, price_chaos = ?, "
+                    "indexed_at = COALESCE(?, indexed_at), "
                     "priced_at = ?, last_seen = ?, status = 'live', "
                     "gone_first_missing = NULL, ambiguous = ? WHERE id = ?",
                     (
@@ -725,6 +739,7 @@ class Repository:
                         row.listing.price_amount if row.listing else None,
                         row.listing.price_currency if row.listing else None,
                         row.price_chaos,
+                        _iso(row.indexed_at),
                         _iso(row.priced_at),
                         _iso(row.last_seen),
                         int(row.ambiguous),

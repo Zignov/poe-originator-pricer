@@ -1,8 +1,8 @@
 {
- "league": "Allflame",
+ "league": "Covens",
  "map_tier": 16,
- "fitted_at": "2026-08-29T14:07:02+00:00",
- "sample_size": 1752,
+ "fitted_at": "2026-11-22T16:30:15+00:00",
+ "sample_size": 10538,
  "modelled_features": [
   "quantity",
   "rarity",
@@ -12,63 +12,80 @@
   "more_scarabs"
  ],
  "templates": {
-  "#% increased number of Rare Monsters": [
-   "Antagonist's"
-  ],
-  "Players are Cursed with Vulnerability": [
-   "of Curses",
-   "of Vulnerability"
-  ],
-  "Players are Cursed with Temporal Chains": [
-   "of Curses",
-   "of Temporal Chains"
-  ],
-  "Players are Cursed with Elemental Weakness": [
-   "of Curses",
-   "of Elemental Weakness"
-  ],
   "#% more Monster Life": [
    "Fecund",
    "Unwavering"
   ],
-  "Monsters have #% increased Area of Effect": [
-   "Magnifying",
-   "of Giants"
+  "#% increased Monster Damage": [
+   "Savage"
   ],
-  "Monsters fire # additional Projectiles": [
-   "Magnifying",
-   "Splitting"
+  "Monsters deal #% extra Physical Damage as Lightning": [
+   "Shocking"
   ],
-  "Monsters cannot be Stunned": [
-   "Unwavering",
-   "of the Juggernaut"
+  "Monster Damage Penetrates #% Elemental Resistances": [
+   "of Penetration"
   ],
-  "Monsters steal Power, Frenzy and Endurance charges on Hit": [
-   "of Enervation"
+  "Players have #% less Armour": [
+   "of Rust"
   ],
-  "Players have #% less Accuracy Rating": [
-   "of Imprecision"
+  "Players have #% reduced Chance to Block": [
+   "of Rust"
   ],
-  "Rare Monsters each have # additional Modifier": [
-   "Antagonist's"
+  "Area contains a [Mirage]": [
+   "of Zarokh"
+  ],
+  "Monsters gain an Endurance Charge on Hit": [
+   "of Endurance"
+  ],
+  "Monsters have #% increased Accuracy Rating": [
+   "of Miring"
+  ],
+  "Players have #% to amount of Suppressed Spell Damage Prevented": [
+   "of Miring"
+  ],
+  "Unique Monsters have a random Shrine Buff": [
+   "of Domination"
+  ],
+  "Area has patches of desecrated ground": [
+   "of Desecration"
+  ],
+  "All Monster Damage can Ignite, Freeze and Shock": [
+   "Afflicting"
+  ],
+  "Debuffs on Monsters expire #% faster": [
+   "of Defiance"
+  ],
+  "Monsters Ignite, Freeze and Shock on Hit": [
+   "Afflicting",
+   "Empowered"
+  ],
+  "Rare monsters in area are Shaper-Touched": [
+   "Valdo's"
+  ],
+  "Area contains Drowning Orbs": [
+   "Hungering"
+  ],
+  "Monsters' Attacks have #% chance to Impale on Hit": [
+   "Impaling"
+  ],
+  "Monsters Maim on Hit with Attacks": [
+   "of Carnage"
+  ],
+  "Monsters have +#% chance to Suppress Spell Damage": [
+   "Oppressive"
+  ],
+  "Buffs on Players expire #% faster": [
+   "of Transience"
+  ],
+  "Area contains patches of moving Marked Ground, inflicting random Marks": [
+   "of Marking"
   ],
   "Players have #% to all maximum Resistances": [
    "of Exposure"
   ],
-  "#% increased Monster Movement Speed": [
-   "Fleet"
-  ],
-  "#% increased Monster Attack Speed": [
-   "Fleet"
-  ],
-  "#% increased Monster Cast Speed": [
-   "Fleet"
-  ],
-  "Area contains Runes of the Searing Exarch": [
-   "Searing"
-  ],
-  "Area has patches of Consecrated Ground": [
-   "of Consecration"
+  "Monsters cannot be Stunned": [
+   "Unwavering",
+   "of the Juggernaut"
   ],
   "Monsters' Action Speed cannot be modified to below Base Value": [
    "of the Juggernaut"
@@ -84,175 +101,73 @@
    "Protected",
    "Resistant"
   ],
-  "Monsters gain a Frenzy Charge on Hit": [
-   "of Frenzy"
+  "Players have #% less Cooldown Recovery Rate": [
+   "of Fatigue"
   ],
-  "Monsters gain a Power Charge on Hit": [
-   "of Power"
+  "Rare Monsters have Volatile Cores": [
+   "Volatile"
+  ],
+  "Players are Cursed with Vulnerability": [
+   "of Curses",
+   "of Vulnerability"
+  ],
+  "Players are Cursed with Temporal Chains": [
+   "of Curses",
+   "of Temporal Chains"
+  ],
+  "Players are Cursed with Elemental Weakness": [
+   "of Curses",
+   "of Elemental Weakness"
   ],
   "Monsters gain #% of their Physical Damage as Extra Damage of a random Element": [
    "Prismatic"
   ],
-  "Monsters have +#% chance to Suppress Spell Damage": [
-   "Oppressive"
+  "Monsters have #% increased Area of Effect": [
+   "Magnifying",
+   "of Giants"
   ],
-  "#% increased Monster Damage": [
-   "Savage"
+  "Monsters fire # additional Projectiles": [
+   "Magnifying",
+   "Splitting"
   ],
-  "The Maven interferes with Players": [
-   "of Collection"
+  "Players have #% less Defences": [
+   "of Miring"
   ],
-  "Players are Cursed with Enfeeble": [
-   "of Enfeeblement"
-  ],
-  "Auras from Player Skills which affect Allies also affect Enemies": [
-   "of Treachery"
-  ],
-  "Rare monsters in area Temporarily Revive on death": [
-   "of Persistence"
-  ],
-  "Area has patches of Shocked Ground which increase Damage taken by #%": [
-   "of Lightning"
-  ],
-  "Monsters cannot be Taunted": [
-   "Unstoppable"
-  ],
-  "Monsters Blind on Hit": [
-   "of Blinding"
-  ],
-  "Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value": [
-   "Unstoppable"
-  ],
-  "Area contains patches of moving Marked Ground, inflicting random Marks": [
-   "of Marking"
-  ],
-  "Area has patches of Burning Ground": [
-   "of Flames"
+  "Monsters Poison on Hit": [
+   "of Venom"
   ],
   "Monsters have +# to Maximum Endurance Charges": [
    "of Endurance"
   ],
+  "Area contains Labyrinth Hazards": [
+   "Labyrinth's"
+  ],
   "Monsters gain an Endurance Charge when hit": [
    "of Endurance"
   ],
-  "Monsters gain #% of Maximum Life as Extra Maximum Energy Shield": [
-   "Buffered"
+  "All Damage from Monsters' Hits can Poison": [
+   "of Venom"
   ],
-  "Players have #% less Armour": [
-   "of Rust"
-  ],
-  "Players have #% reduced Chance to Block": [
-   "of Rust"
-  ],
-  "Rare monsters in area are Shaper-Touched": [
-   "Valdo's"
-  ],
-  "Monster Damage Penetrates #% Elemental Resistances": [
-   "of Penetration"
-  ],
-  "Buffs on Players expire #% faster": [
-   "of Transience"
+  "Monsters have #% increased Poison Duration": [
+   "of Venom"
   ],
   "Rare Monsters have [PhysicalThorns|Physical Thorns] reflecting # Physical Damage": [
    "Punishing"
   ],
-  "Monsters have a #% chance to avoid Poison, Impale, and Bleeding": [
-   "Impervious"
+  "Monsters have +# to Maximum Power Charges": [
+   "of Power"
+  ],
+  "Monsters gain a Power Charge on Hit": [
+   "of Power"
   ],
   "Area contains Unstable Tentacle Fiends": [
    "of Decaying"
-  ],
-  "Monsters have #% chance to Avoid Elemental Ailments": [
-   "of Insulation"
   ],
   "Monsters have #% increased Critical Strike Chance": [
    "of Deadliness"
   ],
   "+#% to Monster Critical Strike Multiplier": [
    "of Deadliness"
-  ],
-  "All Monster Damage from Hits always Ignites": [
-   "Conflagrating"
-  ],
-  "Rare Monsters have Volatile Cores": [
-   "Volatile"
-  ],
-  "Players are assaulted by Bloodstained Sawblades": [
-   "Ultimate"
-  ],
-  "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage": [
-   "Mirrored",
-   "Punishing"
-  ],
-  "Monsters gain #% of their Physical Damage as Extra Chaos Damage": [
-   "Profane"
-  ],
-  "Monsters have a #% chance to Ignite, Freeze and Shock on Hit": [
-   "Empowered"
-  ],
-  "Players have #% less Defences": [
-   "of Miring"
-  ],
-  "Area contains Drowning Orbs": [
-   "Hungering"
-  ],
-  "Monsters deal #% extra Physical Damage as Lightning": [
-   "Shocking"
-  ],
-  "Players have #% less Cooldown Recovery Rate": [
-   "of Fatigue"
-  ],
-  "Players have #% less Area of Effect": [
-   "of Impotence"
-  ],
-  "Monsters have +# to Maximum Frenzy Charges": [
-   "of Frenzy"
-  ],
-  "Unique Bosses are Possessed": [
-   "Enthralled"
-  ],
-  "Unique Boss deals #% increased Damage": [
-   "Overlord's"
-  ],
-  "Unique Boss has #% increased Attack and Cast Speed": [
-   "Overlord's"
-  ],
-  "Debuffs on Monsters expire #% faster": [
-   "of Defiance"
-  ],
-  "Monsters inflict # Grasping Vines on Hit": [
-   "Grasping"
-  ],
-  "Monsters' skills Chain # additional times": [
-   "Chaining"
-  ],
-  "Monsters take #% reduced Extra Damage from Critical Strikes": [
-   "of Toughness"
-  ],
-  "Monsters' Projectiles can Chain when colliding with Terrain": [
-   "Chaining"
-  ],
-  "Players have #% less Recovery Rate of Life and Energy Shield": [
-   "of Smothering"
-  ],
-  "Monsters gain an Endurance Charge on Hit": [
-   "of Endurance"
-  ],
-  "All Monster Damage can Ignite, Freeze and Shock": [
-   "Afflicting"
-  ],
-  "#% less effect of Curses on Monsters": [
-   "Hexwarded"
-  ],
-  "Monsters Ignite, Freeze and Shock on Hit": [
-   "Afflicting",
-   "Empowered"
-  ],
-  "Monsters have +# to Maximum Power Charges": [
-   "of Power"
-  ],
-  "Players have #% reduced effect of Non-Curse Auras from Skills": [
-   "of Doubt"
   ],
   "+#% Monster Physical Damage Reduction": [
    "Armoured",
@@ -261,14 +176,168 @@
   "#% chance for Rare Monsters to Fracture on death": [
    "of Splinters"
   ],
+  "Monsters are Hexproof": [
+   "Hexproof"
+  ],
+  "Area has patches of Burning Ground": [
+   "of Flames"
+  ],
+  "Auras from Player Skills which affect Allies also affect Enemies": [
+   "of Treachery"
+  ],
+  "Players are targeted by a Meteor when they use a Flask": [
+   "of Imbibing"
+  ],
+  "Monsters steal Power, Frenzy and Endurance charges on Hit": [
+   "of Enervation"
+  ],
+  "Players have #% less effect of Flasks applied to them": [
+   "Diluted"
+  ],
+  "Monsters have +#% Chance to Block Attack Damage": [
+   "Stalwart"
+  ],
+  "Players have #% less Recovery Rate of Life and Energy Shield": [
+   "of Smothering"
+  ],
+  "Monsters deal #% extra Physical Damage as Cold": [
+   "Freezing"
+  ],
+  "Monsters' skills Chain # additional times": [
+   "Chaining"
+  ],
+  "Monsters' Projectiles can Chain when colliding with Terrain": [
+   "Chaining"
+  ],
+  "The Maven interferes with Players": [
+   "of Collection"
+  ],
+  "Area contains a buried Apex Sentinel": [
+   "of Unearthed Technology"
+  ],
+  "Players have #% reduced Maximum total Life, Mana and Energy Shield Recovery per second from Leech": [
+   "of Congealment"
+  ],
+  "Players have #% reduced effect of Non-Curse Auras from Skills": [
+   "of Doubt"
+  ],
+  "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage": [
+   "Mirrored",
+   "Punishing"
+  ],
+  "Monsters gain #% of Maximum Life as Extra Maximum Energy Shield": [
+   "Buffered"
+  ],
+  "Area contains a Mirror of Delirium": [
+   "of Insanity"
+  ],
+  "Players have #% less Area of Effect": [
+   "of Impotence"
+  ],
+  "Monsters gain a Frenzy Charge on Hit": [
+   "of Frenzy"
+  ],
+  "Monsters deal #% extra Physical Damage as Fire": [
+   "Burning"
+  ],
+  "Players are assaulted by Bloodstained Sawblades": [
+   "Ultimate"
+  ],
+  "Monsters have +# to Maximum Frenzy Charges": [
+   "of Frenzy"
+  ],
+  "Monsters take #% reduced Extra Damage from Critical Strikes": [
+   "of Toughness"
+  ],
+  "Players cannot Regenerate Life, Mana or Energy Shield": [
+   "of Stasis"
+  ],
   "Unique Boss has #% increased Life": [
    "Titan's"
   ],
   "Unique Boss has #% increased Area of Effect": [
    "Titan's"
   ],
-  "Unique Monsters have a random Shrine Buff": [
-   "of Domination"
+  "Unique Bosses are Possessed": [
+   "Enthralled"
+  ],
+  "Players are Cursed with Enfeeble": [
+   "of Enfeeblement"
+  ],
+  "Monsters [Blind] on Hit": [
+   "of Blinding"
+  ],
+  "Area contains an [EvocatorKTash|Evocator of K'Tash]": [
+   "of K'Tash"
+  ],
+  "Area contains Runes of the Searing Exarch": [
+   "Searing"
+  ],
+  "Monsters inflict # Grasping Vines on Hit": [
+   "Grasping"
+  ],
+  "Unique Boss deals #% increased Damage": [
+   "Overlord's"
+  ],
+  "Unique Boss has #% increased Attack and Cast Speed": [
+   "Overlord's"
+  ],
+  "All Monster Damage from Hits always Ignites": [
+   "Conflagrating"
+  ],
+  "Area contains the Viridian Wildwood": [
+   "of the Woods"
+  ],
+  "Monsters have a #% chance to avoid Poison, Impale, and Bleeding": [
+   "Impervious"
+  ],
+  "Players in Area are #% Delirious": [
+   "of Madness"
+  ],
+  "[DeliriumRewardType|Delirium Reward Type]: Unique Items": [
+   "of Madness"
+  ],
+  "#% increased Monster Movement Speed": [
+   "Fleet"
+  ],
+  "#% increased Monster Attack Speed": [
+   "Fleet"
+  ],
+  "#% increased Monster Cast Speed": [
+   "Fleet"
+  ],
+  "Monsters gain #% of their Physical Damage as Extra Chaos Damage": [
+   "Profane"
+  ],
+  "Players have #% less Accuracy Rating": [
+   "of Imprecision"
+  ],
+  "Area contains an [EvocatorGhorr|Evocator of Ghorr]": [
+   "of Ghorr"
+  ],
+  "Rare monsters in area Temporarily Revive on death": [
+   "of Persistence"
+  ],
+  "Monsters have #% chance to Avoid Elemental Ailments": [
+   "of Insulation"
+  ],
+  "Monsters cannot be Taunted": [
+   "Unstoppable"
+  ],
+  "Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value": [
+   "Unstoppable"
+  ],
+  "Area contains a buried Pandemonium Sentinel": [
+   "of Unearthed Technology"
+  ],
+  "#% increased number of Rare Monsters": [
+   "Antagonist's"
+  ],
+  "Rare Monsters each have # additional Modifier": [
+   "Antagonist's"
+  ],
+  "#% less effect of Curses on Monsters": [
+   "Hexwarded"
   ],
   "Monsters Inflict Withered for # seconds on Hit": [
    "Profane"
@@ -276,80 +345,47 @@
   "Players gain #% reduced Flask Charges": [
    "of Drought"
   ],
-  "Monsters deal #% extra Physical Damage as Fire": [
-   "Burning"
+  "Area has patches of Shocked Ground which increase Damage taken by #%": [
+   "of Lightning"
   ],
-  "Area contains Labyrinth Hazards": [
-   "Labyrinth's"
+  "Area contains a buried Stalker Sentinel": [
+   "of Unearthed Technology"
   ],
-  "Players are targeted by a Meteor when they use a Flask": [
-   "of Imbibing"
+  "Area has patches of Consecrated Ground": [
+   "of Consecration"
   ],
-  "Monsters deal #% extra Physical Damage as Cold": [
-   "Freezing"
+  "Area contains an [EvocatorBeidat|Evocator of Beidat]": [
+   "of Beidat"
   ],
-  "Monsters have #% increased Accuracy Rating": [
-   "of Miring"
-  ],
-  "Players have #% to amount of Suppressed Spell Damage Prevented": [
-   "of Miring"
-  ],
-  "Monsters Poison on Hit": [
-   "of Venom"
-  ],
-  "All Damage from Monsters' Hits can Poison": [
-   "of Venom"
-  ],
-  "Monsters have #% increased Poison Duration": [
-   "of Venom"
-  ],
-  "Monsters are Hexproof": [
-   "Hexproof"
-  ],
-  "Players have #% reduced Maximum total Life, Mana and Energy Shield Recovery per second from Leech": [
-   "of Congealment"
-  ],
-  "Monsters Maim on Hit with Attacks": [
-   "of Carnage"
-  ],
-  "Monsters' Attacks have #% chance to Impale on Hit": [
-   "Impaling"
-  ],
-  "Monsters have +#% Chance to Block Attack Damage": [
-   "Stalwart"
-  ],
-  "Players cannot Regenerate Life, Mana or Energy Shield": [
-   "of Stasis"
-  ],
-  "Players have #% less effect of Flasks applied to them": [
-   "Diluted"
-  ],
-  "Area is inhabited by Animals": [
-   "Feral"
-  ],
-  "Area has patches of desecrated ground": [
-   "of Desecration"
+  "Monsters have a #% chance to Ignite, Freeze and Shock on Hit": [
+   "Empowered"
   ],
   "Area has patches of Chilled Ground": [
    "of Ice"
   ],
-  "Area is inhabited by Humanoids": [
-   "Bipedal"
+  "[DeliriumRewardType|Delirium Reward Type]: Currency": [
+   "of Madness"
   ],
-  "Monsters cannot be Leeched from": [
-   "of Congealment"
+  "Players cannot inflict Exposure": [
+   "of Balance"
+  ],
+  "Area is inhabited by Solaris fanatics": [
+   "Solar"
+  ],
+  "Area contains two Unique Bosses": [
+   "Twinned"
+  ],
+  "Area has increased monster variety": [
+   "Multifarious"
   ],
   "Area contains many Totems": [
    "Ceremonial"
   ],
-  "Area is inhabited by Demons": [
-   "Demonic"
+  "Monsters cannot be Leeched from": [
+   "of Congealment"
   ],
-  "Area is inhabited by ranged monsters": [
-   "Emanant"
-  ],
-  "Area is inhabited by Undead": [
-   "Undead"
+  "Area is inhabited by Animals": [
+   "Feral"
   ],
   "#% increased Magic Monsters": [
    "of Bloodlines"
@@ -357,314 +393,389 @@
   "Area is inhabited by Abominations": [
    "Abhorrent"
   ],
-  "Area contains two Unique Bosses": [
-   "Twinned"
+  "Area is inhabited by Goatmen": [
+   "Capricious"
   ],
-  "Area has increased monster variety": [
-   "Multifarious"
+  "Area is inhabited by Ghosts": [
+   "Haunting"
+  ],
+  "[DeliriumRewardType|Delirium Reward Type]: Jewellery": [
+   "of Madness"
+  ],
+  "Area is inhabited by Demons": [
+   "Demonic"
+  ],
+  "Area is inhabited by Sea Witches and their Spawn": [
+   "Slithering"
+  ],
+  "Area is inhabited by ranged monsters": [
+   "Emanant"
+  ],
+  "Area is inhabited by Lunaris fanatics": [
+   "Lunar"
+  ],
+  "Monsters Hinder on Hit with Spells": [
+   "of Impedance"
+  ],
+  "Area is inhabited by Skeletons": [
+   "Skeletal"
+  ],
+  "[DeliriumRewardType|Delirium Reward Type]: Weapons": [
+   "of Madness"
+  ],
+  "Area is inhabited by Undead": [
+   "Undead"
+  ],
+  "[DeliriumRewardType|Delirium Reward Type]: Armour": [
+   "of Madness"
+  ],
+  "Area is inhabited by Humanoids": [
+   "Bipedal"
+  ],
+  "[DeliriumRewardType|Delirium Reward Type]: Divination Cards": [
+   "of Madness"
+  ],
+  "Area is inhabited by Cultists of Kitava": [
+   "Feasting"
+  ],
+  "[DeliriumRewardType|Delirium Reward Type]: Gems": [
+   "of Madness"
   ]
  },
  "affix_templates": {
-  "Antagonist's": [
-   "#% increased number of Rare Monsters",
-   "Rare Monsters each have # additional Modifier"
-  ],
-  "of Curses": [
-   "Players are Cursed with Elemental Weakness",
-   "Players are Cursed with Temporal Chains",
-   "Players are Cursed with Vulnerability"
-  ],
-  "Unwavering": [
-   "#% more Monster Life",
-   "Monsters cannot be Stunned"
-  ],
-  "Magnifying": [
-   "Monsters fire # additional Projectiles",
-   "Monsters have #% increased Area of Effect"
-  ],
-  "of Enervation": [
-   "Monsters steal Power, Frenzy and Endurance charges on Hit"
-  ],
-  "of Imprecision": [
-   "Players have #% less Accuracy Rating"
-  ],
-  "of Exposure": [
-   "Players have #% to all maximum Resistances"
-  ],
-  "Fleet": [
-   "#% increased Monster Attack Speed",
-   "#% increased Monster Cast Speed",
-   "#% increased Monster Movement Speed"
-  ],
-  "of the Juggernaut": [
-   "Monsters cannot be Stunned",
-   "Monsters' Action Speed cannot be modified to below Base Value",
-   "Monsters' Movement Speed cannot be modified to below Base Value"
-  ],
-  "Searing": [
-   "Area contains Runes of the Searing Exarch"
-  ],
-  "of Consecration": [
-   "Area has patches of Consecrated Ground"
-  ],
-  "Resistant": [
-   "+#% Monster Chaos Resistance",
-   "+#% Monster Elemental Resistances"
-  ],
-  "of Frenzy": [
-   "Monsters gain a Frenzy Charge on Hit",
-   "Monsters have +# to Maximum Frenzy Charges"
-  ],
-  "of Power": [
-   "Monsters gain a Power Charge on Hit",
-   "Monsters have +# to Maximum Power Charges"
-  ],
-  "Prismatic": [
-   "Monsters gain #% of their Physical Damage as Extra Damage of a random Element"
-  ],
-  "Oppressive": [
-   "Monsters have +#% chance to Suppress Spell Damage"
-  ],
   "Fecund": [
    "#% more Monster Life"
   ],
   "Savage": [
    "#% increased Monster Damage"
   ],
-  "of Collection": [
-   "The Maven interferes with Players"
+  "Shocking": [
+   "Monsters deal #% extra Physical Damage as Lightning"
   ],
-  "of Enfeeblement": [
-   "Players are Cursed with Enfeeble"
+  "of Penetration": [
+   "Monster Damage Penetrates #% Elemental Resistances"
   ],
-  "of Treachery": [
-   "Auras from Player Skills which affect Allies also affect Enemies"
+  "of Rust": [
+   "Players have #% less Armour",
+   "Players have #% reduced Chance to Block"
   ],
-  "of Persistence": [
-   "Rare monsters in area Temporarily Revive on death"
-  ],
-  "of Lightning": [
-   "Area has patches of Shocked Ground which increase Damage taken by #%"
-  ],
-  "Unstoppable": [
-   "Monsters cannot be Taunted",
-   "Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value"
-  ],
-  "of Blinding": [
-   "Monsters Blind on Hit"
-  ],
-  "of Marking": [
-   "Area contains patches of moving Marked Ground, inflicting random Marks"
-  ],
-  "of Flames": [
-   "Area has patches of Burning Ground"
+  "of Zarokh": [
+   "Area contains a [Mirage]"
   ],
   "of Endurance": [
    "Monsters gain an Endurance Charge on Hit",
    "Monsters gain an Endurance Charge when hit",
    "Monsters have +# to Maximum Endurance Charges"
   ],
-  "Buffered": [
-   "Monsters gain #% of Maximum Life as Extra Maximum Energy Shield"
-  ],
-  "of Rust": [
-   "Players have #% less Armour",
-   "Players have #% reduced Chance to Block"
-  ],
-  "Valdo's": [
-   "Rare monsters in area are Shaper-Touched"
-  ],
-  "of Penetration": [
-   "Monster Damage Penetrates #% Elemental Resistances"
-  ],
-  "of Transience": [
-   "Buffs on Players expire #% faster"
-  ],
-  "Punishing": [
-   "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage",
-   "Rare Monsters have [PhysicalThorns|Physical Thorns] reflecting # Physical Damage"
-  ],
-  "Impervious": [
-   "Monsters have a #% chance to avoid Poison, Impale, and Bleeding"
-  ],
-  "of Decaying": [
-   "Area contains Unstable Tentacle Fiends"
-  ],
-  "of Insulation": [
-   "Monsters have #% chance to Avoid Elemental Ailments"
-  ],
-  "of Deadliness": [
-   "+#% to Monster Critical Strike Multiplier",
-   "Monsters have #% increased Critical Strike Chance"
-  ],
-  "Conflagrating": [
-   "All Monster Damage from Hits always Ignites"
-  ],
-  "Volatile": [
-   "Rare Monsters have Volatile Cores"
-  ],
-  "Ultimate": [
-   "Players are assaulted by Bloodstained Sawblades"
-  ],
-  "of Temporal Chains": [
-   "Players are Cursed with Temporal Chains"
-  ],
-  "Profane": [
-   "Monsters Inflict Withered for # seconds on Hit",
-   "Monsters gain #% of their Physical Damage as Extra Chaos Damage"
-  ],
-  "Empowered": [
-   "Monsters Ignite, Freeze and Shock on Hit",
-   "Monsters have a #% chance to Ignite, Freeze and Shock on Hit"
-  ],
   "of Miring": [
    "Monsters have #% increased Accuracy Rating",
    "Players have #% less Defences",
    "Players have #% to amount of Suppressed Spell Damage Prevented"
   ],
-  "Hungering": [
-   "Area contains Drowning Orbs"
+  "of Domination": [
+   "Unique Monsters have a random Shrine Buff"
   ],
-  "Shocking": [
-   "Monsters deal #% extra Physical Damage as Lightning"
-  ],
-  "of Fatigue": [
-   "Players have #% less Cooldown Recovery Rate"
-  ],
-  "of Impotence": [
-   "Players have #% less Area of Effect"
-  ],
-  "Enthralled": [
-   "Unique Bosses are Possessed"
-  ],
-  "of Giants": [
-   "Monsters have #% increased Area of Effect"
-  ],
-  "Overlord's": [
-   "Unique Boss deals #% increased Damage",
-   "Unique Boss has #% increased Attack and Cast Speed"
-  ],
-  "of Defiance": [
-   "Debuffs on Monsters expire #% faster"
-  ],
-  "Grasping": [
-   "Monsters inflict # Grasping Vines on Hit"
-  ],
-  "Mirrored": [
-   "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage"
-  ],
-  "Chaining": [
-   "Monsters' Projectiles can Chain when colliding with Terrain",
-   "Monsters' skills Chain # additional times"
-  ],
-  "of Toughness": [
-   "Monsters take #% reduced Extra Damage from Critical Strikes"
-  ],
-  "of Smothering": [
-   "Players have #% less Recovery Rate of Life and Energy Shield"
-  ],
-  "of Elemental Weakness": [
-   "Players are Cursed with Elemental Weakness"
+  "of Desecration": [
+   "Area has patches of desecrated ground"
   ],
   "Afflicting": [
    "All Monster Damage can Ignite, Freeze and Shock",
    "Monsters Ignite, Freeze and Shock on Hit"
   ],
-  "Hexwarded": [
-   "#% less effect of Curses on Monsters"
+  "of Defiance": [
+   "Debuffs on Monsters expire #% faster"
   ],
-  "of Doubt": [
-   "Players have #% reduced effect of Non-Curse Auras from Skills"
+  "Valdo's": [
+   "Rare monsters in area are Shaper-Touched"
   ],
-  "Armoured": [
-   "+#% Monster Physical Damage Reduction"
+  "Hungering": [
+   "Area contains Drowning Orbs"
   ],
-  "of Splinters": [
-   "#% chance for Rare Monsters to Fracture on death"
+  "Impaling": [
+   "Monsters' Attacks have #% chance to Impale on Hit"
   ],
-  "Titan's": [
-   "Unique Boss has #% increased Area of Effect",
-   "Unique Boss has #% increased Life"
+  "of Carnage": [
+   "Monsters Maim on Hit with Attacks"
   ],
-  "of Domination": [
-   "Unique Monsters have a random Shrine Buff"
+  "Oppressive": [
+   "Monsters have +#% chance to Suppress Spell Damage"
   ],
-  "Protected": [
+  "of Transience": [
+   "Buffs on Players expire #% faster"
+  ],
+  "of Marking": [
+   "Area contains patches of moving Marked Ground, inflicting random Marks"
+  ],
+  "of Exposure": [
+   "Players have #% to all maximum Resistances"
+  ],
+  "of the Juggernaut": [
+   "Monsters cannot be Stunned",
+   "Monsters' Action Speed cannot be modified to below Base Value",
+   "Monsters' Movement Speed cannot be modified to below Base Value"
+  ],
+  "Resistant": [
    "+#% Monster Chaos Resistance",
-   "+#% Monster Elemental Resistances",
-   "+#% Monster Physical Damage Reduction"
+   "+#% Monster Elemental Resistances"
   ],
-  "of Drought": [
-   "Players gain #% reduced Flask Charges"
+  "of Fatigue": [
+   "Players have #% less Cooldown Recovery Rate"
   ],
-  "Burning": [
-   "Monsters deal #% extra Physical Damage as Fire"
+  "Volatile": [
+   "Rare Monsters have Volatile Cores"
   ],
-  "Labyrinth's": [
-   "Area contains Labyrinth Hazards"
+  "of Curses": [
+   "Players are Cursed with Elemental Weakness",
+   "Players are Cursed with Temporal Chains",
+   "Players are Cursed with Vulnerability"
   ],
-  "of Imbibing": [
-   "Players are targeted by a Meteor when they use a Flask"
+  "Prismatic": [
+   "Monsters gain #% of their Physical Damage as Extra Damage of a random Element"
   ],
-  "Freezing": [
-   "Monsters deal #% extra Physical Damage as Cold"
+  "Magnifying": [
+   "Monsters fire # additional Projectiles",
+   "Monsters have #% increased Area of Effect"
+  ],
+  "Unwavering": [
+   "#% more Monster Life",
+   "Monsters cannot be Stunned"
+  ],
+  "of Vulnerability": [
+   "Players are Cursed with Vulnerability"
   ],
   "of Venom": [
    "All Damage from Monsters' Hits can Poison",
    "Monsters Poison on Hit",
    "Monsters have #% increased Poison Duration"
   ],
+  "Labyrinth's": [
+   "Area contains Labyrinth Hazards"
+  ],
+  "Punishing": [
+   "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage",
+   "Rare Monsters have [PhysicalThorns|Physical Thorns] reflecting # Physical Damage"
+  ],
+  "of Power": [
+   "Monsters gain a Power Charge on Hit",
+   "Monsters have +# to Maximum Power Charges"
+  ],
+  "of Decaying": [
+   "Area contains Unstable Tentacle Fiends"
+  ],
+  "of Deadliness": [
+   "+#% to Monster Critical Strike Multiplier",
+   "Monsters have #% increased Critical Strike Chance"
+  ],
+  "Protected": [
+   "+#% Monster Chaos Resistance",
+   "+#% Monster Elemental Resistances",
+   "+#% Monster Physical Damage Reduction"
+  ],
+  "of Splinters": [
+   "#% chance for Rare Monsters to Fracture on death"
+  ],
   "Hexproof": [
    "Monsters are Hexproof"
   ],
-  "of Vulnerability": [
-   "Players are Cursed with Vulnerability"
+  "of Flames": [
+   "Area has patches of Burning Ground"
+  ],
+  "of Treachery": [
+   "Auras from Player Skills which affect Allies also affect Enemies"
+  ],
+  "of Imbibing": [
+   "Players are targeted by a Meteor when they use a Flask"
+  ],
+  "of Enervation": [
+   "Monsters steal Power, Frenzy and Endurance charges on Hit"
+  ],
+  "Diluted": [
+   "Players have #% less effect of Flasks applied to them"
+  ],
+  "Stalwart": [
+   "Monsters have +#% Chance to Block Attack Damage"
+  ],
+  "of Smothering": [
+   "Players have #% less Recovery Rate of Life and Energy Shield"
+  ],
+  "Freezing": [
+   "Monsters deal #% extra Physical Damage as Cold"
+  ],
+  "Chaining": [
+   "Monsters' Projectiles can Chain when colliding with Terrain",
+   "Monsters' skills Chain # additional times"
+  ],
+  "of Collection": [
+   "The Maven interferes with Players"
+  ],
+  "of Unearthed Technology": [
+   "Area contains a buried Apex Sentinel",
+   "Area contains a buried Pandemonium Sentinel",
+   "Area contains a buried Stalker Sentinel"
   ],
   "of Congealment": [
    "Monsters cannot be Leeched from",
    "Players have #% reduced Maximum total Life, Mana and Energy Shield Recovery per second from Leech"
   ],
-  "of Carnage": [
-   "Monsters Maim on Hit with Attacks"
+  "of Doubt": [
+   "Players have #% reduced effect of Non-Curse Auras from Skills"
   ],
-  "Impaling": [
-   "Monsters' Attacks have #% chance to Impale on Hit"
+  "of Elemental Weakness": [
+   "Players are Cursed with Elemental Weakness"
   ],
-  "Stalwart": [
-   "Monsters have +#% Chance to Block Attack Damage"
+  "Mirrored": [
+   "Rare Monsters have [ElementalThorns|Elemental Thorns] reflecting # Elemental Damage"
+  ],
+  "Buffered": [
+   "Monsters gain #% of Maximum Life as Extra Maximum Energy Shield"
+  ],
+  "of Insanity": [
+   "Area contains a Mirror of Delirium"
+  ],
+  "of Impotence": [
+   "Players have #% less Area of Effect"
+  ],
+  "of Frenzy": [
+   "Monsters gain a Frenzy Charge on Hit",
+   "Monsters have +# to Maximum Frenzy Charges"
+  ],
+  "Burning": [
+   "Monsters deal #% extra Physical Damage as Fire"
+  ],
+  "Ultimate": [
+   "Players are assaulted by Bloodstained Sawblades"
+  ],
+  "of Toughness": [
+   "Monsters take #% reduced Extra Damage from Critical Strikes"
   ],
   "of Stasis": [
    "Players cannot Regenerate Life, Mana or Energy Shield"
   ],
-  "Diluted": [
-   "Players have #% less effect of Flasks applied to them"
+  "Titan's": [
+   "Unique Boss has #% increased Area of Effect",
+   "Unique Boss has #% increased Life"
   ],
-  "Feral": [
-   "Area is inhabited by Animals"
+  "Enthralled": [
+   "Unique Bosses are Possessed"
   ],
-  "of Desecration": [
-   "Area has patches of desecrated ground"
+  "of Enfeeblement": [
+   "Players are Cursed with Enfeeble"
+  ],
+  "of Blinding": [
+   "Monsters [Blind] on Hit"
+  ],
+  "Armoured": [
+   "+#% Monster Physical Damage Reduction"
+  ],
+  "of K'Tash": [
+   "Area contains an [EvocatorKTash|Evocator of K'Tash]"
+  ],
+  "Searing": [
+   "Area contains Runes of the Searing Exarch"
+  ],
+  "of Temporal Chains": [
+   "Players are Cursed with Temporal Chains"
+  ],
+  "Grasping": [
+   "Monsters inflict # Grasping Vines on Hit"
+  ],
+  "Overlord's": [
+   "Unique Boss deals #% increased Damage",
+   "Unique Boss has #% increased Attack and Cast Speed"
+  ],
+  "of Giants": [
+   "Monsters have #% increased Area of Effect"
+  ],
+  "Conflagrating": [
+   "All Monster Damage from Hits always Ignites"
+  ],
+  "of the Woods": [
+   "Area contains the Viridian Wildwood"
+  ],
+  "Empowered": [
+   "Monsters Ignite, Freeze and Shock on Hit",
+   "Monsters have a #% chance to Ignite, Freeze and Shock on Hit"
+  ],
+  "Impervious": [
+   "Monsters have a #% chance to avoid Poison, Impale, and Bleeding"
+  ],
+  "of Madness": [
+   "Players in Area are #% Delirious",
+   "[DeliriumRewardType|Delirium Reward Type]: Armour",
+   "[DeliriumRewardType|Delirium Reward Type]: Currency",
+   "[DeliriumRewardType|Delirium Reward Type]: Divination Cards",
+   "[DeliriumRewardType|Delirium Reward Type]: Gems",
+   "[DeliriumRewardType|Delirium Reward Type]: Jewellery",
+   "[DeliriumRewardType|Delirium Reward Type]: Unique Items",
+   "[DeliriumRewardType|Delirium Reward Type]: Weapons"
+  ],
+  "Fleet": [
+   "#% increased Monster Attack Speed",
+   "#% increased Monster Cast Speed",
+   "#% increased Monster Movement Speed"
+  ],
+  "Profane": [
+   "Monsters Inflict Withered for # seconds on Hit",
+   "Monsters gain #% of their Physical Damage as Extra Chaos Damage"
+  ],
+  "of Imprecision": [
+   "Players have #% less Accuracy Rating"
+  ],
+  "of Ghorr": [
+   "Area contains an [EvocatorGhorr|Evocator of Ghorr]"
+  ],
+  "of Persistence": [
+   "Rare monsters in area Temporarily Revive on death"
+  ],
+  "of Insulation": [
+   "Monsters have #% chance to Avoid Elemental Ailments"
+  ],
+  "Unstoppable": [
+   "Monsters cannot be Taunted",
+   "Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value"
+  ],
+  "Antagonist's": [
+   "#% increased number of Rare Monsters",
+   "Rare Monsters each have # additional Modifier"
+  ],
+  "Hexwarded": [
+   "#% less effect of Curses on Monsters"
+  ],
+  "of Drought": [
+   "Players gain #% reduced Flask Charges"
+  ],
+  "of Lightning": [
+   "Area has patches of Shocked Ground which increase Damage taken by #%"
+  ],
+  "of Consecration": [
+   "Area has patches of Consecrated Ground"
+  ],
+  "of Beidat": [
+   "Area contains an [EvocatorBeidat|Evocator of Beidat]"
   ],
   "of Ice": [
    "Area has patches of Chilled Ground"
   ],
-  "Bipedal": [
-   "Area is inhabited by Humanoids"
+  "of Balance": [
+   "Players cannot inflict Exposure"
   ],
-  "Ceremonial": [
-   "Area contains many Totems"
+  "Solar": [
+   "Area is inhabited by Solaris fanatics"
   ],
-  "Demonic": [
-   "Area is inhabited by Demons"
+  "Twinned": [
+   "Area contains two Unique Bosses"
   ],
-  "Emanant": [
-   "Area is inhabited by ranged monsters"
+  "Multifarious": [
+   "Area has increased monster variety"
   ],
   "Splitting": [
    "Monsters fire # additional Projectiles"
   ],
-  "Undead": [
-   "Area is inhabited by Undead"
+  "Ceremonial": [
+   "Area contains many Totems"
+  ],
+  "Feral": [
+   "Area is inhabited by Animals"
   ],
   "of Bloodlines": [
    "#% increased Magic Monsters"
@@ -672,32 +783,59 @@
   "Abhorrent": [
    "Area is inhabited by Abominations"
   ],
-  "Twinned": [
-   "Area contains two Unique Bosses"
+  "Capricious": [
+   "Area is inhabited by Goatmen"
   ],
-  "Multifarious": [
-   "Area has increased monster variety"
+  "Haunting": [
+   "Area is inhabited by Ghosts"
+  ],
+  "Demonic": [
+   "Area is inhabited by Demons"
+  ],
+  "Slithering": [
+   "Area is inhabited by Sea Witches and their Spawn"
+  ],
+  "Emanant": [
+   "Area is inhabited by ranged monsters"
+  ],
+  "Lunar": [
+   "Area is inhabited by Lunaris fanatics"
+  ],
+  "of Impedance": [
+   "Monsters Hinder on Hit with Spells"
+  ],
+  "Skeletal": [
+   "Area is inhabited by Skeletons"
+  ],
+  "Undead": [
+   "Area is inhabited by Undead"
+  ],
+  "Bipedal": [
+   "Area is inhabited by Humanoids"
+  ],
+  "Feasting": [
+   "Area is inhabited by Cultists of Kitava"
   ]
  },
  "fit_quality": {
   "quantity": {
-   "r2": 0.9722,
-   "mae": 0.228,
+   "r2": 1.0,
+   "mae": 0.0,
    "modelled": true
   },
   "rarity": {
-   "r2": 0.9988,
-   "mae": 0.406,
+   "r2": 0.9991,
+   "mae": 0.143,
    "modelled": true
   },
   "pack_size": {
-   "r2": 0.9917,
-   "mae": 0.22,
+   "r2": 0.9971,
+   "mae": 0.084,
    "modelled": true
   },
   "more_currency": {
-   "r2": 0.9633,
-   "mae": 4.277,
+   "r2": 0.9964,
+   "mae": 0.395,
    "modelled": true
   },
   "more_maps": {
@@ -706,13 +844,13 @@
    "modelled": true
   },
   "more_scarabs": {
-   "r2": 0.9679,
-   "mae": 2.338,
+   "r2": 0.9984,
+   "mae": 0.21,
    "modelled": true
   },
   "more_divination_cards": {
-   "r2": 0.0342,
-   "mae": 5.805,
+   "r2": -0.0048,
+   "mae": 0.202,
    "modelled": false
   }
  },
@@ -721,11 +859,11 @@
    "name": "Abhorrent",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 4,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.1098,
-    "pack_size": 6.1203,
+    "rarity": 9.0544,
+    "pack_size": 5.9964,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -735,25 +873,25 @@
    "name": "Afflicting",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 201,
+   "frequency": 780,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9368,
-    "pack_size": 4.9636,
-    "more_currency": 0.0,
+    "rarity": 8.0303,
+    "pack_size": 4.9863,
+    "more_currency": 0.135,
     "more_maps": 0.0,
-    "more_scarabs": 63.9802
+    "more_scarabs": 60.3314
    }
   },
   {
    "name": "Antagonist's",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 2,
+   "frequency": 24,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.1507,
-    "pack_size": 4.8564,
+    "rarity": 8.0346,
+    "pack_size": 5.0003,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -763,25 +901,25 @@
    "name": "Antagonist's",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 26,
+   "frequency": 171,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0749,
-    "pack_size": 4.943,
-    "more_currency": 0.272,
+    "rarity": 7.9614,
+    "pack_size": 4.9753,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.1856
    }
   },
   {
    "name": "Armoured",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 56,
+   "frequency": 381,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9898,
-    "pack_size": 4.9794,
+    "rarity": 8.0145,
+    "pack_size": 5.0508,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -791,11 +929,11 @@
    "name": "Bipedal",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 2,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.4092,
-    "pack_size": 5.0519,
+    "rarity": 8.0401,
+    "pack_size": 4.9746,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -805,53 +943,67 @@
    "name": "Buffered",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 53,
+   "frequency": 365,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0083,
-    "pack_size": 4.9993,
-    "more_currency": 1.2848,
+    "rarity": 7.9572,
+    "pack_size": 5.0309,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0249
    }
   },
   {
    "name": "Buffered",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 205,
+   "frequency": 1107,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.002,
-    "pack_size": 5.0304,
+    "rarity": 8.0104,
+    "pack_size": 5.0008,
     "more_currency": 0.0,
     "more_maps": 35.0,
-    "more_scarabs": 0.1871
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Burning",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 79,
+   "frequency": 509,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9621,
-    "pack_size": 6.0965,
+    "rarity": 8.9607,
+    "pack_size": 6.0333,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 1.6531
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Capricious",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 5,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.0902,
+    "pack_size": 4.9548,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Ceremonial",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 2,
+   "frequency": 29,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.15,
-    "pack_size": 3.7437,
+    "rarity": 6.027,
+    "pack_size": 3.992,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -861,11 +1013,11 @@
    "name": "Chaining",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 4,
+   "frequency": 29,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.2425,
-    "pack_size": 6.1328,
+    "rarity": 9.0296,
+    "pack_size": 6.0009,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -875,39 +1027,39 @@
    "name": "Chaining",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 64,
+   "frequency": 513,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 55.9886,
-    "pack_size": 6.1274,
+    "rarity": 55.9761,
+    "pack_size": 5.9736,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0767
    }
   },
   {
    "name": "Conflagrating",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 53,
+   "frequency": 312,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.959,
-    "pack_size": 4.1931,
+    "rarity": 5.9516,
+    "pack_size": 4.0353,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.5268
    }
   },
   {
    "name": "Demonic",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 5,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9967,
-    "pack_size": 5.3283,
+    "rarity": 7.9335,
+    "pack_size": 4.9978,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -917,12 +1069,12 @@
    "name": "Diluted",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 172,
+   "frequency": 1294,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 7.986,
-    "pack_size": 5.0952,
-    "more_currency": 48.0525,
+    "rarity": 8.0037,
+    "pack_size": 5.0325,
+    "more_currency": 47.0102,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -931,11 +1083,11 @@
    "name": "Emanant",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 3,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0896,
-    "pack_size": 4.8986,
+    "rarity": 8.0819,
+    "pack_size": 4.9963,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -945,25 +1097,25 @@
    "name": "Empowered",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 60,
+   "frequency": 365,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9732,
-    "pack_size": 5.1631,
-    "more_currency": 0.2144,
+    "rarity": 7.9528,
+    "pack_size": 4.9956,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0268
    }
   },
   {
    "name": "Enthralled",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 5,
+   "frequency": 30,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.1094,
-    "pack_size": 6.0681,
+    "rarity": 8.9869,
+    "pack_size": 5.9824,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -973,40 +1125,54 @@
    "name": "Enthralled",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 76,
+   "frequency": 477,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 56.0103,
-    "pack_size": 5.9634,
+    "rarity": 56.0261,
+    "pack_size": 5.9971,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.3816
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Feasting",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 4,
+   "contributions": {
+    "quantity": 16.0,
+    "rarity": 9.0104,
+    "pack_size": 5.9635,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Fecund",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 78,
+   "frequency": 415,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9786,
-    "pack_size": 4.9787,
+    "rarity": 8.0106,
+    "pack_size": 4.9777,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.3786
+    "more_scarabs": 0.1226
    }
   },
   {
    "name": "Fecund",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 324,
+   "frequency": 2475,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9818,
-    "pack_size": 5.0331,
-    "more_currency": 48.5451,
+    "rarity": 8.0227,
+    "pack_size": 5.0041,
+    "more_currency": 47.1461,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1015,11 +1181,11 @@
    "name": "Feral",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 2,
+   "frequency": 6,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.0972,
-    "pack_size": 5.8909,
+    "rarity": 8.9898,
+    "pack_size": 6.0117,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1029,11 +1195,11 @@
    "name": "Fleet",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 3,
+   "frequency": 30,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 11.0427,
-    "pack_size": 6.964,
+    "rarity": 11.0188,
+    "pack_size": 7.0101,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1043,11 +1209,11 @@
    "name": "Fleet",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 105,
+   "frequency": 903,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 56.0082,
-    "pack_size": 7.0736,
+    "rarity": 28.0286,
+    "pack_size": 6.9745,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1057,27 +1223,41 @@
    "name": "Freezing",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 76,
+   "frequency": 503,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.0296,
-    "pack_size": 5.9597,
-    "more_currency": 0.439,
+    "rarity": 8.9583,
+    "pack_size": 5.9908,
+    "more_currency": 0.0324,
     "more_maps": 0.0,
-    "more_scarabs": 0.4249
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Grasping",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 107,
+   "frequency": 560,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9831,
-    "pack_size": 5.0751,
-    "more_currency": 0.4482,
+    "rarity": 8.0659,
+    "pack_size": 5.03,
+    "more_currency": 0.0,
     "more_maps": 40.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Haunting",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 5,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9336,
+    "pack_size": 4.9987,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
     "more_scarabs": 0.0
    }
   },
@@ -1085,11 +1265,11 @@
    "name": "Hexproof",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 55,
+   "frequency": 393,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9414,
-    "pack_size": 6.156,
+    "rarity": 9.0285,
+    "pack_size": 6.0028,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1099,12 +1279,12 @@
    "name": "Hexwarded",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 63,
+   "frequency": 345,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0027,
-    "pack_size": 4.9585,
-    "more_currency": 1.5699,
+    "rarity": 7.959,
+    "pack_size": 5.0363,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1113,39 +1293,39 @@
    "name": "Hungering",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 114,
+   "frequency": 519,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 7.9768,
-    "pack_size": 19.9668,
+    "rarity": 8.0809,
+    "pack_size": 20.0005,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.2924
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Impaling",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 58,
+   "frequency": 412,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.0152,
-    "pack_size": 5.9612,
-    "more_currency": 0.0939,
+    "rarity": 8.9498,
+    "pack_size": 5.9997,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0181
    }
   },
   {
    "name": "Impervious",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 76,
+   "frequency": 395,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.5466,
-    "pack_size": 3.9647,
+    "rarity": 6.0178,
+    "pack_size": 3.994,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1155,25 +1335,39 @@
    "name": "Labyrinth's",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 67,
+   "frequency": 412,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 53.9646,
-    "pack_size": 4.9663,
+    "rarity": 27.0332,
+    "pack_size": 4.9748,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.7352
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Lunar",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 2,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9706,
+    "pack_size": 5.0366,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Magnifying",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 128,
+   "frequency": 976,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 56.0261,
-    "pack_size": 6.9612,
+    "rarity": 56.0162,
+    "pack_size": 7.014,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1183,25 +1377,25 @@
    "name": "Mirrored",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 41,
+   "frequency": 287,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.9935,
-    "pack_size": 3.9536,
-    "more_currency": 3.6474,
+    "rarity": 6.1256,
+    "pack_size": 3.9639,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 1.3314
+    "more_scarabs": 0.2295
    }
   },
   {
    "name": "Multifarious",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 31,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.1911,
-    "pack_size": 4.4288,
+    "rarity": 6.0436,
+    "pack_size": 3.9911,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1211,11 +1405,11 @@
    "name": "Oppressive",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 64,
+   "frequency": 394,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9441,
-    "pack_size": 4.973,
+    "rarity": 7.9569,
+    "pack_size": 4.9986,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1225,11 +1419,11 @@
    "name": "Oppressive",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 128,
+   "frequency": 708,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0054,
-    "pack_size": 4.9556,
+    "rarity": 8.0048,
+    "pack_size": 5.0032,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1239,11 +1433,11 @@
    "name": "Overlord's",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 77,
+   "frequency": 504,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 9.011,
-    "pack_size": 5.9172,
+    "rarity": 9.0165,
+    "pack_size": 5.9968,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1253,11 +1447,11 @@
    "name": "Prismatic",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 140,
+   "frequency": 824,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 71.0125,
-    "pack_size": 5.963,
+    "rarity": 36.0616,
+    "pack_size": 6.0136,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1267,12 +1461,12 @@
    "name": "Profane",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 36,
+   "frequency": 257,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.992,
-    "pack_size": 5.9535,
-    "more_currency": 0.5565,
+    "rarity": 8.955,
+    "pack_size": 5.9709,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1281,25 +1475,25 @@
    "name": "Profane",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 78,
+   "frequency": 376,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 46.0013,
-    "pack_size": 5.9475,
+    "rarity": 36.0317,
+    "pack_size": 6.0086,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 1.0128
+    "more_scarabs": 0.0231
    }
   },
   {
    "name": "Protected",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 216,
+   "frequency": 1125,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.2539,
-    "pack_size": 4.977,
+    "rarity": 8.017,
+    "pack_size": 4.986,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1309,26 +1503,26 @@
    "name": "Punishing",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 47,
+   "frequency": 306,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9372,
-    "pack_size": 3.9485,
-    "more_currency": 0.0,
+    "rarity": 5.9575,
+    "pack_size": 4.0036,
+    "more_currency": 0.1351,
     "more_maps": 0.0,
-    "more_scarabs": 0.5149
+    "more_scarabs": 0.0538
    }
   },
   {
    "name": "Punishing",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 144,
+   "frequency": 1208,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 8.0253,
-    "pack_size": 4.9545,
-    "more_currency": 47.4176,
+    "rarity": 8.0216,
+    "pack_size": 4.9819,
+    "more_currency": 47.1177,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1337,26 +1531,26 @@
    "name": "Resistant",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 77,
+   "frequency": 329,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9943,
-    "pack_size": 5.1128,
-    "more_currency": 0.0,
+    "rarity": 7.9508,
+    "pack_size": 4.9699,
+    "more_currency": 0.0998,
     "more_maps": 0.0,
-    "more_scarabs": 0.6949
+    "more_scarabs": 0.183
    }
   },
   {
    "name": "Savage",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 78,
+   "frequency": 516,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 11.0132,
-    "pack_size": 6.9804,
-    "more_currency": 0.5706,
+    "rarity": 11.006,
+    "pack_size": 6.9988,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1365,25 +1559,25 @@
    "name": "Savage",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 133,
+   "frequency": 982,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 56.3602,
-    "pack_size": 7.0485,
+    "rarity": 56.0172,
+    "pack_size": 7.0407,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.031
    }
   },
   {
    "name": "Searing",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 99,
+   "frequency": 558,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0426,
-    "pack_size": 19.9731,
+    "rarity": 8.02,
+    "pack_size": 20.0316,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1393,11 +1587,53 @@
    "name": "Shocking",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 92,
+   "frequency": 496,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9904,
-    "pack_size": 5.9492,
+    "rarity": 8.9585,
+    "pack_size": 5.9743,
+    "more_currency": 0.2068,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Skeletal",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 8,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.0827,
+    "pack_size": 4.9878,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Slithering",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 3,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.1325,
+    "pack_size": 5.0236,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "Solar",
+   "tier": "P0",
+   "slot": "prefix",
+   "frequency": 5,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.0232,
+    "pack_size": 5.013,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1407,11 +1643,11 @@
    "name": "Splitting",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 3,
+   "frequency": 31,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 11.0266,
-    "pack_size": 6.8643,
+    "rarity": 11.0311,
+    "pack_size": 7.0063,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1421,12 +1657,12 @@
    "name": "Stalwart",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 204,
+   "frequency": 1414,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.2317,
-    "pack_size": 5.0214,
-    "more_currency": 51.3927,
+    "rarity": 8.0518,
+    "pack_size": 5.027,
+    "more_currency": 46.9493,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1435,25 +1671,25 @@
    "name": "Titan's",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 80,
+   "frequency": 505,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0022,
-    "pack_size": 4.9508,
-    "more_currency": 0.0,
+    "rarity": 8.011,
+    "pack_size": 4.9629,
+    "more_currency": 0.2107,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.1842
    }
   },
   {
    "name": "Twinned",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 13,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 11.0423,
-    "pack_size": 7.0724,
+    "rarity": 11.0393,
+    "pack_size": 6.9792,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1463,12 +1699,12 @@
    "name": "Ultimate",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 165,
+   "frequency": 1212,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.999,
-    "pack_size": 4.9951,
-    "more_currency": 48.442,
+    "rarity": 8.0961,
+    "pack_size": 5.0311,
+    "more_currency": 47.1187,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1477,11 +1713,11 @@
    "name": "Undead",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 1,
+   "frequency": 4,
    "contributions": {
-    "quantity": 23.0,
-    "rarity": 0.0,
-    "pack_size": 9.2054,
+    "quantity": 13.0,
+    "rarity": 8.0018,
+    "pack_size": 4.9796,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1491,25 +1727,25 @@
    "name": "Unstoppable",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 60,
+   "frequency": 286,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9396,
-    "pack_size": 3.9399,
-    "more_currency": 0.5738,
+    "rarity": 5.9693,
+    "pack_size": 4.0846,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.5324
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "Unwavering",
    "tier": "P0",
    "slot": "prefix",
-   "frequency": 87,
+   "frequency": 518,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.0142,
-    "pack_size": 4.967,
+    "rarity": 7.9602,
+    "pack_size": 5.0275,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1519,40 +1755,68 @@
    "name": "Valdo's",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 101,
+   "frequency": 635,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 10.9614,
-    "pack_size": 19.9831,
+    "rarity": 10.9645,
+    "pack_size": 20.0368,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0293
    }
   },
   {
    "name": "Volatile",
    "tier": "P1",
    "slot": "prefix",
-   "frequency": 214,
+   "frequency": 851,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 11.2347,
-    "pack_size": 4.961,
+    "rarity": 11.0595,
+    "pack_size": 5.0151,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 55.2349
+    "more_scarabs": 53.0232
+   }
+  },
+  {
+   "name": "of Balance",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 23,
+   "contributions": {
+    "quantity": 10.0,
+    "rarity": 6.0222,
+    "pack_size": 4.0028,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of Beidat",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 149,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9349,
+    "pack_size": 5.0387,
+    "more_currency": 0.4619,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Blinding",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 46,
+   "frequency": 258,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9387,
-    "pack_size": 4.2171,
-    "more_currency": 3.5982,
+    "rarity": 6.0428,
+    "pack_size": 3.9742,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1561,11 +1825,11 @@
    "name": "of Bloodlines",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 1,
+   "frequency": 23,
    "contributions": {
-    "quantity": 0.0,
-    "rarity": 13.9118,
-    "pack_size": 0.0,
+    "quantity": 10.0,
+    "rarity": 5.991,
+    "pack_size": 3.9844,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1575,12 +1839,12 @@
    "name": "of Carnage",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 40,
+   "frequency": 250,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.8902,
-    "pack_size": 3.9789,
-    "more_currency": 0.1988,
+    "rarity": 5.9455,
+    "pack_size": 3.9687,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1589,25 +1853,25 @@
    "name": "of Collection",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 94,
+   "frequency": 526,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9757,
-    "pack_size": 19.9755,
-    "more_currency": 0.0,
+    "rarity": 7.9628,
+    "pack_size": 20.03,
+    "more_currency": 0.0134,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.1643
    }
   },
   {
    "name": "of Congealment",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 2,
+   "frequency": 17,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8259,
-    "pack_size": 5.7389,
+    "rarity": 9.0373,
+    "pack_size": 5.988,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1617,26 +1881,26 @@
    "name": "of Congealment",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 43,
+   "frequency": 251,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 48.9314,
-    "pack_size": 5.96,
-    "more_currency": 0.0,
+    "rarity": 24.9448,
+    "pack_size": 5.9644,
+    "more_currency": 0.2287,
     "more_maps": 0.0,
-    "more_scarabs": 1.0489
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Consecration",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 18,
+   "frequency": 110,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 6.0072,
-    "pack_size": 3.9352,
-    "more_currency": 0.0,
+    "rarity": 5.945,
+    "pack_size": 4.07,
+    "more_currency": 0.287,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1645,25 +1909,25 @@
    "name": "of Curses",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 142,
+   "frequency": 676,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 10.9075,
-    "pack_size": 5.9818,
+    "rarity": 10.9928,
+    "pack_size": 6.0321,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 36.8336
+    "more_scarabs": 35.0902
    }
   },
   {
    "name": "of Deadliness",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 63,
+   "frequency": 392,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.8928,
-    "pack_size": 5.9911,
+    "rarity": 9.0227,
+    "pack_size": 6.0286,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1673,11 +1937,11 @@
    "name": "of Deadliness",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 137,
+   "frequency": 948,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 56.2063,
-    "pack_size": 6.0301,
+    "rarity": 56.009,
+    "pack_size": 5.9822,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1687,11 +1951,11 @@
    "name": "of Decaying",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 115,
+   "frequency": 600,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 10.9357,
-    "pack_size": 19.9786,
+    "rarity": 10.9952,
+    "pack_size": 19.9718,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1701,12 +1965,12 @@
    "name": "of Defiance",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 326,
+   "frequency": 2542,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 12.0583,
-    "pack_size": 6.0338,
-    "more_currency": 64.3637,
+    "rarity": 12.0418,
+    "pack_size": 5.9955,
+    "more_currency": 64.0455,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1715,11 +1979,11 @@
    "name": "of Desecration",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 14,
+   "frequency": 113,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9407,
-    "pack_size": 4.7104,
+    "rarity": 5.9546,
+    "pack_size": 3.9853,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1729,11 +1993,11 @@
    "name": "of Domination",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 84,
+   "frequency": 529,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9291,
-    "pack_size": 5.1088,
+    "rarity": 7.9565,
+    "pack_size": 5.0281,
     "more_currency": 0.0,
     "more_maps": 35.0,
     "more_scarabs": 0.0
@@ -1743,12 +2007,12 @@
    "name": "of Doubt",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 65,
+   "frequency": 363,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9047,
-    "pack_size": 4.967,
-    "more_currency": 1.2139,
+    "rarity": 8.088,
+    "pack_size": 5.0354,
+    "more_currency": 0.1054,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1757,11 +2021,11 @@
    "name": "of Drought",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 60,
+   "frequency": 316,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9201,
-    "pack_size": 4.972,
+    "rarity": 7.9595,
+    "pack_size": 4.9772,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1771,25 +2035,25 @@
    "name": "of Elemental Weakness",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 73,
+   "frequency": 414,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9487,
-    "pack_size": 4.961,
-    "more_currency": 1.1656,
+    "rarity": 8.0741,
+    "pack_size": 5.0021,
+    "more_currency": 0.0529,
     "more_maps": 0.0,
-    "more_scarabs": 1.0886
+    "more_scarabs": 0.1179
    }
   },
   {
    "name": "of Endurance",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 67,
+   "frequency": 305,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8862,
-    "pack_size": 5.0005,
+    "rarity": 7.9502,
+    "pack_size": 5.043,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1799,67 +2063,67 @@
    "name": "of Endurance",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 219,
+   "frequency": 1054,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9081,
-    "pack_size": 5.0253,
+    "rarity": 8.0035,
+    "pack_size": 5.0422,
     "more_currency": 0.0,
     "more_maps": 35.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0681
    }
   },
   {
    "name": "of Enervation",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 69,
+   "frequency": 306,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9564,
-    "pack_size": 3.968,
+    "rarity": 5.9534,
+    "pack_size": 4.0101,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0387
    }
   },
   {
    "name": "of Enfeeblement",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 74,
+   "frequency": 396,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.934,
-    "pack_size": 5.1382,
-    "more_currency": 0.9905,
+    "rarity": 7.9478,
+    "pack_size": 5.0066,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0012
    }
   },
   {
    "name": "of Exposure",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 82,
+   "frequency": 486,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.9067,
-    "pack_size": 6.9675,
-    "more_currency": 1.5951,
+    "rarity": 10.9465,
+    "pack_size": 7.0004,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0807
    }
   },
   {
    "name": "of Exposure",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 144,
+   "frequency": 562,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 10.9417,
-    "pack_size": 19.9781,
+    "rarity": 10.9493,
+    "pack_size": 19.9842,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1869,40 +2133,40 @@
    "name": "of Fatigue",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 59,
+   "frequency": 279,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9495,
-    "pack_size": 4.9892,
-    "more_currency": 2.604,
+    "rarity": 8.0293,
+    "pack_size": 4.9763,
+    "more_currency": 0.5285,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.2305
    }
   },
   {
    "name": "of Flames",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 17,
+   "frequency": 88,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.944,
-    "pack_size": 3.9723,
-    "more_currency": 0.822,
+    "rarity": 5.9559,
+    "pack_size": 4.0857,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 4.712
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Frenzy",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 48,
+   "frequency": 284,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9078,
-    "pack_size": 4.977,
-    "more_currency": 0.0387,
+    "rarity": 7.9396,
+    "pack_size": 4.9959,
+    "more_currency": 0.0099,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1911,13 +2175,27 @@
    "name": "of Frenzy",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 199,
+   "frequency": 1042,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9467,
-    "pack_size": 4.973,
+    "rarity": 7.9739,
+    "pack_size": 4.9812,
     "more_currency": 0.0,
     "more_maps": 35.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of Ghorr",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 149,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.1102,
+    "pack_size": 4.9669,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
     "more_scarabs": 0.0
    }
   },
@@ -1925,40 +2203,54 @@
    "name": "of Giants",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 46,
+   "frequency": 270,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9644,
-    "pack_size": 4.9713,
-    "more_currency": 0.0,
+    "rarity": 7.9445,
+    "pack_size": 5.0762,
+    "more_currency": 0.1759,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.2511
    }
   },
   {
    "name": "of Ice",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 26,
+   "frequency": 92,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9691,
-    "pack_size": 4.005,
-    "more_currency": 0.0,
+    "rarity": 5.9577,
+    "pack_size": 3.9737,
+    "more_currency": 0.3997,
     "more_maps": 0.0,
-    "more_scarabs": 3.4843
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Imbibing",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 200,
+   "frequency": 1678,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9056,
-    "pack_size": 5.0174,
-    "more_currency": 46.5366,
+    "rarity": 8.002,
+    "pack_size": 5.0147,
+    "more_currency": 44.95,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of Impedance",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 15,
+   "contributions": {
+    "quantity": 10.0,
+    "rarity": 6.0421,
+    "pack_size": 3.9887,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -1967,25 +2259,25 @@
    "name": "of Impotence",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 56,
+   "frequency": 303,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9131,
-    "pack_size": 4.9711,
-    "more_currency": 3.1832,
+    "rarity": 7.9389,
+    "pack_size": 4.98,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0348
    }
   },
   {
    "name": "of Impotence",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 138,
+   "frequency": 777,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 68.9194,
-    "pack_size": 5.1401,
+    "rarity": 34.9827,
+    "pack_size": 5.012,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -1995,40 +2287,82 @@
    "name": "of Imprecision",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 64,
+   "frequency": 337,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9077,
-    "pack_size": 4.9755,
+    "rarity": 8.0276,
+    "pack_size": 4.974,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.2777
+    "more_scarabs": 0.0405
+   }
+  },
+  {
+   "name": "of Insanity",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 582,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9902,
+    "pack_size": 5.0181,
+    "more_currency": 0.0401,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Insulation",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 57,
+   "frequency": 344,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9269,
-    "pack_size": 3.9738,
+    "rarity": 5.95,
+    "pack_size": 3.9758,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.5173
+    "more_scarabs": 0.0227
+   }
+  },
+  {
+   "name": "of K'Tash",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 178,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9231,
+    "pack_size": 5.0729,
+    "more_currency": 0.888,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Lightning",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 23,
+   "frequency": 114,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.985,
-    "pack_size": 3.9954,
-    "more_currency": 0.0648,
+    "rarity": 5.9594,
+    "pack_size": 3.9757,
+    "more_currency": 0.2589,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of Madness",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 26,
+   "contributions": {
+    "quantity": 0.0,
+    "rarity": 0.0,
+    "pack_size": 1.5162,
+    "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2037,54 +2371,54 @@
    "name": "of Marking",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 118,
+   "frequency": 503,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.2695,
-    "pack_size": 4.9914,
+    "rarity": 8.0601,
+    "pack_size": 4.9963,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 34.7568
+    "more_scarabs": 36.274
    }
   },
   {
    "name": "of Miring",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 59,
+   "frequency": 323,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9261,
-    "pack_size": 4.9646,
-    "more_currency": 1.5152,
+    "rarity": 8.0244,
+    "pack_size": 5.008,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.2622
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Miring",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 144,
+   "frequency": 663,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 8.2686,
-    "pack_size": 5.0371,
+    "rarity": 7.9539,
+    "pack_size": 5.0147,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 34.6147
+    "more_scarabs": 35.0137
    }
   },
   {
    "name": "of Penetration",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 85,
+   "frequency": 430,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 71.9776,
-    "pack_size": 5.9515,
-    "more_currency": 0.0,
+    "rarity": 36.0143,
+    "pack_size": 5.9698,
+    "more_currency": 0.1818,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2093,11 +2427,11 @@
    "name": "of Persistence",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 103,
+   "frequency": 452,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 7.9343,
-    "pack_size": 17.0911,
+    "rarity": 7.9474,
+    "pack_size": 16.9714,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2107,11 +2441,11 @@
    "name": "of Power",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 54,
+   "frequency": 279,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8933,
-    "pack_size": 4.9871,
+    "rarity": 7.9538,
+    "pack_size": 5.0139,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2121,25 +2455,25 @@
    "name": "of Power",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 191,
+   "frequency": 1037,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9282,
-    "pack_size": 5.0223,
-    "more_currency": 0.4415,
+    "rarity": 7.9778,
+    "pack_size": 4.9884,
+    "more_currency": 0.0,
     "more_maps": 35.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0229
    }
   },
   {
    "name": "of Rust",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 70,
+   "frequency": 380,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.93,
-    "pack_size": 4.9815,
+    "rarity": 7.9467,
+    "pack_size": 4.9977,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2149,54 +2483,54 @@
    "name": "of Smothering",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 69,
+   "frequency": 372,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9086,
-    "pack_size": 5.9808,
-    "more_currency": 0.0,
+    "rarity": 8.9433,
+    "pack_size": 5.9684,
+    "more_currency": 0.0756,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.0153
    }
   },
   {
    "name": "of Splinters",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 38,
+   "frequency": 196,
    "contributions": {
     "quantity": 19.0,
-    "rarity": 7.9141,
-    "pack_size": 4.9942,
+    "rarity": 7.9474,
+    "pack_size": 5.0728,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.2025
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Stasis",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 39,
+   "frequency": 176,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.9178,
-    "pack_size": 5.9668,
-    "more_currency": 0.3056,
+    "rarity": 8.9498,
+    "pack_size": 6.0393,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.0
+    "more_scarabs": 0.1549
    }
   },
   {
    "name": "of Temporal Chains",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 69,
+   "frequency": 406,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.882,
-    "pack_size": 4.9513,
-    "more_currency": 0.8343,
+    "rarity": 7.9533,
+    "pack_size": 5.0261,
+    "more_currency": 0.0838,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2205,12 +2539,12 @@
    "name": "of Toughness",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 62,
+   "frequency": 316,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9548,
-    "pack_size": 3.9742,
-    "more_currency": 0.0,
+    "rarity": 6.1899,
+    "pack_size": 3.9782,
+    "more_currency": 0.1371,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2219,12 +2553,12 @@
    "name": "of Toughness",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 52,
+   "frequency": 213,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 55.9091,
-    "pack_size": 4.988,
-    "more_currency": 0.0,
+    "rarity": 28.0727,
+    "pack_size": 5.0174,
+    "more_currency": 0.0421,
     "more_maps": 0.0,
     "more_scarabs": 0.0
    }
@@ -2233,11 +2567,11 @@
    "name": "of Transience",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 51,
+   "frequency": 358,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.9472,
-    "pack_size": 3.975,
+    "rarity": 5.9497,
+    "pack_size": 3.996,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2247,39 +2581,53 @@
    "name": "of Transience",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 139,
+   "frequency": 711,
    "contributions": {
     "quantity": 10.0,
-    "rarity": 5.8862,
-    "pack_size": 4.0729,
+    "rarity": 5.9856,
+    "pack_size": 3.9729,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 34.8329
+    "more_scarabs": 34.8601
    }
   },
   {
    "name": "of Treachery",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 77,
+   "frequency": 407,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 53.9119,
-    "pack_size": 4.994,
-    "more_currency": 0.2085,
+    "rarity": 27.1387,
+    "pack_size": 4.9764,
+    "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.2146
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of Unearthed Technology",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 426,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 7.9917,
+    "pack_size": 5.0343,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Venom",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 2,
+   "frequency": 22,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 8.7792,
-    "pack_size": 5.9466,
+    "rarity": 8.9976,
+    "pack_size": 5.9906,
     "more_currency": 0.0,
     "more_maps": 0.0,
     "more_scarabs": 0.0
@@ -2289,42 +2637,70 @@
    "name": "of Venom",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 69,
+   "frequency": 446,
    "contributions": {
     "quantity": 16.0,
-    "rarity": 48.9216,
-    "pack_size": 5.9857,
+    "rarity": 49.0224,
+    "pack_size": 5.9737,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 1.4808
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of Vulnerability",
    "tier": "S0",
    "slot": "suffix",
-   "frequency": 76,
+   "frequency": 414,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.9454,
-    "pack_size": 4.985,
+    "rarity": 8.0689,
+    "pack_size": 5.0004,
     "more_currency": 0.0,
     "more_maps": 0.0,
-    "more_scarabs": 0.6541
+    "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of Zarokh",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 803,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.0196,
+    "pack_size": 5.0004,
+    "more_currency": 0.0,
+    "more_maps": 0.0,
+    "more_scarabs": 0.0
    }
   },
   {
    "name": "of the Juggernaut",
    "tier": "S1",
    "slot": "suffix",
-   "frequency": 159,
+   "frequency": 1161,
    "contributions": {
     "quantity": 13.0,
-    "rarity": 7.8993,
-    "pack_size": 4.9904,
-    "more_currency": 49.0665,
+    "rarity": 8.0683,
+    "pack_size": 4.9941,
+    "more_currency": 47.2041,
     "more_maps": 0.0,
     "more_scarabs": 0.0
+   }
+  },
+  {
+   "name": "of the Woods",
+   "tier": "S0",
+   "slot": "suffix",
+   "frequency": 637,
+   "contributions": {
+    "quantity": 13.0,
+    "rarity": 8.1122,
+    "pack_size": 5.0553,
+    "more_currency": 0.3017,
+    "more_maps": 0.0,
+    "more_scarabs": 0.1204
    }
   }
  ]

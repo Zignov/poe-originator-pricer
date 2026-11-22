@@ -231,16 +231,66 @@ def fetch_rate_quote(
     session: requests.Session | None = None,
     **kwargs: Any,
 ) -> RateQuote:
-    """The chaos price of one currency, with its volume and source attached."""
+    """The chaos price of one currency, with its volume and source attached.
+
+    GGG's own Currency Exchange is tried first and poe.ninja is the fallback.
+    Both answer the same question and agree closely -- 210.5 against 213.3
+    chaos per divine when this was wired up -- but only one of them is an
+    officially documented public API reporting trades that actually executed,
+    and poe.ninja is itself an aggregate of it. The fallback stays because
+    poe.ninja covers currencies and private leagues the hourly digests may not,
+    and because a single upstream for the number every stored price is
+    normalised through is a bad idea whoever that upstream is.
+    """
+    quote = _official_quote(league, user_agent, want, session, **kwargs)
+    if quote is not None:
+        return quote
+
     rates = fetch_rates(league, user_agent, session, **kwargs)
     key = CURRENCY_IDS.get(want, want)
     quote = rates.get(key)
     if quote is None:
         raise ExchangeRateError(
-            f"poe.ninja has no {want!r} rate for {league!r} "
-            f"(it priced {len(rates)} other currencies)"
+            f"neither GGG's Currency Exchange nor poe.ninja has a {want!r} rate "
+            f"for {league!r} (poe.ninja priced {len(rates)} other currencies)"
         )
     return quote
+
+
+def _official_quote(
+    league: str,
+    user_agent: str,
+    want: str,
+    session: requests.Session | None = None,
+    **kwargs: Any,
+) -> RateQuote | None:
+    """GGG's rate for one currency, or None to fall through to poe.ninja.
+
+    Imported inside the function because `currency_exchange` imports
+    `RateQuote` and `ExchangeRateError` from this module, and a module-level
+    import either way round would be circular.
+
+    Returns None on every failure rather than raising. A rate this project
+    cannot get from GGG is not an error while a second source exists, and the
+    caller's own error is better than one from a source it did not ask for.
+    """
+    if want not in _OFFICIAL_CURRENCIES:
+        return None
+    try:
+        from src.market.currency_exchange import fetch_rates as fetch_official
+
+        rates = fetch_official(
+            league, user_agent, session, limiter=kwargs.get("limiter")
+        )
+    except Exception:
+        return None
+    return rates.get(want)
+
+
+#: What the Currency Exchange digests are read for. Deliberately only the two
+#: orbs this project needs: the digests carry ~1,900 markets an hour and
+#: parsing all of them to answer one question would be wasteful.
+_OFFICIAL_CURRENCIES = frozenset({"divine", "exalted"})
 
 
 def fetch_chaos_rate(

@@ -48,7 +48,7 @@ producing wrong prices.
 | `src/database/` | SQLite schema, migrations, all SQL | schema |
 | `src/ml/` | features, backends, training, prediction, confidence, explanation | schema, database |
 | `src/pricing/` | currency, selling strategy, and the `PricingService` façade | everything below |
-| `src/overlay/` | the desktop overlay: its JSON contract, calibration, layout and tkinter window | schema, pricing, the palette |
+| `src/overlay/` | the desktop overlay: its JSON contract, calibration, appearance, layout and tkinter window | schema, pricing, the palette |
 | `src/ui/` | Streamlit pages | `PricingService` and repositories only |
 | `src/cli.py` | the same operations without Streamlit | same as UI |
 
@@ -70,6 +70,48 @@ serialisation, the resolution-mismatch check -- is a plain function or frozen
 dataclass in `state.py` / `calibration.py` / `layout.py`, tested headlessly.
 `window.py` is a renderer with no judgement in it, which is why nothing in the
 test suite needs a display.
+
+### Where it sits, and how it looks, are two different things
+
+`calibration.py` and `appearance.py` are deliberately separate, and the split is
+not cosmetic:
+
+- A **calibration** is a measurement of the user's screen -- origin, cell pitch,
+  grid, and the resolution it was confirmed at. It is per surface, because a
+  stash tab and an inventory are in different places and different shapes, so it
+  lives in the `overlay:` and `overlay_inventory:` blocks. Getting it wrong puts
+  a price on the wrong map, and does so *invisibly*: the grid still looks tidy.
+- An **appearance** is a preference -- faces, colours, whether the confidence
+  meter is drawn at all. Nothing in it is per surface and nothing in it can
+  misplace a price, so it is one shared `appearance.overlay:` block.
+
+Opacity is the one field on the calibration side that reads like a preference,
+and it stays there because the calibration screen edits it with `+`/`-` while
+the user is looking at the game through it. Two writers for one setting would be
+worse than the inconsistency.
+
+`layout.py` takes an `OverlayAppearance` as a defaulted third argument, so every
+caller that only cares about geometry -- most of the tests -- is unchanged, and
+`window.py` reads the block once at construction rather than per redraw: the
+redraw runs on a timer over a game, and is not the place to re-parse settings.
+
+### The palette is shared, and it is mutated rather than rebound
+
+`src/ui/palette.py` holds the value bands and the confidence colours, and both
+front ends do `from src.ui.palette import VALUE_COLOURS` and then subscript it at
+draw time. User overrides are applied by **mutating those dictionaries in place**
+-- rebinding the name would leave every importer holding the old one -- which is
+what makes a band re-coloured on the Settings page reach the web grid and the
+overlay together. The module re-applies whatever `appearance.palette` holds when
+it is imported, which is how a cold overlay process picks the same colours up
+with no Streamlit involved.
+
+The web app's *structural* colours are the other half, and they cannot work the
+same way: the page stylesheet in `src/ui/common.py` is a literal string built at
+import. So a theme is delivered twice over -- `palette.appearance_css()`
+re-points the `:root` design tokens the stylesheet is written against, and
+`palette.streamlit_theme_toml()` regenerates `.streamlit/config.toml` for the
+widgets Streamlit draws for itself, which it reads once at startup.
 
 ## Adapters
 

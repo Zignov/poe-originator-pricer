@@ -42,6 +42,7 @@ from src.market.rate_limit import RateLimiter
 from src.parsing.item_parser import classify, parse_item_text
 from src.pricing.currency import CurrencyConverter
 from src.schema import ORIGINATOR_IMPLICIT_STAT_ID, NormalizedMap
+from src.market.collectors.official_trade_api import QUANTITY_FILTER
 
 #: The reference present for every fixture in this file. It has to move with
 #: the real clock, not sit on a date: the paths that go through `MarketPricer`
@@ -235,7 +236,7 @@ def test_the_query_keeps_the_scope_the_originator_implicit_and_the_sort():
     query = comparable_query(FakeTradeClient([]).build_query, a_map(), 1.0)
     filters = query["query"]["filters"]
     assert filters["map_filters"]["filters"]["map_tier"] == {"min": 16, "max": 16}
-    assert filters["map_filters"]["filters"]["map_iiq"] == {"min": 74, "max": 94}
+    assert filters["map_filters"]["filters"][QUANTITY_FILTER] == {"min": 74, "max": 94}
     assert filters["map_filters"]["filters"]["map_iir"] == {"min": 114, "max": 154}
     assert filters["map_filters"]["filters"]["map_packsize"] == {"min": 27, "max": 37}
     assert filters["type_filters"]["filters"]["rarity"] == {"option": "rare"}
@@ -282,7 +283,7 @@ def test_it_widens_when_too_few_come_back_and_records_which_step_answered():
     assert len(outcome.comparables) == 7
     # And the second search really was wider than the first.
     first, second = (
-        q["query"]["filters"]["map_filters"]["filters"]["map_iiq"]
+        q["query"]["filters"]["map_filters"]["filters"][QUANTITY_FILTER]
         for q in finder.client.searches
     )
     assert second["min"] < first["min"] and second["max"] > first["max"]

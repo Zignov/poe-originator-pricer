@@ -15,7 +15,7 @@ from src.market.collectors.manual_import import (
 )
 from src.market.collect_job import CollectJob
 from src.market.currency_source import ExchangeRateError, fetch_rate_quote
-from src.market.ingest import converter_for, refresh_outliers, store
+from src.market.ingest import converter_for, refresh_outliers, restate_prices, store
 from src.schema import FEATURE_NAMES
 from src.ui.common import (
     CHART_SERIES,
@@ -34,6 +34,7 @@ from src.ui.common import (
     price_histogram,
     show_flash,
     stat_rail,
+    tab_strip,
     typical_focus,
 )
 
@@ -63,17 +64,20 @@ def render() -> None:
         ]
     )
 
-    collect_tab, passive_tab, import_tab, inspect_tab = st.tabs(
-        ["Collect", "Passive", "Import", "Inspect and export"]
-    )
+    # A strip rather than st.tabs so that the tab you were reading is still the
+    # one on screen after a look at another page. Only the named body runs; a
+    # collection already in flight is unaffected by that, because the run lives
+    # on a worker thread and its outcome is reported by whichever rerun next
+    # draws the Collect tab.
+    open_tab = tab_strip("market_data_tab", ["Collect", "Passive", "Import", "Inspect and export"])
 
-    with collect_tab:
+    if open_tab == "Collect":
         _collect(cfg, repo)
-    with passive_tab:
+    elif open_tab == "Passive":
         _passive(cfg)
-    with import_tab:
+    elif open_tab == "Import":
         _import(cfg, repo)
-    with inspect_tab:
+    elif open_tab == "Inspect and export":
         _inspect(cfg, repo, fmt)
 
 
@@ -570,7 +574,7 @@ def _orb_prices(cfg, repo) -> None:
             if stored
             else "From config — never refreshed."
         )
-        if st.button("Refresh Divine", use_container_width=True):
+        if st.button("Refresh Divine", width="stretch"):
             try:
                 quote = fetch_rate_quote(cfg.get("league"), user_agent(cfg), "divine")
             except ExchangeRateError as exc:
@@ -579,9 +583,16 @@ def _orb_prices(cfg, repo) -> None:
                 repo.set_divine_rate(
                     cfg.get("league"), quote.chaos, source="poe_ninja_exchange"
                 )
-                repo.recompute_price_chaos(quote.chaos)
+                # Re-flags outliers too: a new rate moves every
+                # divine-denominated price, and a flag decided at the old rate
+                # judges a number that no longer exists. See src/market/ingest.py.
+                flags = restate_prices(cfg, repo, quote.chaos)
                 invalidate_data()  # every price_chaos in the table just moved
-                flash("success", f"{quote.summary()}. All stored prices recomputed.")
+                flash(
+                    "success",
+                    f"{quote.summary()}. All stored prices recomputed; "
+                    f"{flags['flagged']} of {flags['evaluated']} flagged as outliers.",
+                )
                 st.rerun()
         st.caption("Every stored price is recomputed through this rate.")
 
@@ -591,7 +602,7 @@ def _orb_prices(cfg, repo) -> None:
         st.caption(
             f"Set {stamp:%Y-%m-%d %H:%M} UTC" if stamp else "From config — never refreshed."
         )
-        if st.button("Refresh Exalted", use_container_width=True):
+        if st.button("Refresh Exalted", width="stretch"):
             try:
                 quote = fetch_rate_quote(cfg.get("league"), user_agent(cfg), "exalted")
             except ExchangeRateError as exc:
@@ -748,7 +759,7 @@ def _inspect(cfg, repo, fmt) -> None:
                 ]
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     st.markdown("**Flagged outliers**")
@@ -757,7 +768,7 @@ def _inspect(cfg, repo, fmt) -> None:
     else:
         st.dataframe(
             flagged_frame["reason"].value_counts().rename("listings"),
-            use_container_width=True,
+            width="stretch",
         )
         if st.button("Re-run outlier detection"):
             result = refresh_outliers(cfg, repo)
@@ -771,7 +782,7 @@ def _inspect(cfg, repo, fmt) -> None:
             st.rerun(scope="app")
 
     st.markdown("**Latest captures**")
-    st.dataframe(frame.tail(25), hide_index=True, use_container_width=True)
+    st.dataframe(frame.tail(25), hide_index=True, width="stretch")
 
     # Two exports, because they are genuinely two different things and one
     # button trying to be both is what broke the round-trip: the view frame
@@ -785,7 +796,7 @@ def _inspect(cfg, repo, fmt) -> None:
             dataset_csv,
             "originator_dataset.csv",
             "text/csv",
-            use_container_width=True,
+            width="stretch",
         )
         st.caption("Importer's own schema. Drop it back into the Import tab as-is.")
     with view_col:
@@ -794,6 +805,6 @@ def _inspect(cfg, repo, fmt) -> None:
             view_csv,
             "originator_view.csv",
             "text/csv",
-            use_container_width=True,
+            width="stretch",
         )
         st.caption(f"What is on screen: prices in {fmt.unit}, plus outlier reasons.")

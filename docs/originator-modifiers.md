@@ -115,13 +115,46 @@ appear in live item JSON:
 | `More Maps` | 88 | `more_maps` |
 | `More Scarabs` | 89 | `more_scarabs` |
 | `More Currency` | 90 | `more_currency` |
-| `More Divination Cards` | **Unknown id** | `more_divination_cards` |
+| `More Divination Cards` | 91 | `more_divination_cards` |
 
-**Unknown.** The `type` id for `More Divination Cards` was not observed in any
-sampled listing — the reward is rare enough that it did not appear in the
-captured sample. The parser matches on the property *name* first and only falls
-back to the id, so this gap does not break parsing. `src/schema.py` documents the
-gap rather than guessing a number.
+**Confirmed since.** The `type` id for `More Divination Cards` was unknown when
+this was first written — the reward is rare enough that it did not appear in the
+original captured sample — and was later observed as **91** in stored Allflame
+payloads. The parser matches on the property *name* first and only falls back to
+the id, so the gap never broke parsing while it lasted.
+
+### 3a. The Covens rename
+
+**Confirmed**, read out of 200 live listings from `POST /api/trade/search/Covens`
+on **2026-11-22**. Two of the seven were relabelled:
+
+| Through Allflame | In Covens | `type` id |
+|---|---|---:|
+| `Item Quantity` | `[AtlasDropScaling\|Atlas Drops]` | 2 → **112** |
+| `More Scarabs` | `More [Thread\|Threads]` | 89 — **unchanged** |
+
+Three things here are worth recording, because together they are the whole
+lesson:
+
+1. **Names now arrive wrapped in localisation markup.** `[InternalId|Display
+   Text]`, and sometimes `[Word]` with no alternative. A literal name match
+   fails against the raw string, so the display half is extracted first —
+   `normalise_property_label` in `src/parsing/implicit_parser.py`.
+2. **The numeric fallback is necessary but not sufficient.** It saved
+   `More Threads`, which kept id 89. It did not save quantity, which changed
+   *both* name and id. A design that relies on ids being stable is a design
+   that will lose a feature eventually.
+3. **The failure was silent and shaped to stay silent.** Every map collected in
+   Covens read `quantity: 0`. Nothing raised, nothing logged. Near the training
+   floor a missing feature barely moves the predicted price, so cheap maps
+   looked fine; on a strong map it roughly halved the number. The symptom was
+   therefore "the pricer is a bit pessimistic about my best maps", which is not
+   a symptom anyone debugs.
+
+Unrecognised reward-shaped properties are now reported rather than dropped —
+see `looks_like_a_reward` and `tests/test_league_renames.py`. Both the old and
+the new names remain valid permanently: historical rows, community CSVs and
+stash exports from past leagues all still have to parse.
 
 **Confirmed.** On the trade site, the four "More" rewards are exposed as
 *pseudo* stats, not as searchable explicit or implicit mods:

@@ -10,6 +10,7 @@
     python -m src.cli import-market listings.json
     python -m src.cli overlay --calibrate
     python -m src.cli overlay
+    python -m src.cli price-check
     python -m src.cli status
 """
 from __future__ import annotations
@@ -21,9 +22,15 @@ from pathlib import Path
 from typing import Sequence
 
 from src.config import load_config, user_agent
+from src.schema import FEATURE_SHORT_LABELS
 from src.database.repository import Repository
 from src.market.comparables import format_age
-from src.market.ingest import collect_from_trade_api, converter_for, store
+from src.market.ingest import (
+    collect_from_trade_api,
+    converter_for,
+    restate_prices,
+    store,
+)
 from src.ml.predict import ModelNotTrained, ModelSchemaMismatch, Predictor
 from src.ml.decision_bands import verdict
 from src.overlay.profiles import DEFAULT_PROFILE, PROFILE_KEYS, profile_for
@@ -55,9 +62,13 @@ def _service(cfg, repo, require_model: bool = True) -> PricingService:
 def _print_priced(
     priced: Sequence[PricedMap], formatter: PriceFormatter, show_comparables: bool = False
 ) -> None:
+    # Reward columns named from the schema, so the header a league rename
+    # produces matches the numbers underneath it.
+    short = FEATURE_SHORT_LABELS
     header = (
-        f"{'Pos':<5}{'Cur':>5}{'Maps':>6}{'Scar':>6}{'Div':>5}{'Pack':>6}"
-        f"{'Qty':>6}{'Rar':>6}{'Fair':>10}{'Sugg':>10}{'Range':>18}  {'Conf':<7}Action"
+        f"{'Pos':<5}{'Cur':>5}{'Maps':>6}{short['more_scarabs']:>6}{'Div':>5}{'Pack':>6}"
+        f"{short['quantity']:>6}{'Rar':>6}{'Fair':>10}{'Sugg':>10}{'Range':>18}"
+        f"  {'Conf':<7}Action"
     )
     print(header)
     print("-" * len(header))
@@ -131,17 +142,32 @@ def cmd_update_rate(args) -> int:
     with Repository(cfg.db_path) as repo:
         if args.rate is not None:
             repo.set_divine_rate(cfg.get("league"), args.rate, source="manual")
-            repo.recompute_price_chaos(args.rate)
+            flags = restate_prices(cfg, repo, args.rate)
             print(f"divine -> chaos set to {args.rate} (manual) and prices recomputed")
+            print(f"  {flags['flagged']} of {flags['evaluated']} listings flagged as outliers")
             return 0
+        from src.market.currency_source import fetch_rate_quote
+
         try:
-            rate = fetch_divine_to_chaos(cfg.get("league"), user_agent(cfg))
+            # The quote rather than the bare float, so the source printed is
+            # the source that actually answered. This used to hardcode
+            # "official exchange endpoint" whatever happened, including when
+            # the official feed failed and poe.ninja supplied the number --
+            # which is exactly the moment a user needs to be told.
+            quote = fetch_rate_quote(cfg.get("league"), user_agent(cfg), "divine")
+            rate, source, volume = quote.chaos, quote.source, quote.volume
         except ExchangeRateError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
-        repo.set_divine_rate(cfg.get("league"), rate, source="official_exchange_api")
-        repo.recompute_price_chaos(rate)
-        print(f"divine -> chaos = {rate:.1f} (official exchange endpoint); prices recomputed")
+        repo.set_divine_rate(cfg.get("league"), rate, source=source)
+        # Re-flags outliers as well, because a new rate moves every
+        # divine-denominated price across the plausibility bounds. See
+        # src/market/ingest.py.
+        flags = restate_prices(cfg, repo, rate)
+        print(f"divine -> chaos = {rate:.1f} (from {source}); prices recomputed")
+        print(f"  {flags['flagged']} of {flags['evaluated']} listings flagged as outliers")
+        if volume:
+            print(f"  hourly traded volume: {volume:,.0f} chaos")
     return 0
 
 
@@ -361,6 +387,32 @@ def cmd_overlay(args) -> int:
         return 2
 
 
+def cmd_price_check(args) -> int:
+    """Hotkey price checks on the copied item.
+
+    A separate process from both the Streamlit app and the overlay, and for the
+    same reason the overlay is: tkinter wants the main thread and a blocking
+    mainloop. It meets the rest of the app at the local HTTP service rather
+    than at a file, because unlike the overlay -- which consumes a tab that was
+    already priced -- this asks a question and waits for an answer.
+    """
+    from src.pricecheck.app import PriceCheckUnavailable, run_price_check
+
+    cfg = load_config(args.config)
+    try:
+        return run_price_check(
+            cfg,
+            port=args.port,
+            strategy=args.strategy,
+            watch=False if args.no_watch else None,
+            hotkey=args.hotkey,
+            spawn=not args.no_spawn,
+        )
+    except PriceCheckUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
 def cmd_price_tab_market(args) -> int:
     """Price a tab from live listings instead of from the model.
 
@@ -525,6 +577,23 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"state file to watch (default {DEFAULT_STATE_PATH}, per --profile)",
     )
     overlay.set_defaults(func=cmd_overlay)
+
+    check = sub.add_parser(
+        "price-check",
+        help="hotkey price checks on the item you copy with Ctrl+C in game",
+    )
+    check.add_argument("--port", type=int, default=None)
+    check.add_argument("--strategy", choices=STRATEGIES, default=None)
+    check.add_argument("--hotkey", default=None, help="e.g. ctrl+alt+d")
+    check.add_argument(
+        "--no-watch", action="store_true",
+        help="do not price on Ctrl+C; wait for the hotkey instead",
+    )
+    check.add_argument(
+        "--no-spawn", action="store_true",
+        help="require a pricing service to be running already",
+    )
+    check.set_defaults(func=cmd_price_check)
 
     market = sub.add_parser(
         "price-tab-market",

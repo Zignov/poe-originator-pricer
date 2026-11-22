@@ -1,6 +1,7 @@
 """The reconciler: what one poll means for what we already knew."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from src.schema import MarketListing, NormalizedMap
@@ -133,3 +134,76 @@ def test_distinct_maps_are_not_ambiguous():
         now=T0, complete=True,
     )
     assert not any(r.ambiguous for r in result.live)
+
+
+# ---------------------------------------------------------------------------
+# The age comes from GGG's own timestamp, not from how long we have watched
+# ---------------------------------------------------------------------------
+def _indexed_listing(indexed, price=120.0, listing_id="abc"):
+    listing = _listing(price=price, listing_id=listing_id)
+    return replace(listing, indexed_at=indexed)
+
+
+def test_a_first_poll_dates_a_listing_from_the_api_not_from_the_poll():
+    """The whole point of reading `listing.indexed`: no scan history needed.
+
+    A map GGG says was listed three days ago is three days old on the first
+    pass after the app opens, not newly born because that is when we looked.
+    """
+    listed = T0 - timedelta(hours=62)
+    result = reconcile([], [_indexed_listing(listed)], now=T0, complete=True)
+    assert result.live[0].priced_at == listed
+    assert result.live[0].indexed_at == listed
+
+
+def test_a_currency_rate_move_alone_is_not_a_reprice():
+    """price_chaos is a conversion, not the ask.
+
+    The divine rate is refreshed from the live market while the tracker runs, so
+    a divine-priced listing's chaos figure moves without the seller touching
+    anything. Calling that a re-price reset the clock to now and wiped the age
+    off every such map on the page -- and split the episode, so the survival fit
+    saw a fresh listing where there was a three-day-old one.
+    """
+    listed = T0 - timedelta(hours=62)
+    row = _row(_map().fingerprint(), price=210.0, at=listed).replace(indexed_at=listed)
+    later = T0 + timedelta(minutes=15)
+
+    # Same listing, same `indexed`, 212 chaos to the divine instead of 210.
+    result = reconcile([row], [_indexed_listing(listed, price=212.0)], later, True)
+
+    assert result.events == (), "nobody repriced anything"
+    assert result.live[0].priced_at == listed, "the clock did not restart"
+    assert result.live[0].price_chaos == 212.0, "today's conversion is still carried"
+
+
+def test_a_real_reprice_is_dated_from_when_ggg_reindexed_it():
+    listed = T0 - timedelta(hours=62)
+    reindexed = T0 - timedelta(hours=2)
+    row = _row(_map().fingerprint(), price=180.0, at=listed).replace(indexed_at=listed)
+
+    result = reconcile([row], [_indexed_listing(reindexed, price=120.0)], T0, True)
+
+    assert [e.event for e in result.events] == ["repriced"]
+    assert result.live[0].priced_at == reindexed, (
+        "the new price went up when GGG re-indexed it, not when we noticed"
+    )
+    assert result.live[0].indexed_at == reindexed
+
+
+def test_a_row_with_no_timestamp_picks_one_up_the_next_time_it_is_seen():
+    """Rows written before this was carried are not stuck on the poll clock."""
+    row = _row(_map().fingerprint(), price=120.0, at=T0)
+    assert row.indexed_at is None
+    listed = T0 - timedelta(hours=30)
+    result = reconcile([row], [_indexed_listing(listed)], T0 + timedelta(minutes=5), True)
+    assert result.live[0].indexed_at == listed
+
+
+def test_without_timestamps_the_converted_price_still_decides():
+    """No `indexed` on either side -- an import -- and the old rule applies."""
+    row = _row(_map().fingerprint(), price=180.0)
+    later = T0 + timedelta(hours=3)
+    result = reconcile([row], [_listing(price=120.0)], now=later, complete=True)
+    assert [e.event for e in result.events] == ["repriced"]
+    assert result.live[0].priced_at == later

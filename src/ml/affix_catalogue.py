@@ -321,9 +321,19 @@ def _harvest_templates(
 
 
 def _reported_quantity(item: dict[str, Any]) -> float | None:
-    """The map's own Item Quantity, which is what disambiguates the reading."""
+    """The map's own quantity roll, which is what disambiguates the reading.
+
+    Resolved through `feature_for_label` rather than matched against a literal
+    name. It used to test for "Item Quantity" directly, which stopped finding
+    anything the moment Covens renamed that property to "Atlas Drops" and
+    wrapped it in localisation markup -- and a catalogue built from maps whose
+    quantity reads as None is a catalogue with nothing to disambiguate against.
+    """
+    from src.parsing.implicit_parser import feature_for_label
+
     for prop in item.get("properties") or []:
-        if (prop or {}).get("name") not in ("Item Quantity", "quantity"):
+        name = (prop or {}).get("name", "")
+        if feature_for_label(name) != "quantity":
             continue
         for value in prop.get("values") or []:
             if value and value[0]:

@@ -36,6 +36,32 @@ def _ladder_from_config(cfg, stale_after_hours: float) -> LadderConfig:
     )
 
 
+def _field(row, name):
+    """One column, whether the row is a dict or a `sqlite3.Row`, or absent.
+
+    Both shapes reach this page -- the repository hands back `sqlite3.Row`, the
+    tests and `stale_rows` hand back dicts -- and `sqlite3.Row` has no `.get`
+    while a dict has no tolerance for a missing key.
+    """
+    if hasattr(row, "get"):
+        return row.get(name)
+    try:
+        return row[name]
+    except (IndexError, KeyError):
+        return None
+
+
+def _as_datetime(value) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
 def _priced_at(row) -> datetime:
     value = row["priced_at"]
     if isinstance(value, str):
@@ -43,14 +69,32 @@ def _priced_at(row) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def hours_listed(row, now: datetime) -> float:
-    """How long the *current* price has been up.
+def listed_at(row) -> datetime:
+    """When GGG says this ask went up -- the trade site's "listed X ago".
 
-    From `priced_at`, not from when the map was first listed: a map you marked
-    down an hour ago is an hour old here however long it sat at its old price.
-    That is the question the page asks -- is this price working.
+    `indexed_at` is `listing.indexed` straight from the trade API, so it is
+    known in full on the *first* poll after the app starts and does not depend
+    on having watched the listing for any length of time. That is the point:
+    ages used to be inferred from our own scan history, so every map read as
+    newly listed after a restart and nothing was ever stale until the app had
+    been open for a day.
+
+    Falls back to `priced_at` when the API gave no timestamp -- an imported row,
+    or one written before this was carried. `priced_at` is itself taken from
+    `indexed` where there was one, so the two agree wherever both exist.
     """
-    return (now - _priced_at(row)).total_seconds() / 3600.0
+    return _as_datetime(_field(row, "indexed_at")) or _priced_at(row)
+
+
+def hours_listed(row, now: datetime) -> float:
+    """How long the *current* price has been up, by GGG's clock.
+
+    Not "how long the map has been in your tab": GGG re-indexes a listing when
+    its note changes, so `indexed` restarts at a markdown, which is exactly the
+    question the page asks -- is *this* price working. A map you marked down an
+    hour ago is an hour old here however long it sat at its old price.
+    """
+    return (now - listed_at(row)).total_seconds() / 3600.0
 
 
 def stale_rows(
@@ -115,7 +159,7 @@ def alert_rows(live, gone, now: datetime) -> list[dict]:
         rows.append(entry)
     for row in gone:
         entry = dict(row)
-        start = _priced_at(row)
+        start = listed_at(row)
         last_seen = row["last_seen"]
         missing = row["gone_first_missing"]
         if isinstance(last_seen, str):
@@ -234,51 +278,64 @@ def overlay_groups(stale) -> dict[str, list[dict]]:
 
 
 def _poller(cfg, account: str, league: str):
-    """The session's poller, started once and kept across reruns.
+    """The poller watching this account, started if it is not already going.
 
     It gets a `Repository` of its own. `src/database/models.py:connect` opens
     with `check_same_thread=False` on the stated grounds that Streamlit
     serialises reruns so the connection only ever moves between threads -- and a
     background poller is exactly what breaks that. Two connections to the same
     file is what SQLite is for.
-    """
-    existing = st.session_state.get("listing_poller")
-    if existing is not None:
-        return existing
 
+    Ownership is the process registry in `src/tracking/poller.py`, not
+    `st.session_state`. Session state dies with the browser tab, so a refresh
+    used to orphan the running thread -- still polling, no longer cancellable --
+    and start a second one beside it, each with a rate limiter that knew nothing
+    of the other. The session-state entry is kept only as this session's handle
+    for the off switch. The registry decides whether anything is running, and
+    restarts a poller whose thread has died rather than handing it back dead.
+    """
     from src.config import user_agent
     from src.database.repository import Repository
     from src.market.collectors.official_trade_api import OfficialTradeApiCollector
     from src.market.ingest import converter_for
     from src.market.my_listings import fetch_my_listings
-    from src.tracking.poller import ListingPoller, PollerConfig
+    from src.tracking.poller import ListingPoller, poller_for
 
-    own_repo = Repository(cfg.db_path)
-    collector = OfficialTradeApiCollector(
-        league=league,
-        user_agent=user_agent(cfg),
-        converter=converter_for(cfg, own_repo),
-        map_tier=cfg.get("scope.map_tier"),
-        require_uncorrupted=cfg.get("scope.require_uncorrupted"),
-    )
-    poller = ListingPoller(
-        repo=own_repo,
-        source=lambda name: fetch_my_listings(collector, account=name),
-        account=account,
-        league=league,
-        cfg=PollerConfig(
-            interval_minutes=float(cfg.get("listing_tracker.poll_interval_minutes") or 15),
-            young_listing_minutes=float(cfg.get("listing_tracker.young_listing_minutes") or 60),
-            young_poll_interval_minutes=float(
-                cfg.get("listing_tracker.young_poll_interval_minutes") or 5
-            ),
-            reappearance_window_hours=float(
-                cfg.get("listing_tracker.reappearance_window_hours") or 6
-            ),
-        ),
-    ).start()
+    def build():
+        own_repo = Repository(cfg.db_path)
+        collector = OfficialTradeApiCollector(
+            league=league,
+            user_agent=user_agent(cfg),
+            converter=converter_for(cfg, own_repo),
+            map_tier=cfg.get("scope.map_tier"),
+            require_uncorrupted=cfg.get("scope.require_uncorrupted"),
+        )
+        return ListingPoller(
+            repo=own_repo,
+            source=lambda name: fetch_my_listings(collector, account=name),
+            account=account,
+            league=league,
+            cfg=_poller_config(cfg),
+        )
+
+    poller = poller_for(account, league, build)
     st.session_state["listing_poller"] = poller
     return poller
+
+
+def _poller_config(cfg):
+    from src.tracking.poller import PollerConfig
+
+    return PollerConfig(
+        interval_minutes=float(cfg.get("listing_tracker.poll_interval_minutes") or 15),
+        young_listing_minutes=float(cfg.get("listing_tracker.young_listing_minutes") or 60),
+        young_poll_interval_minutes=float(
+            cfg.get("listing_tracker.young_poll_interval_minutes") or 5
+        ),
+        reappearance_window_hours=float(
+            cfg.get("listing_tracker.reappearance_window_hours") or 6
+        ),
+    )
 
 
 def _fill_predictions(repo, rows, account: str, league: str) -> None:
@@ -374,6 +431,11 @@ def _tracker_toggle(cfg, account: str, league: str) -> None:
             poller = st.session_state.pop("listing_poller", None)
             if poller is not None:
                 poller.cancel()
+            # And out of the process registry, or the next rerun finds it there
+            # and starts it again -- the switch would look stuck on.
+            from src.tracking.poller import stop_poller
+
+            stop_poller(account, league)
         st.rerun()
 
     if chosen:
@@ -383,12 +445,118 @@ def _tracker_toggle(cfg, account: str, league: str) -> None:
             f"{cfg.get('listing_tracker.young_poll_interval_minutes') or 5} min, "
             f"the rest every {cfg.get('listing_tracker.poll_interval_minutes') or 15} min."
         )
+        _watch_status(poller)
     else:
         st.caption(
             "Not checking. Nothing new is recorded while this is off, so the "
             "gap becomes part of the bracket on anything that sells meanwhile. "
             "Whatever was recorded before is still shown below."
         )
+
+
+#: How often the watcher's status line redraws itself. Streamlit runs the script
+#: only when a widget is touched, so without this the page you left open all
+#: evening still says "last checked: never" however many passes the poller made
+#: behind it -- which is indistinguishable from a switch that does nothing, and
+#: was read as exactly that.
+#:
+#: Twenty seconds against the poller's five-minute floor: a fragment redraw is a
+#: caption and a button, and the point is only that the page stops lying about
+#: when it last looked.
+WATCH_REFRESH_SECONDS = 20
+
+
+@st.fragment(run_every=WATCH_REFRESH_SECONDS)
+def _watch_status(poller) -> None:
+    """What the watcher is actually doing, kept live and never silent.
+
+    Three things the page had no way to say before, all of which looked
+    identical from the outside -- "nothing has happened yet":
+
+    * a pass has landed since you opened the page (the fragment redraws);
+    * the last pass failed (the reason, rather than a stale success);
+    * the thread has stopped (with the switch still saying it was watching).
+
+    A fragment rather than the whole page: redrawing `render()` every twenty
+    seconds would re-run the model over every untracked listing and rebuild the
+    highlight regex for a caption.
+    """
+    state = poller.state
+    if state.last_run_at is None:
+        st.caption("First check is running now.")
+    else:
+        stamp = state.last_run_at.astimezone().strftime("%H:%M:%S")
+        st.caption(
+            f"Last checked {stamp} — {state.polls} pass(es) this session, "
+            f"{state.listings_live} listing(s) live."
+        )
+
+    if state.last_error:
+        hint(
+            f"The last check did not finish: {state.last_error}. Nothing was "
+            "marked sold from it — a search that never returned is not evidence "
+            "that your tab emptied."
+        )
+    if not poller.running:
+        hint(
+            # `hint` emits raw HTML, so Markdown never runs inside it -- tags,
+            # not asterisks, or the user reads the literal `**Check now**`.
+            "The watcher has stopped. Nothing is being recorded. Press "
+            "<b>Check now</b> to run a pass and restart it."
+        )
+
+    if st.button("Check now", key="listing_poll_now"):
+        _poll_now(poller)
+
+    outcome = st.session_state.get("listing_poll_result")
+    if outcome:
+        getattr(st, outcome[0])(outcome[1])
+
+
+def _poll_now(poller) -> None:
+    """Cut the cooldown short and wait for the pass, so the button can answer.
+
+    The pass runs on the poller's thread, never here. The poller's `Repository`
+    belongs to that thread, and running a pass through it from the script thread
+    would put two threads on one SQLite connection -- which
+    `check_same_thread=False` permits and does not make safe. So this pokes and
+    waits, which is also what makes the button work on a poller that has just
+    been restarted from the dead.
+
+    Waiting rather than firing and forgetting because the button exists to
+    answer "is this thing working", and a button that returns before there is an
+    answer is the thing being complained about.
+    """
+    before = poller.passes
+    poller.start()  # a no-op while it is alive; revives it when it is not
+    poller.poke()
+    with st.spinner("Checking your listings…"):
+        landed = poller.wait_for_pass(before)
+
+    # Through session state rather than straight onto the screen, because the
+    # rerun below throws this render away -- a button that reports its result
+    # and then wipes it is the same silence it was meant to fix.
+    if not landed:
+        st.session_state["listing_poll_result"] = (
+            "warning",
+            "The check is still running — a rate limit will make a pass wait. "
+            "The line above updates by itself when it lands.",
+        )
+    elif poller.state.last_error:
+        st.session_state["listing_poll_result"] = ("error", poller.state.last_error)
+    else:
+        st.session_state["listing_poll_result"] = (
+            "success",
+            f"Checked. {poller.state.listings_live} listing(s) live"
+            + ("" if poller.state.last_complete else ", partial pass")
+            + ".",
+        )
+    if landed:
+        # The whole app, not this fragment: the pass has just changed the table,
+        # the stat rail and the highlight regex, all of which live outside it.
+        st.rerun(scope="app")
+    else:
+        st.rerun(scope="fragment")
 
 
 # ----------------------------------------------------------------------
@@ -500,6 +668,12 @@ def render() -> None:
 
     default_stale = float(cfg.get("listing_tracker.stale_after_hours") or 24)
     section("Sitting", "Maps that have not sold at their current price.")
+    st.caption(
+        "Ages come from the listing's own timestamp in the trade API — the "
+        "same \"listed X ago\" the trade site prints — not from how long this "
+        "app has been watching. A map listed three days ago reads as three days "
+        "old on the first check after you open the app."
+    )
     hours = st.select_slider(
         "Listed for at least",
         options=[6, 12, 24, 48, 72, 168],

@@ -46,11 +46,28 @@ MIN_ROWS_FOR_PEERS = 40
 #: These used to be deliberately wide (1c to 20000c) on the reasoning that the
 #: peer test should do the real work. In practice the peer test cannot: it needs
 #: MIN_ROWS_FOR_PEERS comparable listings, and the extreme asks are extreme
-#: precisely because nothing is comparable to them. The uncorrupted T16 market
-#: runs from roughly 30c to 3 divine, so a listing above 1000c is almost always
-#: parked inventory rather than a price -- 0.7% of a 820-listing sample, but
-#: enough to own the top of every histogram and stretch the model's upper range.
-DEFAULT_PLAUSIBLE_CHAOS = (5.0, 1000.0)
+#: precisely because nothing is comparable to them.
+#:
+#: **The ceiling is league-relative and has to be revisited when a league turns
+#: over.** It was 1000c, set against an Allflame market whose largest honest
+#: price was 869c. In Covens, with a divine at ~203c, 1000c is under five
+#: divine -- and a 9,978-listing sample had 88 maps at 5 to 10 divine whose
+#: rolls plainly justified it:
+#:
+#:     1016c (5 div)  x37   avg atlas 87, rarity 116
+#:     1219c (6 div)  x5    avg atlas 94, rarity 161
+#:     2032c (10 div) x35
+#:
+#: All of them were being flagged and dropped, so the model never saw a single
+#: example of what the best maps in the league look like -- it could not price
+#: them, and the one thing a pricer must not get wrong is the expensive end.
+#:
+#: 2500c is placed in a real gap in the data: nothing at all sits between 2032c
+#: (10 divine) and 4065c (20 divine), and above that gap the rolls stop
+#: justifying the price -- 4065c on a map rolling atlas 49, rarity 30 is parked
+#: inventory, not an offer. Conditionally-absurd prices below the ceiling are
+#: still the peer test's job.
+DEFAULT_PLAUSIBLE_CHAOS = (5.0, 2500.0)
 
 
 def _peer_bounds(matrix: np.ndarray, prices: np.ndarray, k: int = NEIGHBOURS):
